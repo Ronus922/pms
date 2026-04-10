@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'standalone',
+  allowedDevOrigins: ['pms.bios.co.il'],
 };
 
 export default nextConfig;

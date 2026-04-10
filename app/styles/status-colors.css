@@ -1,0 +1,125 @@
+/* Booking Ribbon Status Colors */
+
+/* Confirmed / Checked-in */
+.ribbon-confirmed {
+  background: color-mix(in srgb, #005da7 10%, transparent);
+  color: #005da7;
+  border-right: 4px solid #005da7;
+}
+
+/* VIP */
+.ribbon-vip {
+  background: #f3e8ff;
+  color: #7c3aed;
+  border-right: 4px solid #a78bfa;
+}
+
+/* Pending / Awaiting Payment */
+.ribbon-pending {
+  background: #fffbeb;
+  color: #b45309;
+  border-right: 4px solid #fbbf24;
+}
+
+/* Blocked / Maintenance */
+.ribbon-blocked {
+  background: #fef2f2;
+  color: #dc2626;
+  border-right: 4px solid #fca5a5;
+  opacity: 0.5;
+}
+
+/* Group */
+.ribbon-group {
+  background: #ecfdf5;
+  color: #047857;
+  border-right: 4px solid #6ee7b7;
+}
+
+/* Unconfirmed / Draft */
+.ribbon-draft {
+  background: #f1f5f9;
+  color: #64748b;
+  border-right: 4px solid #cbd5e1;
+}
+
+/* Fully Paid */
+.ribbon-paid {
+  background: #ecfdf5;
+  color: #059669;
+  border-right: 4px solid #34d399;
+}
+
+/* No Show */
+.ribbon-noshow {
+  background: #fef2f2;
+  color: #991b1b;
+  border-right: 4px solid #ef4444;
+}
+
+/* Cancelled */
+.ribbon-cancelled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-right: 4px solid #cbd5e1;
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+/* Checked Out */
+.ribbon-checked-out {
+  background: #f8fafc;
+  color: #94a3b8;
+  border-right: 4px solid #e2e8f0;
+}
+
+/* Late Checkout */
+.ribbon-late-checkout {
+  background: #fefce8;
+  color: #a16207;
+  border-right: 4px solid #facc15;
+}
+
+/* Dark mode overrides */
+.dark .ribbon-confirmed {
+  background: color-mix(in srgb, #a4c9ff 15%, transparent);
+  color: #a4c9ff;
+  border-right-color: #a4c9ff;
+}
+
+.dark .ribbon-vip {
+  background: color-mix(in srgb, #c4b5fd 15%, transparent);
+  color: #c4b5fd;
+  border-right-color: #c4b5fd;
+}
+
+.dark .ribbon-pending {
+  background: color-mix(in srgb, #fbbf24 15%, transparent);
+  color: #fbbf24;
+  border-right-color: #fbbf24;
+}
+
+.dark .ribbon-blocked {
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  color: #fca5a5;
+  border-right-color: #ef4444;
+}
+
+.dark .ribbon-group {
+  background: color-mix(in srgb, #34d399 15%, transparent);
+  color: #6ee7b7;
+  border-right-color: #34d399;
+}
+
+/* Common ribbon base */
+.booking-ribbon {
+  backdrop-filter: blur(12px);
+  border-radius: 0.375rem;
+  padding: 0.375rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  position: absolute;
+  inset: 0.25rem;
+}

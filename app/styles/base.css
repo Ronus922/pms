@@ -1,0 +1,225 @@
+/* ── Tailwind overrides ── */
+.text-xs {
+  font-size: 16px !important;
+  line-height: 1.5;
+}
+
+.text-\[11px\] {
+  font-size: 13px !important;
+  line-height: 1.4;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-container: var(--primary-container);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary-container: var(--secondary-container);
+  --color-tertiary: var(--tertiary);
+  --color-tertiary-foreground: var(--tertiary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+  --color-surface: var(--surface);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container-high: var(--surface-container-high);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.375rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 3rem;
+  --font-headline: "Noto Sans Hebrew", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Noto Sans Hebrew", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Light Mode (Default) */
+:root {
+  --background: #f6f8fb;
+  --foreground: #1a1b22;
+  --muted: #f3f4f5;
+  --muted-foreground: #4b5563;
+  --card: #ffffff;
+  --card-foreground: #1a1b22;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --primary: #003aa0;
+  --primary-foreground: #ffffff;
+  --primary-container: #3F51B5;
+  --secondary: #3F51B5;
+  --secondary-foreground: #ffffff;
+  --secondary-container: #7986CB;
+  --tertiary: #a2315f;
+  --tertiary-foreground: #ffffff;
+  --accent: #f1f5f9;
+  --accent-foreground: #191c1d;
+  --destructive: #ba1a1a;
+  --destructive-foreground: #ffffff;
+  --ring: #003aa0;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #64748b;
+  --sidebar-border: rgba(226, 232, 240, 0.5);
+  --sidebar-active: #ffffff;
+  --outline: #717783;
+  --outline-variant: #c1c7d3;
+  --surface: #f6f8fb;
+  --surface-container: #edeeef;
+  --surface-container-low: #f3f4f5;
+  --surface-container-high: #e7e8e9;
+}
+
+/* Dark Mode */
+.dark {
+  --background: #0f172a;
+  --foreground: #e2e2e6;
+  --muted: #1e2025;
+  --muted-foreground: #8e9099;
+  --card: #1a1c22;
+  --card-foreground: #e2e2e6;
+  --border: #2c2e35;
+  --input: #2c2e35;
+  --primary: #a4c9ff;
+  --primary-foreground: #003062;
+  --primary-container: #2976c7;
+  --secondary: #c5c0ff;
+  --secondary-foreground: #2b2178;
+  --secondary-container: #a19afd;
+  --tertiary: #ffb1c8;
+  --tertiary-foreground: #5e1133;
+  --accent: #262830;
+  --accent-foreground: #e2e2e6;
+  --destructive: #ffb4ab;
+  --destructive-foreground: #690005;
+  --ring: #a4c9ff;
+  --sidebar: #111318;
+  --sidebar-foreground: #8e9099;
+  --sidebar-border: rgba(44, 46, 53, 0.5);
+  --sidebar-active: #1a1c22;
+  --outline: #8e9099;
+  --outline-variant: #44474e;
+  --surface: #111318;
+  --surface-container: #1e2025;
+  --surface-container-low: #191b20;
+  --surface-container-high: #282a30;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+/* ── Typography Scale ── */
+h1, h2, h3, h4, h5, h6, .font-headline {
+  font-family: var(--font-headline);
+  line-height: 1.3;
+}
+
+h1 {
+  font-size: 1.75rem;    /* 28px */
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.375rem;   /* 22px */
+  font-weight: 700;
+}
+
+h3 {
+  font-size: 1.125rem;   /* 18px */
+  font-weight: 600;
+}
+
+h4 {
+  font-size: 1rem;        /* 16px */
+  font-weight: 600;
+}
+
+h5 {
+  font-size: 0.875rem;    /* 14px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted-foreground);
+}
+
+h6 {
+  font-size: 0.8125rem;   /* 13px */
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+
+p {
+  line-height: 1.6;
+}
+
+small, .text-caption {
+  font-size: 0.8125rem;   /* 13px */
+  line-height: 1.4;
+}
+
+/* All interactive elements get pointer cursor */
+button, a, [role="button"], select, input[type="checkbox"], input[type="radio"], label[for], .cursor-pointer {
+  cursor: pointer;
+}
+
+/* Glass effects */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+}
+
+.dark .glass-panel {
+  background: rgba(17, 19, 24, 0.8);
+}
+
+.glass-topbar {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(24px);
+}
+
+.dark .glass-topbar {
+  background: rgba(17, 19, 24, 0.85);
+  backdrop-filter: blur(24px);
+}
+
+/* KPI Card radius */
+.kpi-card {
+  border-radius: 22px;
+}
+
+/* Calendar sticky column — fixed on right in RTL */
+.room-sticky-col {
+  position: sticky;
+  right: 0;
+  z-index: 20;
+  background: inherit;
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.04);
+}
+
+[dir="rtl"] .room-sticky-col {
+  right: 0;
+  left: auto;
+}

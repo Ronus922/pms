@@ -1,0 +1,63 @@
+/* ── Cleaning Task Types — single source of truth ─────────── */
+
+export type CleaningStatus = "pending" | "in_progress" | "done" | "skipped"
+
+export type CleaningSourceTrigger =
+  | "manual_checkout"
+  | "scheduled_checkout_day"
+  | "manager_manual"
+
+export interface CleaningTask {
+  id: string
+  tenant_id: string
+  room_id: string
+  room_number: string
+  reservation_id: string | null
+  reservation_room_id: string | null
+  assigned_to: string | null
+  cleaner_name: string | null
+  /** Guest name from the joined reservation, for dispatch UI context only */
+  guest_name?: string | null
+  status: CleaningStatus
+  priority: string
+  checkin_date: string | null
+  checkout_date: string
+  checkout_time: string | null
+  order_index: number
+  source_trigger: CleaningSourceTrigger | null
+  notes: string | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CleanerSummary {
+  id: string
+  full_name: string
+  email: string
+  avatar_url: string | null
+}
+
+export interface CleaningBoard {
+  /** All cleaner users for this tenant */
+  cleaners: CleanerSummary[]
+  /** Tasks grouped by cleaner id */
+  byCleaner: Record<string, CleaningTask[]>
+  /** Unassigned tasks for the given date */
+  unassigned: CleaningTask[]
+  /** All occupied rooms (for pre-assignment drag source) */
+  occupiedRooms: OccupiedRoomSummary[]
+}
+
+export interface OccupiedRoomSummary {
+  room_id: string
+  room_number: string
+  reservation_id: string
+  reservation_room_id: string
+  guest_name: string
+  check_in: string
+  check_out: string
+  /** TRUE if a cleaning task already exists for this checkout */
+  has_pending_task: boolean
+}
