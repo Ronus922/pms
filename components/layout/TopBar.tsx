@@ -2,7 +2,6 @@
 
 import { useTheme } from "next-themes"
 import { Icon } from "@/components/shared/Icon"
-import { useReservationFormStore } from "@/lib/stores/reservation-form-store"
 
 interface TopBarProps {
   title: string
@@ -10,7 +9,6 @@ interface TopBarProps {
 
 export function TopBar({ title }: TopBarProps) {
   const { theme, setTheme } = useTheme()
-  const openNewReservation = useReservationFormStore((s) => s.open)
 
   return (
     <header
@@ -48,19 +46,8 @@ export function TopBar({ title }: TopBarProps) {
           <Icon name="translate" size="sm" />
         </button>
 
-        <div className="h-8 w-px bg-border mx-1" />
-
-        {/* New Booking */}
-        <button
-          onClick={() => openNewReservation()}
-          className="bg-gradient-to-l from-primary to-primary-container text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-sm hover:shadow-md transition-all hidden sm:flex items-center gap-2 min-h-[44px]"
-        >
-          <Icon name="add" size="sm" />
-          הזמנה חדשה
-        </button>
-
         {/* User avatar */}
-        <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white text-sm font-bold">
+        <div className="w-10 h-10 rounded-full bg-[#1e40af] flex items-center justify-center text-white text-sm font-bold">
           מ
         </div>
       </div>

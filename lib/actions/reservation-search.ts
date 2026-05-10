@@ -71,28 +71,31 @@ export async function searchReservations(
   const conds: Sql[] = [db`r.tenant_id = ${tenantId}`]
 
   // ── Date type + range ──
+  // SECURITY: NEVER pass user-controlled strings into db.unsafe.
+  // Each branch uses a fully-qualified, hardcoded SQL fragment so the
+  // dateCol identifier never reaches the SQL builder dynamically.
   if (filters.dateType && (filters.dateFrom || filters.dateTo)) {
-    let dateCol = ""
     switch (filters.dateType) {
       case "arrivals":
-        dateCol = "r.check_in"
+        if (filters.dateFrom) conds.push(db`r.check_in::date >= ${filters.dateFrom}::date`)
+        if (filters.dateTo) conds.push(db`r.check_in::date <= ${filters.dateTo}::date`)
         break
       case "departures":
-        dateCol = "r.check_out"
+        if (filters.dateFrom) conds.push(db`r.check_out::date >= ${filters.dateFrom}::date`)
+        if (filters.dateTo) conds.push(db`r.check_out::date <= ${filters.dateTo}::date`)
         break
       case "created":
-        dateCol = "r.created_at"
+        if (filters.dateFrom) conds.push(db`r.created_at::date >= ${filters.dateFrom}::date`)
+        if (filters.dateTo) conds.push(db`r.created_at::date <= ${filters.dateTo}::date`)
         break
       case "cancelled":
-        dateCol = "r.updated_at"
         conds.push(db`r.status = 'cancelled'`)
+        if (filters.dateFrom) conds.push(db`r.updated_at::date >= ${filters.dateFrom}::date`)
+        if (filters.dateTo) conds.push(db`r.updated_at::date <= ${filters.dateTo}::date`)
         break
-    }
-    if (dateCol && filters.dateFrom) {
-      conds.push(db`(${db.unsafe(dateCol)})::date >= ${filters.dateFrom}::date`)
-    }
-    if (dateCol && filters.dateTo) {
-      conds.push(db`(${db.unsafe(dateCol)})::date <= ${filters.dateTo}::date`)
+      default:
+        // Unknown date type — silently ignore (defense in depth).
+        break
     }
   }
 

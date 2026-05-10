@@ -13,7 +13,7 @@ export function OccupancyTab({ store }: OccupancyTabProps) {
   return (
     <div className="space-y-4" dir="rtl">
       {/* max_occupancy */}
-      <div className="rounded-[20px] p-5 border border-border/20 shadow-sm">
+      <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20">
         <NumberStepper
           label="תפוסה מקסימלית"
           value={store.max_occupancy}
@@ -43,7 +43,7 @@ export function OccupancyTab({ store }: OccupancyTabProps) {
       </div>
 
       {/* max_adults */}
-      <div className="rounded-[20px] p-5 border border-border/20 shadow-sm">
+      <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20">
         <NumberStepper
           label="מבוגרים מקסימום"
           value={store.max_adults}
@@ -54,7 +54,7 @@ export function OccupancyTab({ store }: OccupancyTabProps) {
       </div>
 
       {/* max_children */}
-      <div className="rounded-[20px] p-5 border border-border/20 shadow-sm">
+      <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20">
         <NumberStepper
           label="ילדים מקסימום"
           value={store.max_children}
@@ -65,7 +65,7 @@ export function OccupancyTab({ store }: OccupancyTabProps) {
       </div>
 
       {/* max_infants */}
-      <div className="rounded-[20px] p-5 border border-border/20 shadow-sm">
+      <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20">
         <NumberStepper
           label="תינוקות מקסימום"
           value={store.max_infants}

@@ -1,5 +1,7 @@
 "use client"
 
+import { Icon } from "@/components/shared/Icon"
+import { STATUS_BORDER_COLORS } from "@/lib/constants/reservation"
 import type { ReservationSearchRow } from "@/lib/actions/reservation-search"
 
 /* ── Helpers ───────────────────────────────────────────────── */
@@ -9,7 +11,7 @@ function fmtDate(v: string | null): string {
   const d = new Date(v)
   const day = String(d.getDate()).padStart(2, "0")
   const month = String(d.getMonth() + 1).padStart(2, "0")
-  const year = d.getFullYear()
+  const year = String(d.getFullYear()).slice(-2)
   return `${day}/${month}/${year}`
 }
 
@@ -18,27 +20,10 @@ function fmtPrice(v: number | null): string {
   return Number(v).toLocaleString("he-IL") + " ₪"
 }
 
-/* ── Status border color (right border) ────────────────────── */
-
-function statusBorderColor(status: string): string {
-  switch (status) {
-    case "confirmed":
-      return "border-r-emerald-500"
-    case "checked_in":
-      return "border-r-blue-500"
-    case "checked_out":
-      return "border-r-slate-400"
-    case "pending":
-      return "border-r-amber-500"
-    case "cancelled":
-      return "border-r-red-500"
-    case "no_show":
-      return "border-r-red-600"
-    case "draft":
-      return "border-r-slate-300"
-    default:
-      return "border-r-slate-300"
-  }
+function getInitials(first: string, last: string): string {
+  const a = (first || "").trim().charAt(0)
+  const b = (last || "").trim().charAt(0)
+  return (a + b) || "?"
 }
 
 /* ── Component ─────────────────────────────────────────────── */
@@ -52,49 +37,95 @@ interface Props {
 export function ReservationTable({ rows, onRowClick, selectedId }: Props) {
   if (rows.length === 0) {
     return (
-      <div className="bg-card rounded-[20px] border border-border/20 shadow-sm py-16 text-center">
-        <p className="text-lg font-medium text-muted-foreground">לא נמצאו הזמנות</p>
-        <p className="text-sm text-muted-foreground mt-2">נסה לשנות את הפילטרים</p>
+      <div className="bg-card rounded-[20px] shadow-sm border border-border/20 overflow-hidden" dir="rtl">
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+          <Icon name="event_busy" size="xl" className="opacity-30" />
+          <p className="text-lg font-medium">לא נמצאו הזמנות</p>
+          <p className="text-sm">נסו לשנות את מסנני החיפוש</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-card rounded-[20px] border border-border/20 shadow-sm overflow-hidden">
+    <div className="bg-card rounded-[20px] shadow-sm border border-border/20 overflow-hidden" dir="rtl">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" dir="rtl">
+        <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border/20 bg-accent/50">
-              <th className="px-4 py-3 text-right font-bold text-muted-foreground text-xs">שם הלקוח</th>
-              <th className="px-4 py-3 text-right font-bold text-muted-foreground text-xs">משפחה</th>
-              <th className="px-4 py-3 text-center font-bold text-muted-foreground text-xs">הגעה</th>
-              <th className="px-4 py-3 text-center font-bold text-muted-foreground text-xs">עזיבה</th>
-              <th className="px-4 py-3 text-center font-bold text-muted-foreground text-xs">לילות</th>
-              <th className="px-4 py-3 text-center font-bold text-muted-foreground text-xs">נפשות</th>
-              <th className="px-4 py-3 text-left font-bold text-muted-foreground text-xs">מחיר</th>
+            <tr className="bg-[#e1e7fa]">
+              <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap w-[180px]">מס׳ הזמנה</th>
+              <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">שם אורח</th>
+              <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 max-md:hidden">טלפון</th>
+              <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">הגעה</th>
+              <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">עזיבה</th>
+              <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">לילות</th>
+              <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 max-lg:hidden">נפשות</th>
+              <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">מחיר</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.id}
-                onClick={() => onRowClick(row)}
-                className={`
-                  border-b border-border/10 cursor-pointer transition-colors
-                  hover:bg-accent/60
-                  border-r-4 ${statusBorderColor(row.status)}
-                  ${selectedId === row.id ? "bg-primary/5" : ""}
-                `}
-              >
-                <td className="px-4 py-3 font-bold">{row.first_name}</td>
-                <td className="px-4 py-3">{row.last_name}</td>
-                <td className="px-4 py-3 text-center tabular-nums">{fmtDate(row.check_in)}</td>
-                <td className="px-4 py-3 text-center tabular-nums">{fmtDate(row.check_out)}</td>
-                <td className="px-4 py-3 text-center font-bold tabular-nums">{row.nights}</td>
-                <td className="px-4 py-3 text-center tabular-nums">{row.total_guests}</td>
-                <td className="px-4 py-3 text-left font-bold text-primary tabular-nums">{fmtPrice(row.total_price)}</td>
-              </tr>
-            ))}
+            {rows.map((row, idx) => {
+              const isEven = idx % 2 === 1
+              const isSelected = selectedId === row.id
+              const borderColor = STATUS_BORDER_COLORS[row.status] ?? "#9ca3af"
+
+              return (
+                <tr
+                  key={row.id}
+                  onClick={() => onRowClick(row)}
+                  style={{ borderRightWidth: "4px", borderRightStyle: "solid", borderRightColor: borderColor }}
+                  className={`border-b border-border/10 hover:bg-primary/5 cursor-pointer transition-colors ${
+                    isSelected ? "bg-primary/5" : isEven ? "bg-accent/40" : ""
+                  }`}
+                >
+                  {/* Reservation number */}
+                  <td className="px-5 py-4 font-bold text-primary tabular-nums whitespace-nowrap">
+                    {row.reservation_number}
+                  </td>
+
+                  {/* Guest name + avatar */}
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-primary">
+                          {getInitials(row.first_name, row.last_name)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-bold text-foreground text-base truncate">
+                          {row.first_name} {row.last_name}
+                        </span>
+                        {row.guest_email && (
+                          <span className="text-[11px] text-muted-foreground truncate" dir="ltr">
+                            {row.guest_email}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Phone */}
+                  <td className="px-5 py-4 text-foreground tabular-nums max-md:hidden" dir="ltr">
+                    <span className="float-right">{row.guest_phone || "—"}</span>
+                  </td>
+
+                  {/* Check-in */}
+                  <td className="px-5 py-4 text-foreground tabular-nums">{fmtDate(row.check_in)}</td>
+
+                  {/* Check-out */}
+                  <td className="px-5 py-4 text-foreground tabular-nums">{fmtDate(row.check_out)}</td>
+
+                  {/* Nights */}
+                  <td className="px-5 py-4 font-bold text-foreground tabular-nums">{row.nights}</td>
+
+                  {/* Guests */}
+                  <td className="px-5 py-4 text-foreground tabular-nums max-lg:hidden">{row.total_guests}</td>
+
+                  {/* Price */}
+                  <td className="px-5 py-4 font-bold text-primary tabular-nums">{fmtPrice(row.total_price)}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

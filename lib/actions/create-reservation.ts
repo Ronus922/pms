@@ -2,19 +2,25 @@
 
 import { db } from "@/lib/db"
 import type { ReservationFormData } from "@/lib/stores/reservation-form-store"
+import { validateRoomCapacity } from "@/lib/utils/room-capacity"
+import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
+import { sendReservationConfirmationEmail } from "./send-reservation-email"
+
+/** Map internal block_type enum → Hebrew label so conflict error messages
+ *  read naturally in the admin UI (never show raw enum strings). */
+const BLOCK_TYPE_LABEL_HE: Record<string, string> = {
+  maintenance: "תחזוקה",
+  manual_block: "חסימה ידנית",
+  owner_use: "שימוש בעלים",
+  deep_cleaning: "ניקיון יסודי",
+  temporary_out_of_order: "לא תקין זמנית",
+  other: "אחר",
+}
 
 export async function getFormOptions(tenantId: string) {
-  const rooms = await db`
-    SELECT r.id, r.room_number, r.status, r.room_type_id,
-      rt.name as room_type_name, rt.max_occupancy, rt.base_price
-    FROM rooms r
-    LEFT JOIN room_types rt ON rt.id = r.room_type_id
-    WHERE r.tenant_id = ${tenantId} AND r.is_active = true
-    ORDER BY r.room_number
-  `
-
   const roomTypes = await db`
-    SELECT id, name, max_occupancy, base_price
+    SELECT id, name, max_occupancy, default_occupancy, base_price, extra_person_price,
+           max_adults, max_children, max_infants
     FROM room_types
     WHERE tenant_id = ${tenantId} AND is_active = true
     ORDER BY sort_order, name
@@ -27,7 +33,92 @@ export async function getFormOptions(tenantId: string) {
     ORDER BY name
   `
 
-  return { rooms, roomTypes, ratePlans }
+  return { roomTypes, ratePlans }
+}
+
+/**
+ * Single source of truth for room availability.
+ * Returns only rooms that are ACTUALLY free for the given date range.
+ * Excludes: blocked, maintenance, unavailable rooms + rooms with overlapping reservations.
+ */
+export async function getAvailableRooms(
+  tenantId: string,
+  checkIn: string,
+  checkOut: string,
+  excludeReservationId?: string
+) {
+  if (!checkIn || !checkOut || checkOut <= checkIn) return []
+
+  // Merge per-room overrides with room_types defaults.
+  // Column names match what Room Management writes (rooms.max_occupancy,
+  // rooms.default_guests, rooms.max_adults/children/infants) with
+  // room_types as the inheritance fallback when the per-room field is NULL.
+  const rooms = excludeReservationId
+    ? await db`
+        SELECT r.id, r.room_number, r.status, r.room_type_id,
+          rt.name AS room_type_name,
+          COALESCE(r.max_occupancy, rt.max_occupancy)      AS max_occupancy,
+          COALESCE(r.default_guests, rt.default_occupancy) AS default_occupancy,
+          COALESCE(r.max_adults,    rt.max_adults)         AS max_adults,
+          COALESCE(r.max_children,  rt.max_children)       AS max_children,
+          COALESCE(r.max_infants,   rt.max_infants)        AS max_infants,
+          rt.base_price, rt.extra_person_price
+        FROM rooms r
+        LEFT JOIN room_types rt ON rt.id = r.room_type_id
+        WHERE r.tenant_id = ${tenantId}
+          AND r.is_active = true
+          AND r.status NOT IN ('blocked', 'maintenance', 'unavailable', 'inactive', 'out_of_order')
+          AND NOT EXISTS (
+            SELECT 1 FROM reservation_rooms rr
+            JOIN reservations res ON res.id = rr.reservation_id
+            WHERE rr.room_id = r.id
+              AND res.status IN ('confirmed', 'checked_in')
+              AND rr.check_in < ${checkOut}::date
+              AND rr.check_out > ${checkIn}::date
+              AND res.id != ${excludeReservationId}::uuid
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM room_blocks rb
+            WHERE rb.room_id = r.id
+              AND rb.is_active = TRUE
+              AND rb.start_date < ${checkOut}::date
+              AND rb.end_date   > ${checkIn}::date
+          )
+        ORDER BY r.room_number
+      `
+    : await db`
+        SELECT r.id, r.room_number, r.status, r.room_type_id,
+          rt.name AS room_type_name,
+          COALESCE(r.max_occupancy, rt.max_occupancy)      AS max_occupancy,
+          COALESCE(r.default_guests, rt.default_occupancy) AS default_occupancy,
+          COALESCE(r.max_adults,    rt.max_adults)         AS max_adults,
+          COALESCE(r.max_children,  rt.max_children)       AS max_children,
+          COALESCE(r.max_infants,   rt.max_infants)        AS max_infants,
+          rt.base_price, rt.extra_person_price
+        FROM rooms r
+        LEFT JOIN room_types rt ON rt.id = r.room_type_id
+        WHERE r.tenant_id = ${tenantId}
+          AND r.is_active = true
+          AND r.status NOT IN ('blocked', 'maintenance', 'unavailable', 'inactive', 'out_of_order')
+          AND NOT EXISTS (
+            SELECT 1 FROM reservation_rooms rr
+            JOIN reservations res ON res.id = rr.reservation_id
+            WHERE rr.room_id = r.id
+              AND res.status IN ('confirmed', 'checked_in')
+              AND rr.check_in < ${checkOut}::date
+              AND rr.check_out > ${checkIn}::date
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM room_blocks rb
+            WHERE rb.room_id = r.id
+              AND rb.is_active = TRUE
+              AND rb.start_date < ${checkOut}::date
+              AND rb.end_date   > ${checkIn}::date
+          )
+        ORDER BY r.room_number
+      `
+
+  return rooms
 }
 
 export async function searchGuests(tenantId: string, query: string) {
@@ -68,7 +159,8 @@ export async function createReservation(
   const roomTypeId = form.roomTypeId || ""
   const discountPercent = form.discountPercent || 0
   const discountAmount = form.discountAmount || 0
-  const extraCharges = form.extraCharges || 0
+  const extraChargesArr = Array.isArray(form.extraCharges) ? form.extraCharges : []
+  const extraChargesTotal = extraChargesArr.reduce((s, c) => s + (c.amount || 0), 0)
   const taxExempt = form.taxExempt ?? false
   const deposit = form.deposit || 0
   const amountPaid = form.amountPaid || 0
@@ -92,45 +184,191 @@ export async function createReservation(
   if (!form.checkIn) return { success: false, error: "חובה להזין תאריך הגעה" }
   if (!form.checkOut) return { success: false, error: "חובה להזין תאריך עזיבה" }
   if (form.checkOut <= form.checkIn) return { success: false, error: "תאריך עזיבה חייב להיות אחרי הגעה" }
+  const today = new Date().toISOString().slice(0, 10)
+  if (form.checkIn < today) return { success: false, error: "לא ניתן ליצור הזמנה בתאריך שעבר" }
+
+  // Plausibility floor + sliding window — rejects any year < 2020 and any
+  // date further than 1y past / 3y future. Prevents the "year-2001" class
+  // of corruption from reaching the INSERT regardless of which entry point
+  // sent it (form, calendar drag, channel import).
+  {
+    const overall = isPlausibleStay(form.checkIn, form.checkOut)
+    if (!overall.ok) {
+      logImplausibleDatePayload("createReservation/overall", {
+        checkIn: form.checkIn,
+        checkOut: form.checkOut,
+      })
+      return { success: false, error: overall.reason || "תאריך ההזמנה אינו תקין. אנא בדוק את תאריכי הכניסה והיציאה." }
+    }
+    for (let i = 0; i < rooms.length; i++) {
+      const r = rooms[i]
+      if (!r.roomId) continue
+      const perRoom = isPlausibleStay(r.checkIn || form.checkIn, r.checkOut || form.checkOut)
+      if (!perRoom.ok) {
+        logImplausibleDatePayload(`createReservation/room[${i}]`, {
+          checkIn: r.checkIn,
+          checkOut: r.checkOut,
+          raw: { roomId: r.roomId },
+        })
+        return { success: false, error: `חדר ${i + 1}: ${perRoom.reason}` }
+      }
+    }
+  }
   const hasRooms = rooms.length > 0
   if (!hasRooms && !roomId && !roomTypeId) return { success: false, error: "חובה לבחור חדר או סוג חדר" }
   if (!hasRooms && pricePerNight <= 0) return { success: false, error: "מחיר ללילה חייב להיות גדול מ-0" }
 
-  // Check room availability if specific room selected
-  if (roomId) {
+  // Validate room availability + capacity for ALL rooms. Each row must be
+  // checked against its OWN check-in/out — NOT the reservation's outer span.
+  // Rooms in a multi-room reservation can have different date ranges; using
+  // the aggregate span would flag a shorter-stay room as unavailable whenever
+  // *any* overlapping booking touches the outer range (even though the actual
+  // requested dates are fine).
+  const roomsToCheck: { roomId: string; checkIn: string; checkOut: string; adults: number; children: number; infants: number }[] =
+    hasRooms
+      ? rooms.filter((r) => r.roomId).map((r) => ({
+          roomId: r.roomId,
+          checkIn: r.checkIn || form.checkIn,
+          checkOut: r.checkOut || form.checkOut,
+          adults: r.adults ?? 1,
+          children: r.children ?? 0,
+          infants: r.infants ?? 0,
+        }))
+      : roomId
+        ? [{ roomId, checkIn: form.checkIn, checkOut: form.checkOut, adults, children, infants }]
+        : []
+
+  for (const rc of roomsToCheck) {
+    // Look up room status + metadata ONCE. Order of checks below is
+    // deliberate: reject on room-level status (blocked / maintenance /
+    // inactive) FIRST with a clear reason, so admins don't see a generic
+    // "not available in selected dates" message when the real cause is a
+    // blocked room. Only if the room is eligible do we probe date conflicts.
+    const [room] = await db<
+      { room_number: string; status: string; room_type_id: string; is_active: boolean }[]
+    >`
+      SELECT room_number, status, room_type_id, is_active
+      FROM rooms
+      WHERE id = ${rc.roomId} AND tenant_id = ${tenantId}
+    `
+    if (!room) return { success: false, error: "חדר שנבחר לא נמצא" }
+    const rnum = room.room_number || ""
+    if (!room.is_active) return { success: false, error: `חדר ${rnum} לא פעיל — בחר חדר אחר` }
+    if (room.status === "blocked") return { success: false, error: `חדר ${rnum} חסום לתפעול — בחר חדר אחר` }
+    if (room.status === "maintenance") return { success: false, error: `חדר ${rnum} בתחזוקה — בחר חדר אחר` }
+    if (room.status === "unavailable") return { success: false, error: `חדר ${rnum} לא זמין — בחר חדר אחר` }
+
     const [available] = await db`
       SELECT check_room_availability(
-        ${tenantId}::uuid, ${roomId}::uuid,
-        ${form.checkIn}::date, ${form.checkOut}::date
+        ${tenantId}::uuid, ${rc.roomId}::uuid,
+        ${rc.checkIn}::date, ${rc.checkOut}::date
       ) as ok
     `
     if (!available?.ok) {
-      return { success: false, error: "החדר לא זמין בתאריכים שנבחרו" }
+      // Dig into the reason. `rooms.status` is 'available' at this point
+      // (we already short-circuited on legacy statuses above), so the
+      // rejection must come from either a room_block or a reservation
+      // overlap. Query both so the admin sees a precise message.
+      const [blockHit] = await db<
+        { start_date: string; end_date: string; block_type: string }[]
+      >`
+        SELECT start_date::text AS start_date, end_date::text AS end_date, block_type
+        FROM room_blocks
+        WHERE tenant_id = ${tenantId}::uuid
+          AND room_id = ${rc.roomId}::uuid
+          AND is_active = TRUE
+          AND start_date < ${rc.checkOut}::date
+          AND end_date   > ${rc.checkIn}::date
+        LIMIT 1
+      `
+      if (blockHit) {
+        const typeLabel = BLOCK_TYPE_LABEL_HE[blockHit.block_type] || blockHit.block_type
+        return {
+          success: false,
+          error: `חדר ${rnum} חסום (${typeLabel}) בתאריכים ${blockHit.start_date} — ${blockHit.end_date}`,
+        }
+      }
+      const [resHit] = await db<{ check_in: string; check_out: string }[]>`
+        SELECT rr.check_in::text AS check_in, rr.check_out::text AS check_out
+        FROM reservation_rooms rr
+        JOIN reservations res ON res.id = rr.reservation_id
+        WHERE rr.room_id = ${rc.roomId}::uuid
+          AND res.tenant_id = ${tenantId}::uuid
+          AND res.status IN ('confirmed', 'checked_in')
+          AND rr.check_in  < ${rc.checkOut}::date
+          AND rr.check_out > ${rc.checkIn}::date
+        LIMIT 1
+      `
+      if (resHit) {
+        return {
+          success: false,
+          error: `חדר ${rnum} מוזמן ע״י הזמנה אחרת בתאריכים ${resHit.check_in} — ${resHit.check_out}`,
+        }
+      }
+      return { success: false, error: `חדר ${rnum} לא זמין בתאריכים שנבחרו` }
     }
 
-    // Check room status
-    const [room] = await db`SELECT status, room_type_id FROM rooms WHERE id = ${roomId}`
-    if (room?.status === "blocked") return { success: false, error: "החדר חסום" }
-    if (room?.status === "maintenance") return { success: false, error: "החדר בתחזוקה" }
-
-    // Check capacity
-    if (room?.room_type_id) {
-      const [rt] = await db`SELECT max_occupancy FROM room_types WHERE id = ${room.room_type_id}`
-      if (rt && (adults + children) > rt.max_occupancy) {
-        return { success: false, error: "מספר האורחים חורג מקיבולת החדר" }
-      }
+    // CORE RULE — room capacity. Read merged per-room override + type fallback
+    // so validation mirrors the values the reservation form used. Composition
+    // is checked per-row (each room's own adults/children/infants), NOT the
+    // reservation aggregate — a multi-room booking can split guests across
+    // rooms and a blanket aggregate check would reject valid configurations.
+    const [effective] = await db<
+      {
+        max_occupancy: number | null
+        max_adults: number | null
+        max_children: number | null
+        max_infants: number | null
+      }[]
+    >`
+      SELECT
+        COALESCE(r.max_occupancy, rt.max_occupancy) AS max_occupancy,
+        COALESCE(r.max_adults,    rt.max_adults)    AS max_adults,
+        COALESCE(r.max_children,  rt.max_children)  AS max_children,
+        COALESCE(r.max_infants,   rt.max_infants)   AS max_infants
+      FROM rooms r
+      LEFT JOIN room_types rt ON rt.id = r.room_type_id
+      WHERE r.id = ${rc.roomId}
+    `
+    if (effective && effective.max_occupancy != null) {
+      const check = validateRoomCapacity(
+        { max_occupancy: effective.max_occupancy,
+          max_adults: effective.max_adults,
+          max_children: effective.max_children,
+          max_infants: effective.max_infants },
+        { adults: rc.adults, children: rc.children, infants: rc.infants },
+      )
+      if (!check.ok) return { success: false, error: check.reason }
     }
   }
 
-  // Calculate totals
+  // Calculate totals.
+  // `nights` here is the reservation's outer span (MAX checkOut − MIN checkIn).
+  // Base amount must be computed per-room (rate × own-nights) — rooms can
+  // differ in length inside one reservation; a single-span multiplication
+  // overcharges the shorter stays. Mirrors computeDerived on the client.
   const nights = Math.round((new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()) / 86400000)
   const totalNightlyRate = hasRooms
     ? rooms.reduce((sum, r) => sum + (r.ratePerNight || 0), 0)
     : pricePerNight
-  const baseAmount = totalNightlyRate * nights
-  let discountTotal = discountPercent > 0 ? baseAmount * (discountPercent / 100) : discountAmount
-  const afterDiscount = Math.max(0, baseAmount - discountTotal) + extraCharges
-  const taxAmount = taxExempt ? 0 : afterDiscount * 0.17
+  const baseAmount = hasRooms
+    ? rooms.reduce((sum, r) => {
+        const rci = r.checkIn ? new Date(r.checkIn) : null
+        const rco = r.checkOut ? new Date(r.checkOut) : null
+        const rNights =
+          rci && rco ? Math.max(0, Math.round((rco.getTime() - rci.getTime()) / 86400000)) : 0
+        return sum + (r.ratePerNight || 0) * rNights
+      }, 0)
+    : pricePerNight * nights
+  const discountTotal = discountPercent > 0 ? baseAmount * (discountPercent / 100) : discountAmount
+  const afterDiscount = Math.max(0, baseAmount - discountTotal) + extraChargesTotal
+  // VAT rate from tenant settings (percent → fraction). Server is the source
+  // of truth — never trust the client's taxAmount for the INSERT.
+  const [tenantRow] = await db<{ vat_rate: string | number | null }[]>`
+    SELECT vat_rate FROM tenants WHERE id = ${tenantId}
+  `
+  const tenantVatFraction = Math.max(0, (Number(tenantRow?.vat_rate) || 0) / 100)
+  const taxAmount = taxExempt ? 0 : afterDiscount * tenantVatFraction
   const grandTotal = afterDiscount + taxAmount
   const balanceDue = Math.max(0, grandTotal - amountPaid - deposit)
 
@@ -198,23 +436,57 @@ export async function createReservation(
       RETURNING id, reservation_number
     `
 
-    // 3. Create reservation_rooms (multi-room or single)
+    // 3. Create reservation_rooms (multi-room or single). Each row now carries
+    //    its own dates + composition + guest contact — see migration
+    //    2026-04-21_reservation_rooms_per_room_fields.sql.
     if (hasRooms) {
       for (const room of rooms) {
         if (!room.roomId) continue
+        const roomCheckIn = room.checkIn || form.checkIn
+        const roomCheckOut = room.checkOut || form.checkOut
         await db`
-          INSERT INTO reservation_rooms (tenant_id, reservation_id, room_id, check_in, check_out, rate_per_night)
-          VALUES (${tenantId}, ${reservation.id}, ${room.roomId},
-            ${form.checkIn}::date, ${form.checkOut}::date, ${room.ratePerNight})
+          INSERT INTO reservation_rooms (
+            tenant_id, reservation_id, room_id,
+            check_in, check_out, rate_per_night,
+            adults, children, infants,
+            guest_first_name, guest_last_name, guest_phone, guest_email, guest_id_number
+          )
+          VALUES (
+            ${tenantId}, ${reservation.id}, ${room.roomId},
+            ${roomCheckIn}::date, ${roomCheckOut}::date, ${room.ratePerNight},
+            ${room.adults ?? 1}, ${room.children ?? 0}, ${room.infants ?? 0},
+            ${room.guestFirstName || null}, ${room.guestLastName || null},
+            ${room.guestPhone || null}, ${room.guestEmail || null}, ${room.guestIdNumber || null}
+          )
         `
       }
     } else if (roomId) {
       await db`
-        INSERT INTO reservation_rooms (tenant_id, reservation_id, room_id, check_in, check_out, rate_per_night)
-        VALUES (${tenantId}, ${reservation.id}, ${roomId},
-          ${form.checkIn}::date, ${form.checkOut}::date, ${pricePerNight})
+        INSERT INTO reservation_rooms (
+          tenant_id, reservation_id, room_id,
+          check_in, check_out, rate_per_night,
+          adults, children, infants
+        )
+        VALUES (
+          ${tenantId}, ${reservation.id}, ${roomId},
+          ${form.checkIn}::date, ${form.checkOut}::date, ${pricePerNight},
+          ${adults}, ${children}, ${infants}
+        )
       `
     }
+
+    // Fire-and-forget email — don't await, don't block
+    sendReservationConfirmationEmail({
+      tenantId,
+      reservationId: reservation.id,
+      reservationNumber: reservation.reservation_number,
+      guestEmail: form.email || "",
+      guestName: `${form.firstName} ${form.lastName}`,
+      checkIn: form.checkIn,
+      checkOut: form.checkOut,
+      totalPrice: grandTotal,
+      currency: form.currency || "ILS",
+    }).catch(() => {})
 
     return {
       success: true,

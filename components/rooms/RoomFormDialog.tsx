@@ -23,6 +23,7 @@ import {
   type FloorOption,
   type EquipmentItem,
 } from "@/lib/actions/room-form"
+import { setRoomStatus } from "@/lib/actions/room-blocks"
 
 /* ── Constants ──────────────────────────────────────────────── */
 
@@ -84,6 +85,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
         if (room) {
           store.setField("is_active", room.is_active as boolean)
           store.setField("is_listed", (room.is_listed as boolean) ?? true)
+          store.setField("status", (room.status as string) || "available")
           store.setField("room_number", room.room_number as string)
           store.setField("room_type_id", (room.room_type_id as string) || "")
           store.setField("wing", (room.wing as string) || "")
@@ -159,16 +161,27 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
 
   function validateAll(): boolean {
     const allErrors: Record<string, string> = {}
+    let firstErrorStep = -1
     for (let i = 0; i <= 2; i++) {
-      Object.assign(allErrors, validateStep(i))
+      const stepErrors = validateStep(i)
+      if (firstErrorStep === -1 && Object.keys(stepErrors).length > 0) {
+        firstErrorStep = i
+      }
+      Object.assign(allErrors, stepErrors)
     }
-    store.setField("errors", allErrors)
+    store.setErrors(allErrors)
+    // Jump to the first step that has an error so the inline message is
+    // visible immediately — otherwise a save click from a later step would
+    // appear to do nothing.
+    if (firstErrorStep !== -1 && firstErrorStep !== currentStep) {
+      store.setActiveTab(firstErrorStep)
+    }
     return Object.keys(allErrors).length === 0
   }
 
   function handleNext() {
     const errors = validateStep(currentStep)
-    store.setField("errors", errors)
+    store.setErrors(errors)
     if (Object.keys(errors).length > 0) return
     if (currentStep < 2) store.setActiveTab(currentStep + 1)
   }
@@ -191,6 +204,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
     const payload = {
       is_active: store.is_active,
       is_listed: store.is_listed,
+      status: store.status,
       room_number: store.room_number,
       room_type_id: store.room_type_id,
       wing: store.wing,
@@ -252,7 +266,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
     >
       <div className="flex flex-col -m-6" style={{ minHeight: "calc(100vh - 80px)" }}>
         {/* ── Step Progress Bar ───────────────────────────── */}
-        <div className="shrink-0 bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 px-6 py-4 border-b border-border/15">
+        <div className="shrink-0 bg-[#1e40af]/10 px-6 py-4 border-b border-[#dad9e3]">
           <div className="flex items-center justify-center gap-0">
             {STEPS.map((step, i) => (
               <div key={step.key} className="flex items-center">
@@ -381,7 +395,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
             {currentStep < 2 ? (
               <button
                 onClick={handleNext}
-                className="bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 min-h-[44px] flex items-center gap-2"
+                className="btn btn-primary"
               >
                 הבא
                 <Icon name="chevron_left" size="sm" />
@@ -390,7 +404,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
               <button
                 onClick={handleSubmit}
                 disabled={store.isSubmitting}
-                className="bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 min-h-[44px] flex items-center gap-2"
+                className="btn btn-primary"
               >
                 {store.isSubmitting ? "שומר..." : "שמור"}
                 {!store.isSubmitting && <Icon name="check_circle" size="sm" />}
@@ -399,7 +413,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
             {currentStep > 0 && (
               <button
                 onClick={handleBack}
-                className="border border-border/30 text-muted-foreground px-6 py-3 rounded-xl font-bold text-sm hover:bg-accent transition-colors min-h-[44px] flex items-center gap-2"
+                className="btn btn-outline"
               >
                 <Icon name="chevron_right" size="sm" />
                 חזרה
@@ -409,7 +423,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
 
           <button
             onClick={store.close}
-            className="border border-border/30 text-muted-foreground px-6 py-3 rounded-xl font-bold text-sm hover:bg-accent transition-colors min-h-[44px]"
+            className="btn btn-outline"
           >
             ביטול
           </button>
@@ -470,7 +484,7 @@ function Step1General({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-accent text-muted-foreground hover:bg-border/30 border border-border/20 transition-all min-h-[44px]"
+            className="btn btn-outline"
           >
             <Icon name="translate" size="sm" />
             שכפל משפה אחרת
@@ -500,7 +514,10 @@ function Step1General({
             value={t.room_name}
             onChange={(e) => store.setTranslation(lang, "room_name", e.target.value)}
             placeholder="לדוגמה: סוויטת פרימיום פנטהאוס עם נוף לים"
-            className={inputClass}
+            aria-invalid={!!store.errors.room_name}
+            className={`${inputClass} ${
+              store.errors.room_name ? "ring-2 ring-destructive/40" : ""
+            }`}
           />
           <button
             type="button"
@@ -521,7 +538,10 @@ function Step1General({
           value={store.room_number}
           onChange={(e) => store.setField("room_number", e.target.value)}
           placeholder="לדוגמה: 101"
-          className={inputClass}
+          aria-invalid={!!store.errors.room_number}
+          className={`${inputClass} ${
+            store.errors.room_number ? "ring-2 ring-destructive/40" : ""
+          }`}
         />
         {store.errors.room_number && (
           <p className="text-[11px] text-destructive mt-1 mr-1">{store.errors.room_number}</p>
@@ -616,18 +636,32 @@ function Step1General({
             min={1}
             max={store.max_occupancy}
           />
-          <NumberStepper
-            label="מקסימום ילדים"
-            value={store.max_children}
-            onChange={(v) => store.setField("max_children", v)}
-            max={10}
-          />
-          <NumberStepper
-            label="מקסימום תינוקות"
-            value={store.max_infants}
-            onChange={(v) => store.setField("max_infants", v)}
-            max={5}
-          />
+          <div className="space-y-1.5">
+            <NumberStepper
+              label="מקסימום ילדים"
+              value={store.max_children}
+              onChange={(v) => store.setField("max_children", v)}
+              max={10}
+            />
+            {store.max_children === 0 && (
+              <p className="text-[11px] text-muted-foreground text-center">
+                החדר אינו מאפשר ילדים
+              </p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <NumberStepper
+              label="מקסימום תינוקות"
+              value={store.max_infants}
+              onChange={(v) => store.setField("max_infants", v)}
+              max={5}
+            />
+            {store.max_infants === 0 && (
+              <p className="text-[11px] text-muted-foreground text-center">
+                החדר אינו מאפשר תינוקות
+              </p>
+            )}
+          </div>
         </div>
       </SectionCard>
 
@@ -657,6 +691,9 @@ function Step1General({
         </div>
       </SectionCard>
 
+      {/* ── Room Status ───────────────────────────────────── */}
+      <RoomStatusCard editingRoomId={store.editingRoomId} currentStatus={store.status} onChange={(v) => store.setField("status", v)} />
+
       {/* ── Toggles Row ───────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-1">
         <ToggleCard
@@ -682,6 +719,105 @@ function Step1General({
         </SectionCard>
       </div>
     </div>
+  )
+}
+
+/* ── Room Status Card (new lifecycle dropdown + legacy banner) ─ */
+
+const ROOM_STATUS_OPTIONS: { value: "available" | "inactive" | "out_of_order"; label: string; hint: string }[] = [
+  { value: "available",   label: "זמין",     hint: "חדר פעיל — זמין להזמנות" },
+  { value: "inactive",    label: "לא פעיל",  hint: "חדר מושעה לזמן ארוך (לא זמין להזמנות)" },
+  { value: "out_of_order", label: "מושבת",   hint: "חדר מושבת עד להודעה חדשה" },
+]
+
+const LEGACY_STATUS_LABEL: Record<string, string> = {
+  blocked: "חסום (מיושן)",
+  maintenance: "בתחזוקה (מיושן)",
+  unavailable: "לא זמין (מיושן)",
+}
+
+function RoomStatusCard({
+  editingRoomId,
+  currentStatus,
+  onChange,
+}: {
+  editingRoomId: string | null
+  currentStatus: string
+  onChange: (v: string) => void
+}) {
+  const { tenantId } = useTenant()
+  const isLegacy =
+    currentStatus === "blocked" ||
+    currentStatus === "maintenance" ||
+    currentStatus === "unavailable"
+  const [normalizing, setNormalizing] = useState(false)
+  const [normalizeError, setNormalizeError] = useState("")
+
+  async function handleNormalize() {
+    if (!editingRoomId) return
+    setNormalizeError("")
+    setNormalizing(true)
+    const r = await setRoomStatus(tenantId, editingRoomId, "available")
+    setNormalizing(false)
+    if (!r.success) {
+      setNormalizeError(r.error || "שגיאה בנרמול")
+      return
+    }
+    onChange("available")
+  }
+
+  return (
+    <SectionCard title="סטטוס חדר">
+      {isLegacy ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-xl px-4 py-3 text-sm font-bold">
+            <Icon name="warning" size="sm" />
+            <span>
+              חדר זה מסומן כ{LEGACY_STATUS_LABEL[currentStatus] || currentStatus} בצורה מיושנת — לחץ לנרמול
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleNormalize}
+            disabled={normalizing || !editingRoomId}
+            className="bg-primary text-white px-5 py-3 rounded-xl font-bold text-sm min-h-[44px] hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            <Icon name="check_circle" size="sm" />
+            {normalizing ? "מנרמל…" : "נרמל לסטטוס זמין"}
+          </button>
+          {normalizeError && (
+            <p className="text-[11px] text-destructive mt-1 mr-1">{normalizeError}</p>
+          )}
+          <p className="text-[11px] text-muted-foreground mr-1">
+            לאחר הנרמול, אפשר ליצור חסימה חדשה במסך ניהול חסימות (rooms/blocks).
+          </p>
+        </div>
+      ) : (
+        <>
+          <select
+            value={
+              currentStatus === "available" ||
+              currentStatus === "inactive" ||
+              currentStatus === "out_of_order"
+                ? currentStatus
+                : "available"
+            }
+            onChange={(e) => onChange(e.target.value)}
+            className={selectClass}
+          >
+            {ROOM_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground mt-2 mr-1">
+            {ROOM_STATUS_OPTIONS.find((o) => o.value === currentStatus)?.hint ?? ROOM_STATUS_OPTIONS[0].hint}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-1 mr-1">
+            לחסימה זמנית (תחזוקה, ניקיון יסודי וכד׳) — ניהול חסימות
+          </p>
+        </>
+      )}
+    </SectionCard>
   )
 }
 
@@ -1249,6 +1385,7 @@ function RichTextEditor({
   placeholder?: string
 }) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: false,

@@ -8,6 +8,7 @@ import { StatusPill } from "@/components/reservations/StatusPill"
 import { SourceBadge } from "@/components/reservations/SourceBadge"
 import { useReservationEditStore } from "@/lib/stores/reservation-edit-store"
 import { updateReservation } from "@/lib/actions/reservation-update"
+import { updateReservationRooms } from "@/lib/actions/update-reservation-rooms"
 import { EditStep1Guest } from "./edit-steps/EditStep1Guest"
 import { EditStep2Stay } from "./edit-steps/EditStep2Stay"
 import { EditStep3Pricing } from "./edit-steps/EditStep3Pricing"
@@ -49,11 +50,53 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
     bodyRef.current?.scrollTo({ top: 0, behavior: "smooth" })
   }, [activeTab])
 
-  /* ── Save handler ─────────────────────────────────────────── */
-  const handleSave = useCallback(async () => {
+  /* ── Save handler. `closeAfter` = "שמור וסגור" button — skips the
+   *  panel reload and closes immediately after a successful write. */
+  const handleSave = useCallback(async (closeAfter = false) => {
     store.setSaving(true)
     setSaveError("")
 
+    // Per-room validation BEFORE hitting the server — matches Module mandate:
+    //   check_in / check_out required, adults >= 1, room_id required.
+    for (let i = 0; i < store.editableRooms.length; i++) {
+      const r = store.editableRooms[i]
+      if (!r.roomId) {
+        store.setSaving(false)
+        setSaveError(`חדר ${i + 1}: חובה לבחור חדר זמין`)
+        return
+      }
+      if (!r.checkIn || !r.checkOut || r.checkOut <= r.checkIn) {
+        store.setSaving(false)
+        setSaveError(`חדר ${i + 1}: תאריכים לא תקינים`)
+        return
+      }
+      if (!r.adults || r.adults < 1) {
+        store.setSaving(false)
+        setSaveError(`חדר ${i + 1}: לפחות מבוגר אחד נדרש`)
+        return
+      }
+    }
+    if (store.editableRooms.length === 0) {
+      store.setSaving(false)
+      setSaveError("חובה להוסיף לפחות חדר אחד")
+      return
+    }
+
+    // 1. Write per-room truth FIRST. reservation_rooms is the source of
+    //    truth for dates/composition/guest contact — the reservations-level
+    //    updateReservation call after this only touches guest + booking.
+    const roomsResult = await updateReservationRooms(
+      store.tenantId,
+      store.reservationId,
+      store.editableRooms,
+    )
+    if (!roomsResult.success) {
+      store.setSaving(false)
+      setSaveError(roomsResult.error || "שגיאה בשמירת חדרי ההזמנה")
+      return
+    }
+
+    // 2. Write reservation-level fields (guest, booking details, pricing).
     const result = await updateReservation(
       store.reservationId,
       store.tenantId,
@@ -64,9 +107,17 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
     store.setSaving(false)
 
     if (result.success) {
-      // Reload data to sync originalData
-      await store.open(store.reservationId, store.tenantId)
+      // Notify every subscribed page (table / calendar / guest panel)
+      // that this reservation was saved so they can re-fetch their list.
+      store.bumpSaved()
       onSaved?.()
+      if (closeAfter) {
+        store.close()
+        setSaveError("")
+      } else {
+        // Reload data to sync originalData + originalEditableRooms
+        await store.open(store.reservationId, store.tenantId)
+      }
     } else {
       setSaveError(result.error || "שגיאה בשמירת ההזמנה")
     }
@@ -101,27 +152,40 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
         </button>
       </div>
 
-      {/* Left side (RTL end): save */}
-      <div className="flex items-center gap-3">
+      {/* Left side (RTL end): save / save-and-close pair */}
+      <div className="flex items-center gap-2">
         {store.isDirty && (
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={store.isSaving}
-            className="min-h-[44px] px-8 py-3 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
-          >
-            {store.isSaving ? (
-              <>
-                <Icon name="hourglass_empty" size="sm" className="animate-spin" />
-                שומר...
-              </>
-            ) : (
-              <>
-                <Icon name="save" size="sm" />
-                שמור שינויים
-              </>
-            )}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => handleSave(false)}
+              disabled={store.isSaving}
+              className="btn btn-outline"
+              title="שמור והישאר בעריכה"
+            >
+              {store.isSaving ? (
+                <>
+                  <Icon name="hourglass_empty" size="sm" className="animate-spin" />
+                  שומר...
+                </>
+              ) : (
+                <>
+                  <Icon name="save" size="sm" />
+                  שמור
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              disabled={store.isSaving}
+              className="btn btn-primary"
+              title="שמור וסגור את הפאנל"
+            >
+              <Icon name="check" size="sm" />
+              שמור וסגור
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -185,16 +249,33 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
               ))}
             </div>
 
-            {/* Step Progress Bar */}
-            <div className="px-6 pb-4">
-              <div className="flex flex-row-reverse items-center justify-between max-w-[520px] mx-auto">
+            {/* Step Progress Bar — RTL: step 1 on the right, 4 on the left, equal spacing */}
+            <div className="px-6 pb-4" dir="rtl">
+              <div className="relative max-w-[520px] mx-auto">
+                <div
+                  className="absolute top-[18px] h-0.5 bg-border/30 rounded-full pointer-events-none"
+                  style={{ insetInlineStart: "12.5%", insetInlineEnd: "12.5%" }}
+                  aria-hidden
+                />
+                <div
+                  className="absolute top-[18px] h-0.5 bg-primary rounded-full transition-[width] pointer-events-none"
+                  style={{
+                    insetInlineStart: "12.5%",
+                    width:
+                      STEPS.length > 1
+                        ? `${(activeTab / (STEPS.length - 1)) * 75}%`
+                        : "0%",
+                  }}
+                  aria-hidden
+                />
+                <div className="relative grid grid-cols-4">
                 {STEPS.map((step, i) => (
-                  <div key={i} className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => store.setActiveTab(i)}
-                      className="flex flex-col items-center gap-1.5 group"
-                    >
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => store.setActiveTab(i)}
+                    className="flex flex-col items-center gap-1.5 group"
+                  >
                       <div
                         className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
                           i === activeTab
@@ -221,17 +302,9 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
                       >
                         {step.label}
                       </span>
-                    </button>
-
-                    {i < STEPS.length - 1 && (
-                      <div
-                        className={`w-10 h-0.5 mx-1.5 mt-[-18px] rounded-full transition-colors ${
-                          i < activeTab ? "bg-primary" : "bg-border/30"
-                        }`}
-                      />
-                    )}
-                  </div>
+                  </button>
                 ))}
+                </div>
               </div>
             </div>
           </div>

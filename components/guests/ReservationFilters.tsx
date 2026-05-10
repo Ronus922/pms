@@ -1,6 +1,7 @@
 "use client"
 
 import { Icon } from "@/components/shared/Icon"
+import { DateInput } from "@/components/shared/DateInput"
 import type {
   DateFilterType,
   StatusFilterValue,
@@ -73,7 +74,7 @@ export function ReservationFilters({ filters, onChange, onClearAll, agents, tota
   }
 
   const selectClass =
-    "bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all min-h-[48px] appearance-none cursor-pointer"
+    "bg-accent border border-border/40 rounded-xl px-4 py-3 pe-10 text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all min-h-[48px] appearance-none cursor-pointer select-arrow"
 
   const inputClass =
     "bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all min-h-[48px]"
@@ -99,24 +100,19 @@ export function ReservationFilters({ filters, onChange, onClearAll, agents, tota
         {/* From date */}
         <div className="flex flex-col gap-1.5 min-w-[150px]">
           <label className="text-xs font-bold text-muted-foreground">מתאריך</label>
-          <input
-            type="date"
+          <DateInput
             value={filters.dateFrom}
-            onChange={(e) => update({ dateFrom: e.target.value })}
-            className={inputClass}
-            dir="ltr"
+            onChange={(v) => update({ dateFrom: v })}
           />
         </div>
 
         {/* To date */}
         <div className="flex flex-col gap-1.5 min-w-[150px]">
           <label className="text-xs font-bold text-muted-foreground">עד תאריך</label>
-          <input
-            type="date"
+          <DateInput
             value={filters.dateTo}
-            onChange={(e) => update({ dateTo: e.target.value })}
-            className={inputClass}
-            dir="ltr"
+            onChange={(v) => update({ dateTo: v })}
+            minDate={filters.dateFrom}
           />
         </div>
 

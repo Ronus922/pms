@@ -1,6 +1,8 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requirePermission } from "@/lib/auth/actor"
+import { AuthorizationError } from "@/lib/auth/errors"
 
 // ── Type exports ──────────────────────────────────────────────
 
@@ -50,6 +52,10 @@ interface SaveRoomInput {
   sort_order: number
   building_id: string
   floor_id: string
+  /** Long-lived lifecycle state. Only 'available' | 'inactive' | 'out_of_order'
+   *  are writeable from the new UI; legacy 'blocked' / 'maintenance' rows are
+   *  preserved if the form does not change them. */
+  status?: string
   max_occupancy: number
   default_guests: number
   max_adults: number
@@ -115,15 +121,20 @@ interface RoomRow {
   wing: string | null
   is_active: boolean
   is_listed: boolean
+  /** Long-lived lifecycle state. New values: 'available' | 'inactive' | 'out_of_order'.
+   *  Legacy rows may still hold 'blocked' | 'maintenance' | 'unavailable'. */
+  status: string
   room_type_id: string | null
   building_id: string | null
   floor_id: string | null
   sort_order: number
-  max_occupancy: number
-  default_guests: number
-  max_adults: number
-  max_children: number
-  max_infants: number
+  /** Per-room occupancy caps — NULL = inherit from room_types. getRoomById
+   *  merges these with the type row before returning to the UI. */
+  max_occupancy: number | null
+  default_guests: number | null
+  max_adults: number | null
+  max_children: number | null
+  max_infants: number | null
   single_beds: number
   double_beds: number
   queen_beds: number
@@ -148,14 +159,22 @@ interface RoomImageRow {
 
 export async function getRoomById(roomId: string, tenantId: string) {
   const [rooms, translations, equipment, images] = await Promise.all([
+    // Merge per-room overrides with room_types. Per-room NULL → inherit type.
+    // Reservation-form + Room-Management UI now read the same effective values.
     db`
-      SELECT r.*
+      SELECT r.*,
+        COALESCE(r.max_occupancy, rt.max_occupancy) AS effective_max_occupancy,
+        COALESCE(r.default_guests, rt.default_occupancy) AS effective_default_guests,
+        COALESCE(r.max_adults, rt.max_adults) AS effective_max_adults,
+        COALESCE(r.max_children, rt.max_children) AS effective_max_children,
+        COALESCE(r.max_infants, rt.max_infants) AS effective_max_infants
       FROM rooms r
+      LEFT JOIN room_types rt ON rt.id = r.room_type_id
       WHERE r.id = ${roomId} AND r.tenant_id = ${tenantId}
       LIMIT 1
     `,
     db`
-      SELECT language, room_name, description_html, meta_search_summary, seo_title, seo_description
+      SELECT language_code AS language, room_name, description_html, meta_search_summary, seo_title, seo_description
       FROM room_translations
       WHERE room_id = ${roomId}
     `,
@@ -174,7 +193,24 @@ export async function getRoomById(roomId: string, tenantId: string) {
 
   if (rooms.length === 0) return null
 
-  const room = rooms[0] as unknown as RoomRow
+  const raw = rooms[0] as unknown as RoomRow & {
+    effective_max_occupancy: number | null
+    effective_default_guests: number | null
+    effective_max_adults: number | null
+    effective_max_children: number | null
+    effective_max_infants: number | null
+  }
+
+  // UI binds to the same field names as before; substitute the effective
+  // (merged) values so the form reflects what reservations will actually see.
+  const room: RoomRow = {
+    ...raw,
+    max_occupancy: raw.effective_max_occupancy,
+    default_guests: raw.effective_default_guests,
+    max_adults: raw.effective_max_adults,
+    max_children: raw.effective_max_children,
+    max_infants: raw.effective_max_infants,
+  }
 
   const translationsMap: Record<string, RoomTranslationInput> = {}
   for (const t of translations) {
@@ -201,21 +237,34 @@ export async function getRoomById(roomId: string, tenantId: string) {
 // ── Create Room ───────────────────────────────────────────────
 
 export async function createRoom(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   propertyId: string,
   data: SaveRoomInput
 ): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
+    const actor = await requirePermission("rooms", "edit")
+    const tenantId = actor.tenantId
+
+    // Normalise status: only the new enum is writeable from this action.
+    // If the caller passes a legacy value (blocked / maintenance / unavailable)
+    // we drop it to 'available' — moving a room between operational closures
+    // must go through the room_blocks model, not this form.
+    const nextStatus = (() => {
+      const s = (data.status || "available").trim()
+      return s === "inactive" || s === "out_of_order" ? s : "available"
+    })()
+
     const result = await db`
       INSERT INTO rooms (
-        tenant_id, property_id, room_number, wing, is_active, is_listed,
+        tenant_id, property_id, room_number, wing, is_active, is_listed, status,
         room_type_id, building_id, floor_id, sort_order,
         max_occupancy, default_guests, max_adults, max_children, max_infants,
         single_beds, double_beds, queen_beds, sofa_beds, cribs,
         sleeping_arrangement_note, primary_image_id
       ) VALUES (
         ${tenantId}, ${propertyId}, ${data.room_number}, ${data.wing || null},
-        ${data.is_active}, ${data.is_listed},
+        ${data.is_active}, ${data.is_listed}, ${nextStatus},
         ${data.room_type_id || null}, ${data.building_id || null}, ${data.floor_id || null},
         ${data.sort_order},
         ${data.max_occupancy}, ${data.default_guests}, ${data.max_adults},
@@ -235,6 +284,7 @@ export async function createRoom(
 
     return { success: true, id: roomId }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     const message = err instanceof Error ? err.message : "שגיאה ביצירת החדר"
     return { success: false, error: message }
   }
@@ -244,16 +294,37 @@ export async function createRoom(
 
 export async function updateRoom(
   roomId: string,
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   data: SaveRoomInput
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const actor = await requirePermission("rooms", "edit")
+    const tenantId = actor.tenantId
+
+    // Verify the room belongs to the actor's tenant.
+    const [owner] = await db`
+      SELECT id FROM rooms WHERE id = ${roomId} AND tenant_id = ${tenantId} LIMIT 1
+    `
+    if (!owner) {
+      throw new AuthorizationError("חדר לא נמצא")
+    }
+
+    // Only write `status` when the caller sent a NEW-enum value. Legacy
+    // values coming back from the form (user just clicked Save without
+    // changing the dropdown) are ignored so we don't corrupt legacy rows.
+    const writableStatus =
+      data.status === "available" || data.status === "inactive" || data.status === "out_of_order"
+        ? data.status
+        : null
+
     await db`
       UPDATE rooms SET
         room_number = ${data.room_number},
         wing = ${data.wing || null},
         is_active = ${data.is_active},
         is_listed = ${data.is_listed},
+        status = COALESCE(${writableStatus}, status),
         room_type_id = ${data.room_type_id || null},
         building_id = ${data.building_id || null},
         floor_id = ${data.floor_id || null},
@@ -282,6 +353,7 @@ export async function updateRoom(
 
     return { success: true }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     const message = err instanceof Error ? err.message : "שגיאה בעדכון החדר"
     return { success: false, error: message }
   }
@@ -290,11 +362,23 @@ export async function updateRoom(
 // ── Room Images ───────────────────────────────────────────────
 
 export async function saveRoomImage(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   roomId: string,
   imageData: ImageInput
 ): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
+    const actor = await requirePermission("rooms", "edit")
+    const tenantId = actor.tenantId
+
+    // Verify the room belongs to the actor's tenant.
+    const [owner] = await db`
+      SELECT id FROM rooms WHERE id = ${roomId} AND tenant_id = ${tenantId} LIMIT 1
+    `
+    if (!owner) {
+      throw new AuthorizationError("חדר לא נמצא")
+    }
+
     const result = await db`
       INSERT INTO room_images (
         tenant_id, room_id, file_url, file_name, file_size,
@@ -307,6 +391,7 @@ export async function saveRoomImage(
     `
     return { success: true, id: (result[0] as unknown as { id: string }).id }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     const message =
       err instanceof Error ? err.message : "שגיאה בשמירת התמונה"
     return { success: false, error: message }
@@ -315,15 +400,20 @@ export async function saveRoomImage(
 
 export async function deleteRoomImage(
   imageId: string,
-  tenantId: string
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const actor = await requirePermission("rooms", "edit")
+    const tenantId = actor.tenantId
+
     await db`
       DELETE FROM room_images
       WHERE id = ${imageId} AND tenant_id = ${tenantId}
     `
     return { success: true }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     const message =
       err instanceof Error ? err.message : "שגיאה במחיקת התמונה"
     return { success: false, error: message }
@@ -335,17 +425,29 @@ export async function reorderRoomImages(
   imageIds: string[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const actor = await requirePermission("rooms", "edit")
+    const tenantId = actor.tenantId
+
+    // Verify the room belongs to the actor's tenant before mutating images.
+    const [owner] = await db`
+      SELECT id FROM rooms WHERE id = ${roomId} AND tenant_id = ${tenantId} LIMIT 1
+    `
+    if (!owner) {
+      throw new AuthorizationError("חדר לא נמצא")
+    }
+
     await db.begin(async (tx) => {
       for (let i = 0; i < imageIds.length; i++) {
         await tx`
           UPDATE room_images
           SET sort_order = ${i}
-          WHERE id = ${imageIds[i]} AND room_id = ${roomId}
+          WHERE id = ${imageIds[i]} AND room_id = ${roomId} AND tenant_id = ${tenantId}
         `
       }
     })
     return { success: true }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     const message =
       err instanceof Error ? err.message : "שגיאה בסידור התמונות"
     return { success: false, error: message }
@@ -363,19 +465,18 @@ async function saveTranslations(
 
     await db`
       INSERT INTO room_translations (
-        room_id, language, room_name, description_html,
+        room_id, language_code, room_name, description_html,
         meta_search_summary, seo_title, seo_description
       ) VALUES (
         ${roomId}, ${lang}, ${t.room_name}, ${t.description_html},
         ${t.meta_search_summary}, ${t.seo_title}, ${t.seo_description}
       )
-      ON CONFLICT (room_id, language) DO UPDATE SET
+      ON CONFLICT (room_id, language_code) DO UPDATE SET
         room_name = EXCLUDED.room_name,
         description_html = EXCLUDED.description_html,
         meta_search_summary = EXCLUDED.meta_search_summary,
         seo_title = EXCLUDED.seo_title,
-        seo_description = EXCLUDED.seo_description,
-        updated_at = now()
+        seo_description = EXCLUDED.seo_description
     `
   }
 }

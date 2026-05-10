@@ -24,6 +24,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Icon } from "@/components/shared/Icon"
+import { DateInput } from "@/components/shared/DateInput"
 import { useTenant, usePermissions } from "@/lib/hooks/use-tenant"
 import {
   getCleaningBoard,
@@ -39,6 +40,7 @@ import type {
   CleaningStatus,
 } from "@/lib/types/cleaning"
 import { SidePanel } from "@/components/shared/SidePanel"
+import { CreateCleaningTaskPanel } from "@/components/housekeeping/CreateCleaningTaskPanel"
 
 /* ── Helpers ────────────────────────────────────────────── */
 
@@ -72,7 +74,7 @@ function compareBySort(a: CleaningTask, b: CleaningTask): number {
   const at = a.checkout_time || "99:99:99"
   const bt = b.checkout_time || "99:99:99"
   if (at !== bt) return at.localeCompare(bt)
-  return a.room_number.localeCompare(b.room_number, undefined, { numeric: true })
+  return (a.room_number ?? a.target_label ?? "").localeCompare(b.room_number ?? b.target_label ?? "", undefined, { numeric: true })
 }
 
 /** Classify a task for priority badge color */
@@ -130,10 +132,10 @@ function SortableTaskCard({ task, onClick, isUnassigned }: TaskCardProps) {
         if (!isDragging) onClick()
         e.stopPropagation()
       }}
-      className={`bg-card rounded-[14px] p-3 shadow-sm border-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-all select-none ${
+      className={`bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-[#1e40af]/40 transition-all select-none ${
         isUnassigned
           ? "border-amber-300 dark:border-amber-800"
-          : "border-border/15"
+          : "border-[#dad9e3]"
       }`}
     >
       {/* Priority dot + room number + checkout time */}
@@ -142,16 +144,25 @@ function SortableTaskCard({ task, onClick, isUnassigned }: TaskCardProps) {
           className={`w-2 h-2 rounded-full shrink-0 ${urgVisual.dot}`}
           title={urgVisual.label}
         />
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-extrabold text-sm tabular-nums shrink-0">
-          {task.room_number}
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm tabular-nums shrink-0 ${
+          task.target_type === "area" ? "bg-violet-500/10 text-violet-600" : "bg-primary/10 text-primary"
+        }`}>
+          {task.target_type === "area" ? "🏢" : task.room_number}
         </div>
         <div className="flex-1 min-w-0">
-          {task.guest_name && (
+          {task.target_type === "area" ? (
+            <div className="text-xs font-bold text-violet-600 truncate">{task.target_label}</div>
+          ) : task.guest_name ? (
             <div className="text-xs font-bold text-foreground truncate">{task.guest_name}</div>
+          ) : null}
+          {task.target_type === "room" && (
+            <div className="text-[12px] text-muted-foreground tabular-nums">
+              {fmtDate(task.checkin_date ?? "")} → {fmtDate(task.checkout_date)}
+            </div>
           )}
-          <div className="text-[12px] text-muted-foreground tabular-nums">
-            {fmtDate(task.checkin_date ?? "")} → {fmtDate(task.checkout_date)}
-          </div>
+          {task.target_type === "area" && (
+            <div className="text-[12px] text-muted-foreground">{fmtDate(task.checkout_date)}</div>
+          )}
         </div>
         <div className="text-right shrink-0">
           <div className="text-[12px] text-muted-foreground">יציאה</div>
@@ -209,10 +220,10 @@ function Column({ id, title, subtitle, icon, tasks, onTaskClick, variant = "clea
   const isUnassigned = variant === "unassigned"
   const headerClass = isUnassigned
     ? "bg-gradient-to-l from-amber-500/15 to-orange-500/10 border-amber-300 dark:border-amber-800"
-    : "bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 border-border/15"
+    : "bg-[#1e40af]/5 border-[#dad9e3]"
   const bodyClass = isUnassigned
     ? "bg-amber-50/40 dark:bg-amber-950/10 border-amber-300 dark:border-amber-800"
-    : "bg-accent/30 border-border/15"
+    : "bg-accent/30 border-[#dad9e3]"
   const iconBg = isUnassigned
     ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
     : "bg-white/50 dark:bg-black/20 text-primary"
@@ -288,7 +299,7 @@ function Column({ id, title, subtitle, icon, tasks, onTaskClick, variant = "clea
             <div className={`flex-1 flex flex-col items-center justify-center py-6 text-[11px] rounded-lg border-2 border-dashed ${
               isOver
                 ? "border-primary text-primary bg-primary/5"
-                : "border-border/20 text-muted-foreground/50"
+                : "border-[#dad9e3] text-muted-foreground/50"
             }`}>
               <Icon name="drag_indicator" size="md" className="mb-1 opacity-40" />
               {isOver ? "שחרר כאן" : isUnassigned ? "אין חדרים לשיבוץ" : "גרור חדר לכאן"}
@@ -460,7 +471,7 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
     <SidePanel
       isOpen={task !== null}
       onClose={onClose}
-      title={task ? `משימה — חדר ${task.room_number}` : ""}
+      title={task ? (task.target_type === "area" ? `משימה — ${task.target_label}` : `משימה — חדר ${task.room_number}`) : ""}
       subtitle={task ? `יציאה ${fmtTime(task.checkout_time)}` : undefined}
       footer={
         task ? (
@@ -486,7 +497,7 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="min-h-[44px] px-6 py-3 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                className="btn btn-primary"
               >
                 <Icon name={saving ? "hourglass_empty" : "save"} size="sm" className={saving ? "animate-spin" : ""} />
                 שמור
@@ -498,18 +509,18 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
     >
       {task && (
         <div className="space-y-5">
-          <div className="bg-card rounded-[20px] border border-border/15 p-5 shadow-sm">
-            <h4 className="text-sm font-bold text-foreground mb-3">פרטי שהות</h4>
+          <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20">
+            <h4 className="text-base font-bold text-foreground mb-3">פרטי שהות</h4>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-accent/40 rounded-xl p-3">
+              <div className="bg-accent rounded-xl p-3">
                 <div className="text-[11px] text-muted-foreground">כניסה</div>
                 <div className="text-sm font-bold tabular-nums">{fmtDate(task.checkin_date ?? "")}</div>
               </div>
-              <div className="bg-accent/40 rounded-xl p-3">
+              <div className="bg-accent rounded-xl p-3">
                 <div className="text-[11px] text-muted-foreground">יציאה</div>
                 <div className="text-sm font-bold tabular-nums">{fmtDate(task.checkout_date)}</div>
               </div>
-              <div className="bg-accent/40 rounded-xl p-3 col-span-2">
+              <div className="bg-accent rounded-xl p-3 col-span-2">
                 <div className="text-[11px] text-muted-foreground">שעת יציאה</div>
                 <div className="text-lg font-extrabold tabular-nums text-primary" dir="ltr">
                   {fmtTime(task.checkout_time)}
@@ -518,32 +529,35 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
             </div>
           </div>
 
-          <div className="bg-card rounded-[20px] border border-border/15 p-5 shadow-sm">
-            <label className="text-sm font-bold text-muted-foreground mb-2 block">עובד ניקיון</label>
-            <select
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 outline-none min-h-[48px] appearance-none cursor-pointer"
-            >
-              <option value="">לא משויך</option>
-              {cleaners.map((c) => (
-                <option key={c.id} value={c.id}>{c.full_name}</option>
-              ))}
-            </select>
+          <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20 space-y-4">
+            <h4 className="text-base font-bold text-foreground mb-1">שיבוץ</h4>
+            <div>
+              <label className="text-xs font-bold text-muted-foreground mb-2 block">עובד ניקיון</label>
+              <select
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="w-full bg-accent border-0 rounded-xl px-5 py-3.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[48px] appearance-none cursor-pointer"
+              >
+                <option value="">לא משויך</option>
+                {cleaners.map((c) => (
+                  <option key={c.id} value={c.id}>{c.full_name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="bg-card rounded-[20px] border border-border/15 p-5 shadow-sm">
-            <label className="text-sm font-bold text-muted-foreground mb-2 block">סטטוס</label>
+          <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20 space-y-4">
+            <h4 className="text-base font-bold text-foreground mb-1">סטטוס</h4>
             <div className="grid grid-cols-3 gap-2">
               {(["pending", "in_progress", "done"] as CleaningStatus[]).map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setStatus(s)}
-                  className={`px-3 py-3 rounded-xl text-xs font-bold transition-all min-h-[44px] border ${
+                  className={`px-3 py-3 rounded-full text-xs font-bold transition-all min-h-[44px] ${
                     status === s
-                      ? "bg-primary text-white border-primary shadow-md"
-                      : "bg-accent text-muted-foreground border-border/20 hover:bg-border/40"
+                      ? "bg-primary text-white shadow-md"
+                      : "bg-accent text-muted-foreground hover:bg-accent/80"
                   }`}
                 >
                   {STATUS_VISUAL[s].label}
@@ -552,14 +566,14 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
             </div>
           </div>
 
-          <div className="bg-card rounded-[20px] border border-border/15 p-5 shadow-sm">
-            <label className="text-sm font-bold text-muted-foreground mb-2 block">הערות</label>
+          <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20 space-y-4">
+            <h4 className="text-base font-bold text-foreground mb-1">הערות</h4>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="הערות לעובד הניקיון..."
               rows={3}
-              className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 outline-none resize-none"
+              className="w-full bg-accent border-0 rounded-xl px-5 py-3.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none"
             />
           </div>
         </div>
@@ -580,6 +594,8 @@ export default function HousekeepingPage() {
   const [loading, setLoading] = useState(true)
   const [activeTask, setActiveTask] = useState<CleaningTask | null>(null)
   const [editTask, setEditTask] = useState<CleaningTask | null>(null)
+  const [createTaskOpen, setCreateTaskOpen] = useState(false)
+  const [quickFilter, setQuickFilter] = useState<"today" | "dirty" | "unassigned" | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const canEdit = can("housekeeping", "edit")
@@ -815,7 +831,9 @@ export default function HousekeepingPage() {
   const todayIso = new Date().toISOString().slice(0, 10)
   const kpis = board
     ? {
-        occupied: board.occupiedRooms.length,
+        total: allTasks.filter(
+          (t) => t.status === "pending" || t.status === "in_progress"
+        ).length,
         unassigned: allTasks.filter(
           (t) => !t.assigned_to && (t.status === "pending" || t.status === "in_progress")
         ).length,
@@ -830,7 +848,27 @@ export default function HousekeepingPage() {
             (t.status === "pending" || t.status === "in_progress")
         ).length,
       }
-    : { occupied: 0, unassigned: 0, dueToday: 0, dirty: 0 }
+    : { total: 0, unassigned: 0, dueToday: 0, dirty: 0 }
+
+  function passesQuickFilter(t: CleaningTask): boolean {
+    if (!quickFilter) return true
+    const isOpen = t.status === "pending" || t.status === "in_progress"
+    if (quickFilter === "unassigned") return !t.assigned_to && isOpen
+    if (quickFilter === "today") return t.checkout_date === todayIso && isOpen
+    if (quickFilter === "dirty") return t.checkout_date < todayIso && isOpen
+    return true
+  }
+
+  const filteredUnassigned = board ? board.unassigned.filter(passesQuickFilter) : []
+  const filteredByCleaner: Record<string, CleaningTask[]> = board
+    ? Object.fromEntries(
+        Object.entries(board.byCleaner).map(([id, tasks]) => [id, tasks.filter(passesQuickFilter)])
+      )
+    : {}
+
+  function toggleFilter(f: "today" | "dirty" | "unassigned") {
+    setQuickFilter((prev) => (prev === f ? null : f))
+  }
 
   if (!canEdit) {
     return (
@@ -843,10 +881,10 @@ export default function HousekeepingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 rounded-[20px] p-6 border border-border/15">
+      <div className="bg-[#1e40af]/5 rounded-xl p-6 border border-[#dad9e3]">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-l from-[#003aa0] to-[#3F51B5] flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-[#1e40af] flex items-center justify-center">
               <Icon name="cleaning_services" size="md" className="text-white" />
             </div>
             <div>
@@ -855,29 +893,79 @@ export default function HousekeepingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <input
-              type="date"
+            <DateInput
               value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-card border border-border/40 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none min-h-[44px] tabular-nums"
+              onChange={(v) => setDate(v)}
             />
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-3 py-1.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
-                <Icon name="hotel" size="sm" /> {kpis.occupied} תפוסים
-              </span>
-              <span className="px-3 py-1.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+            <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+              <button
+                type="button"
+                onClick={() => setQuickFilter(null)}
+                aria-pressed={quickFilter === null}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
+                  quickFilter === null
+                    ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-[#474747] font-medium hover:text-[#1e40af]"
+                }`}
+              >
+                <Icon name="checklist" size="sm" /> {kpis.total} הכל
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleFilter("unassigned")}
+                aria-pressed={quickFilter === "unassigned"}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
+                  quickFilter === "unassigned"
+                    ? "bg-white text-[#854d0e] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-[#854d0e] font-medium hover:text-[#1e40af]"
+                }`}
+              >
                 <Icon name="warning" size="sm" /> {kpis.unassigned} לא משויכים
-              </span>
-              <span className="px-3 py-1.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleFilter("today")}
+                aria-pressed={quickFilter === "today"}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
+                  quickFilter === "today"
+                    ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-[#1e40af] font-medium hover:text-[#1e40af]"
+                }`}
+              >
                 <Icon name="logout" size="sm" /> {kpis.dueToday} יציאות היום
-              </span>
-              <span className="px-3 py-1.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200 flex items-center gap-1">
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleFilter("dirty")}
+                aria-pressed={quickFilter === "dirty"}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
+                  quickFilter === "dirty"
+                    ? "bg-white text-[#b91c1c] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-[#b91c1c] font-medium hover:text-[#1e40af]"
+                }`}
+              >
                 <Icon name="priority_high" size="sm" /> {kpis.dirty} דחופים
-              </span>
+              </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setCreateTaskOpen(true)}
+              className="btn btn-primary"
+            >
+              <Icon name="add" size="sm" />
+              <span className="max-sm:hidden">משימת ניקיון חדשה</span>
+            </button>
           </div>
         </div>
       </div>
+
+      <CreateCleaningTaskPanel
+        isOpen={createTaskOpen}
+        onClose={() => setCreateTaskOpen(false)}
+        tenantId={tenantId}
+        scheduledDate={date}
+        onCreated={loadBoard}
+      />
 
       {loading || !board ? (
         <div className="flex items-center justify-center py-24">
@@ -926,14 +1014,14 @@ export default function HousekeepingPage() {
               {/* Unassigned banner — full width, responsive grid */}
               <UnassignedBanner
                 id={UNASSIGNED_ID}
-                tasks={board.unassigned}
+                tasks={filteredUnassigned}
                 onTaskClick={setEditTask}
               />
 
               {/* Cleaner columns row — horizontal scroll */}
               <div className="flex gap-4 overflow-x-auto pb-4">
                 {board.cleaners.map((cleaner) => {
-                  const tasks = board.byCleaner[cleaner.id] ?? []
+                  const tasks = filteredByCleaner[cleaner.id] ?? []
                   const urgentCount = tasks.filter(
                     (t) => t.status === "pending" && t.checkout_date < todayIso
                   ).length
@@ -969,17 +1057,23 @@ export default function HousekeepingPage() {
                 {activeTask ? (
                   <div className="bg-card rounded-[14px] p-3 shadow-2xl border-2 border-primary rotate-2 w-[260px]">
                     <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-extrabold text-sm tabular-nums">
-                        {activeTask.room_number}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm tabular-nums ${
+                        activeTask.target_type === "area" ? "bg-violet-500/10 text-violet-600" : "bg-primary/10 text-primary"
+                      }`}>
+                        {activeTask.target_type === "area" ? "🏢" : activeTask.room_number}
                       </div>
                       <div>
-                        {activeTask.guest_name && (
+                        {activeTask.target_type === "area" ? (
+                          <div className="text-xs font-bold text-violet-600 truncate max-w-[140px]">
+                            {activeTask.target_label}
+                          </div>
+                        ) : activeTask.guest_name ? (
                           <div className="text-xs font-bold text-foreground truncate max-w-[140px]">
                             {activeTask.guest_name}
                           </div>
-                        )}
+                        ) : null}
                         <div className="text-sm font-bold tabular-nums" dir="ltr">
-                          {fmtTime(activeTask.checkout_time)}
+                          {activeTask.target_type === "room" ? fmtTime(activeTask.checkout_time) : fmtDate(activeTask.checkout_date)}
                         </div>
                       </div>
                     </div>

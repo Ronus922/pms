@@ -27,7 +27,7 @@ export function GeneralTab({ store, roomTypes, buildings, floors }: GeneralTabPr
             value={store.room_number}
             onChange={(e) => store.setField("room_number", e.target.value)}
             placeholder="לדוגמה: 101"
-            className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
           {store.errors.room_number && (
             <p className="text-xs text-destructive">{store.errors.room_number}</p>
@@ -42,7 +42,7 @@ export function GeneralTab({ store, roomTypes, buildings, floors }: GeneralTabPr
             value={store.wing}
             onChange={(e) => store.setField("wing", e.target.value)}
             placeholder="לדוגמה: מערבי"
-            className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
 
@@ -52,7 +52,7 @@ export function GeneralTab({ store, roomTypes, buildings, floors }: GeneralTabPr
           <select
             value={store.room_type_id}
             onChange={(e) => store.setField("room_type_id", e.target.value)}
-            className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none"
+            className="w-full rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 pe-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer select-arrow"
           >
             <option value="">בחר סוג חדר</option>
             {roomTypes.map((rt) => (
@@ -72,7 +72,7 @@ export function GeneralTab({ store, roomTypes, buildings, floors }: GeneralTabPr
               store.setField("building_id", e.target.value)
               store.setField("floor_id", "")
             }}
-            className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none"
+            className="w-full rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 pe-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer select-arrow"
           >
             <option value="">בחר בניין</option>
             {buildings.map((b) => (
@@ -89,7 +89,7 @@ export function GeneralTab({ store, roomTypes, buildings, floors }: GeneralTabPr
           <select
             value={store.floor_id}
             onChange={(e) => store.setField("floor_id", e.target.value)}
-            className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none"
+            className="w-full rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 pe-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer select-arrow"
           >
             <option value="">בחר קומה</option>
             {filteredFloors.map((f) => (
@@ -108,13 +108,13 @@ export function GeneralTab({ store, roomTypes, buildings, floors }: GeneralTabPr
             value={store.sort_order}
             onChange={(e) => store.setField("sort_order", Number(e.target.value))}
             min={0}
-            className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
 
       {/* Toggles */}
-      <div className="rounded-[20px] p-5 border border-border/20 shadow-sm space-y-4">
+      <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-bold">חדר פעיל</p>

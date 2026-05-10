@@ -21,26 +21,25 @@ interface CalendarState {
   goBackward: () => void
 }
 
-function getMonday(d: Date) {
+function startOfDay(d: Date) {
   const date = new Date(d)
-  const day = date.getDay()
-  // In Israel, week starts on Sunday (0)
-  const diff = day === 0 ? 0 : day
-  date.setDate(date.getDate() - diff)
   date.setHours(0, 0, 0, 0)
   return date
 }
 
 function getDaysForView(view: CalendarView): number {
   switch (view) {
-    case "week": return 7
-    case "two-weeks": return 14
-    case "month": return 28
+    case "week":
+      return 7
+    case "two-weeks":
+      return 14
+    case "month":
+      return 30
   }
 }
 
 export const useCalendarStore = create<CalendarState>((set, get) => ({
-  startDate: getMonday(new Date()),
+  startDate: startOfDay(new Date()),
   view: "two-weeks",
   selectedReservationId: null,
   filters: {
@@ -49,14 +48,14 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     roomType: null,
     status: null,
   },
-  setStartDate: (date) => set({ startDate: getMonday(date) }),
+  setStartDate: (date) => set({ startDate: startOfDay(date) }),
   setView: (view) => set({ view }),
   selectReservation: (id) => set({ selectedReservationId: id }),
   setFilter: (key, value) =>
     set((state) => ({
       filters: { ...state.filters, [key]: value },
     })),
-  goToday: () => set({ startDate: getMonday(new Date()) }),
+  goToday: () => set({ startDate: startOfDay(new Date()) }),
   goForward: () => {
     const { startDate, view } = get()
     const next = new Date(startDate)

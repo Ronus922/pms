@@ -1,31 +1,110 @@
 import { Icon } from "@/components/shared/Icon"
 
-const KPI_CARDS = [
-  { icon: "percent", label: "תפוסה", value: "84%", trend: "+2.4%", trendUp: true, color: "text-primary bg-primary/10" },
-  { icon: "meeting_room", label: "חדרים פנויים", value: "12", color: "text-secondary bg-secondary/10" },
-  { icon: "login", label: "צ'ק-אין היום", value: "24", color: "text-tertiary bg-tertiary/10" },
-  { icon: "construction", label: "חדרים בתחזוקה", value: "3", color: "text-amber-600 bg-amber-50" },
+interface KpiCardData {
+  icon: string
+  label: string
+  value: string
+  subtext?: string
+  subtextTone?: "default" | "success" | "error"
+  iconBg: string
+  iconColor: string
+  progress?: number
+}
+
+const KPI_CARDS: KpiCardData[] = [
+  {
+    icon: "exit_to_app",
+    label: "יציאות להיום",
+    value: "24",
+    subtext: "15 צ'ק-אאוט הושלמו",
+    iconBg: "bg-[#eff6ff]",
+    iconColor: "text-[#1e40af]",
+  },
+  {
+    icon: "login",
+    label: "כניסות להיום",
+    value: "12",
+    subtext: "4 חדרים כבר נמסרו",
+    iconBg: "bg-[#1e40af]",
+    iconColor: "text-white",
+  },
+  {
+    icon: "build",
+    label: "תחזוקה",
+    value: "3",
+    subtext: "! חדרים בטיפול דחוף",
+    subtextTone: "error",
+    iconBg: "bg-[#fee2e2]",
+    iconColor: "text-[#b91c1c]",
+  },
+  {
+    icon: "percent",
+    label: "תפוסה",
+    value: "84%",
+    subtext: "+2.4% משבוע שעבר",
+    subtextTone: "success",
+    iconBg: "bg-[#eff6ff]",
+    iconColor: "text-[#1e40af]",
+    progress: 84,
+  },
 ]
+
+function CircularProgress({ value }: { value: number }) {
+  const radius = 22
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (value / 100) * circumference
+  return (
+    <svg width="56" height="56" viewBox="0 0 56 56" className="-rotate-90">
+      <circle cx="28" cy="28" r={radius} fill="none" stroke="#eff6ff" strokeWidth="5" />
+      <circle
+        cx="28"
+        cy="28"
+        r={radius}
+        fill="none"
+        stroke="#1e40af"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+      />
+    </svg>
+  )
+}
 
 export default function DashboardPage() {
   return (
     <div className="space-y-8">
-      {/* KPI Cards */}
+      {/* KPI Cards — Azure Ethos */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {KPI_CARDS.map((card) => (
-          <div key={card.label} className="kpi-card bg-card rounded-[20px] p-5 shadow-sm border border-border/20 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className={`p-2 rounded-xl ${card.color}`}>
-                <Icon name={card.icon} />
-              </span>
-              {card.trend && (
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${card.trendUp ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50"}`}>
-                  {card.trend}
-                </span>
+          <div
+            key={card.label}
+            className="bg-white rounded-xl p-6 border border-[#dad9e3] flex items-start justify-between min-h-[140px]"
+          >
+            <div className="flex flex-col gap-1 text-right">
+              <p className="text-sm font-medium text-[#474747]">{card.label}</p>
+              <p className="text-[2.25rem] font-bold text-[#1c1b1f] leading-tight">{card.value}</p>
+              {card.subtext && (
+                <p
+                  className={`text-xs ${
+                    card.subtextTone === "error"
+                      ? "text-[#b91c1c] font-semibold"
+                      : card.subtextTone === "success"
+                        ? "text-[#15803d] font-semibold"
+                        : "text-[#474747]"
+                  }`}
+                >
+                  {card.subtext}
+                </p>
               )}
             </div>
-            <p className="text-3xl font-extrabold mt-2">{card.value}</p>
-            <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+            {card.progress !== undefined ? (
+              <CircularProgress value={card.progress} />
+            ) : (
+              <span className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.iconBg} ${card.iconColor}`}>
+                <Icon name={card.icon} />
+              </span>
+            )}
           </div>
         ))}
       </section>

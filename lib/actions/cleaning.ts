@@ -1,6 +1,8 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor, requirePermission } from "@/lib/auth/actor"
+import { AuthorizationError } from "@/lib/auth/errors"
 import type {
   CleaningTask,
   CleaningStatus,
@@ -107,6 +109,55 @@ export async function createCleaningTasksForCheckout(
   }
 
   return { created, skipped }
+}
+
+/* ── Area Cleaning Task (manual only) ──────────────────────── */
+
+/**
+ * Create a manual cleaning task for an operational area (lobby, corridor, etc.).
+ * Area tasks have no reservation link, no room_id, and never auto-generate.
+ */
+export async function createAreaCleaningTask(
+  _tenantId: string,
+  input: {
+    area_id: string
+    area_name: string
+    assigned_to?: string | null
+    scheduled_date: string
+    notes?: string
+  }
+): Promise<{ success: boolean; error?: string; taskId?: string }> {
+  try {
+    // Manager-only operation.
+    const actor = await requirePermission("housekeeping", "edit")
+    if (actor.role === "cleaner") {
+      throw new AuthorizationError("רק מנהלים יכולים ליצור משימת ניקיון אזור")
+    }
+    const tenantId = actor.tenantId
+
+    const nextOrder = await getNextOrderIndex(tenantId, input.assigned_to ?? null)
+
+    const result = await db`
+      INSERT INTO housekeeping_tasks
+        (tenant_id, target_type, target_id, target_label,
+         room_id, room_number, reservation_id, reservation_room_id,
+         assigned_to, status, priority, order_index,
+         source_trigger, scheduled_date, checkout_date, notes)
+      VALUES
+        (${tenantId}, 'area', ${input.area_id}, ${input.area_name},
+         NULL, NULL, NULL, NULL,
+         ${input.assigned_to ?? null}, 'pending', 'normal', ${nextOrder},
+         'manager_manual', ${input.scheduled_date}, ${input.scheduled_date},
+         ${input.notes ?? null})
+      RETURNING id
+    `
+    const taskId = (result[0] as unknown as { id: string }).id
+    return { success: true, taskId }
+  } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
+    const message = err instanceof Error ? err.message : "שגיאה ביצירת משימת ניקיון אזור"
+    return { success: false, error: message }
+  }
 }
 
 /**
@@ -408,7 +459,7 @@ export async function getCleaningBoard(
     FROM users
     WHERE tenant_id = ${tenantId}
       AND is_active = true
-      AND role IN ('cleaner','housekeeper')
+      AND role = 'cleaner'
     ORDER BY full_name
   `
   const cleaners = cleanerRows as unknown as CleanerSummary[]
@@ -424,6 +475,9 @@ export async function getCleaningBoard(
       hk.checkin_date, hk.checkout_date, hk.checkout_time,
       hk.order_index, hk.source_trigger, hk.notes,
       hk.started_at, hk.completed_at, hk.created_at, hk.updated_at,
+      COALESCE(hk.target_type, 'room') AS target_type,
+      hk.target_id,
+      COALESCE(hk.target_label, r.room_number) AS target_label,
       r.room_number,
       u.full_name AS cleaner_name,
       g.full_name AS guest_name
@@ -508,6 +562,9 @@ export async function getMyCleaningQueue(
       hk.checkin_date, hk.checkout_date, hk.checkout_time,
       hk.order_index, hk.source_trigger, hk.notes,
       hk.started_at, hk.completed_at, hk.created_at, hk.updated_at,
+      COALESCE(hk.target_type, 'room') AS target_type,
+      hk.target_id,
+      COALESCE(hk.target_label, r.room_number) AS target_label,
       r.room_number,
       NULL AS cleaner_name
     FROM housekeeping_tasks hk
@@ -541,11 +598,25 @@ export async function getMyCleaningQueue(
  * Manual drag-to-reorder (via reorderCleaningTasks) still overrides this.
  */
 export async function assignCleaner(
-  tenantId: string,
+  _tenantId: string,
   taskId: string,
   cleanerUserId: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Manager-level operation: only admin/super_admin or users with
+    // explicit housekeeping edit permission may assign cleaners.
+    // Pure cleaners cannot reassign tasks to themselves or others.
+    const actor = await requireActor()
+    const isManager = actor.role === "super_admin" || actor.role === "admin"
+    if (!isManager) {
+      // receptionist/cleaner: must have explicit housekeeping.canEdit
+      const hkPerm = actor.permissions.find((p) => p.module === "housekeeping")
+      if (!hkPerm?.canEdit || actor.role === "cleaner") {
+        throw new AuthorizationError("רק מנהלים יכולים לשייך משימות ניקיון")
+      }
+    }
+    const tenantId = actor.tenantId
+
     // 1. Flip the assignment
     await db`
       UPDATE housekeeping_tasks
@@ -590,16 +661,28 @@ export async function assignCleaner(
 
     return { success: true }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
   }
 }
 
 export async function reorderCleaningTasks(
-  tenantId: string,
+  _tenantId: string,
   cleanerUserId: string | null,
   orderedTaskIds: string[]
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Reorder is a manager operation. Admin/super_admin only.
+    const actor = await requireActor()
+    const isManager = actor.role === "super_admin" || actor.role === "admin"
+    if (!isManager) {
+      const hkPerm = actor.permissions.find((p) => p.module === "housekeeping")
+      if (!hkPerm?.canEdit || actor.role === "cleaner") {
+        throw new AuthorizationError("רק מנהלים יכולים לסדר משימות ניקיון")
+      }
+    }
+    const tenantId = actor.tenantId
+
     for (let i = 0; i < orderedTaskIds.length; i++) {
       // Verify each task belongs to the cleaner (or is unassigned)
       if (cleanerUserId) {
@@ -622,23 +705,43 @@ export async function reorderCleaningTasks(
     }
     return { success: true }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
   }
 }
 
 export async function setCleaningTaskStatus(
-  tenantId: string,
+  _tenantId: string,
   taskId: string,
   status: CleaningStatus
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Get the task's room
+    // Cleaner can only update tasks assigned to them.
+    // Manager (admin/super_admin) can update any task in their tenant.
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
+
+    // Look up the task with assignment for ownership check.
     const [task] = await db`
-      SELECT room_id, status AS prev_status
+      SELECT room_id, status AS prev_status, assigned_to
       FROM housekeeping_tasks
       WHERE id = ${taskId} AND tenant_id = ${tenantId}
     `
     if (!task) return { success: false, error: "משימה לא נמצאה" }
+
+    const isManager = actor.role === "super_admin" || actor.role === "admin"
+    if (!isManager) {
+      // Non-managers must own the task or have explicit housekeeping edit.
+      const hkPerm = actor.permissions.find((p) => p.module === "housekeeping")
+      const isOwner = task.assigned_to === actor.userId
+      if (!isOwner && !hkPerm?.canEdit) {
+        throw new AuthorizationError("ניתן לעדכן רק משימה שמשויכת אליך")
+      }
+      // A cleaner role with hkPerm.canEdit but NOT owner — block.
+      if (actor.role === "cleaner" && !isOwner) {
+        throw new AuthorizationError("ניתן לעדכן רק משימה שמשויכת אליך")
+      }
+    }
 
     // Update task
     if (status === "in_progress") {
@@ -666,30 +769,34 @@ export async function setCleaningTaskStatus(
       `
     }
 
-    // Update room cleaning_state.
+    // Update room cleaning_state — only for room-based tasks.
+    // Areas do not have a cleaning_state column.
     // IMPORTANT: cleaning_state is "has this room been cleaned since the last
     // checkout". It is independent of whether a NEW guest is already inside.
     // The derived display state handles the "occupied vs dirty" visual.
-    if (status === "in_progress") {
-      await db`
-        UPDATE rooms SET cleaning_state = 'in_progress', updated_at = NOW()
-        WHERE id = ${task.room_id} AND tenant_id = ${tenantId}
-      `
-    } else if (status === "done") {
-      await db`
-        UPDATE rooms SET cleaning_state = 'clean', updated_at = NOW()
-        WHERE id = ${task.room_id} AND tenant_id = ${tenantId}
-      `
-    } else if (status === "pending") {
-      // Revert — room goes back to dirty
-      await db`
-        UPDATE rooms SET cleaning_state = 'dirty', updated_at = NOW()
-        WHERE id = ${task.room_id} AND tenant_id = ${tenantId}
-      `
+    if (task.room_id) {
+      if (status === "in_progress") {
+        await db`
+          UPDATE rooms SET cleaning_state = 'in_progress', updated_at = NOW()
+          WHERE id = ${task.room_id} AND tenant_id = ${tenantId}
+        `
+      } else if (status === "done") {
+        await db`
+          UPDATE rooms SET cleaning_state = 'clean', updated_at = NOW()
+          WHERE id = ${task.room_id} AND tenant_id = ${tenantId}
+        `
+      } else if (status === "pending") {
+        // Revert — room goes back to dirty
+        await db`
+          UPDATE rooms SET cleaning_state = 'dirty', updated_at = NOW()
+          WHERE id = ${task.room_id} AND tenant_id = ${tenantId}
+        `
+      }
     }
 
     return { success: true }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
   }
 }
@@ -701,7 +808,7 @@ export async function setCleaningTaskStatus(
  * manager_manual task for that future date.
  */
 export async function createManualCleaningTask(
-  tenantId: string,
+  _tenantId: string,
   input: {
     room_id: string
     reservation_id: string | null
@@ -714,6 +821,14 @@ export async function createManualCleaningTask(
   }
 ): Promise<{ success: boolean; error?: string; taskId?: string }> {
   try {
+    // Manager-only operation.
+    const actor = await requirePermission("housekeeping", "edit")
+    const isManager = actor.role === "super_admin" || actor.role === "admin"
+    if (!isManager && actor.role === "cleaner") {
+      throw new AuthorizationError("רק מנהלים יכולים ליצור משימת ניקיון ידנית")
+    }
+    const tenantId = actor.tenantId
+
     const nextOrder = await getNextOrderIndex(tenantId, input.cleaner_user_id)
     const time = input.checkout_time ?? DEFAULT_CHECKOUT_TIME
 
@@ -732,31 +847,58 @@ export async function createManualCleaningTask(
     `
     return { success: true, taskId: row.id as string }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
   }
 }
 
 export async function deleteCleaningTask(
-  tenantId: string,
+  _tenantId: string,
   taskId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Delete is manager-only.
+    const actor = await requirePermission("housekeeping", "delete")
+    if (actor.role === "cleaner") {
+      throw new AuthorizationError("רק מנהלים יכולים למחוק משימות ניקיון")
+    }
+    const tenantId = actor.tenantId
+
     await db`
       DELETE FROM housekeeping_tasks
       WHERE id = ${taskId} AND tenant_id = ${tenantId}
     `
     return { success: true }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
   }
 }
 
 export async function updateCleaningTaskNotes(
-  tenantId: string,
+  _tenantId: string,
   taskId: string,
   notes: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Cleaner can update notes on their own task. Manager can update any.
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
+
+    const [task] = await db`
+      SELECT assigned_to FROM housekeeping_tasks
+      WHERE id = ${taskId} AND tenant_id = ${tenantId}
+    `
+    if (!task) return { success: false, error: "משימה לא נמצאה" }
+
+    const isManager = actor.role === "super_admin" || actor.role === "admin"
+    if (!isManager) {
+      const isOwner = task.assigned_to === actor.userId
+      if (!isOwner) {
+        throw new AuthorizationError("ניתן לערוך הערות רק במשימה שלך")
+      }
+    }
+
     await db`
       UPDATE housekeeping_tasks
       SET notes = ${notes}, updated_at = NOW()
@@ -764,6 +906,7 @@ export async function updateCleaningTaskNotes(
     `
     return { success: true }
   } catch (err: unknown) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
   }
 }

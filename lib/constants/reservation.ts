@@ -103,6 +103,18 @@ export const STATUS_BORDER_COLORS: Record<string, string> = {
   draft: "#9ca3af",
 }
 
+/* ── Extra Charge Types ──────────────────────────────────── */
+
+export const EXTRA_CHARGE_TYPES = [
+  { value: "pet", label: "בעל חיים" },
+  { value: "late_checkout", label: "יציאה מאוחרת" },
+  { value: "early_checkin", label: "כניסה מוקדמת" },
+  { value: "extra_cleaning", label: "ניקיון נוסף" },
+  { value: "extra_bed", label: "מיטה נוספת" },
+  { value: "damage", label: "נזק / חיוב מיוחד" },
+  { value: "other", label: "אחר" },
+] as const
+
 /* ── External source detection ───────────────────────────── */
 
 const EXTERNAL_SOURCES = new Set([

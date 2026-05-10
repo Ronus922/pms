@@ -6,6 +6,8 @@ import { SidePanel } from "@/components/shared/SidePanel"
 import { Icon } from "@/components/shared/Icon"
 import { useReservationFormStore } from "@/lib/stores/reservation-form-store"
 import { createReservation } from "@/lib/actions/create-reservation"
+import { getTenantSettings } from "@/lib/actions/settings"
+import { toast } from "sonner"
 import { useTenant } from "@/lib/hooks/use-tenant"
 import { Step1Guest } from "./steps/Step1Guest"
 import { Step2Stay } from "./steps/Step2Stay"
@@ -51,6 +53,18 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
     bodyRef.current?.scrollTo({ top: 0, behavior: "smooth" })
   }, [activeTab])
 
+  /* ── Load tenant's VAT rate when the modal opens ──────────── */
+  useEffect(() => {
+    if (!store.isOpen) return
+    let cancelled = false
+    getTenantSettings(tenantId).then((s) => {
+      if (cancelled) return
+      store.setField("taxRate", (Number(s.vatRate) || 0) / 100)
+    }).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot per open
+  }, [store.isOpen, tenantId])
+
   /* ── Validation ───────────────────────────────────────────── */
   const validateStep = useCallback(
     (step: number): boolean => {
@@ -60,16 +74,26 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
         if (!store.firstName.trim()) errors.firstName = "חובה להזין שם פרטי"
         if (!store.lastName.trim()) errors.lastName = "חובה להזין שם משפחה"
         if (!store.phone.trim()) errors.phone = "חובה להזין טלפון"
-        if (!store.checkIn) errors.checkIn = "חובה להזין תאריך הגעה"
-        if (!store.checkOut) errors.checkOut = "חובה להזין תאריך עזיבה"
-        if (store.checkIn && store.checkOut && store.checkOut <= store.checkIn) {
-          errors.checkOut = "תאריך עזיבה חייב להיות אחרי הגעה"
-        }
-      }
 
-      if (step === 1) {
-        if (store.rooms.length === 0 && !store.roomId && !store.roomTypeId) {
-          errors.roomTypeId = "חובה לבחור חדר או סוג חדר"
+        // Each room block is self-contained: dates + composition + selected room.
+        if (store.rooms.length === 0) {
+          errors.roomId = "חובה להוסיף לפחות חדר אחד"
+        } else {
+          for (let i = 0; i < store.rooms.length; i++) {
+            const r = store.rooms[i]
+            if (!r.checkIn || !r.checkOut || r.checkOut <= r.checkIn) {
+              errors.roomId = `חדר ${i + 1}: חובה להזין תאריכים תקינים`
+              break
+            }
+            if (!r.adults || r.adults < 1) {
+              errors.roomId = `חדר ${i + 1}: חובה לציין לפחות מבוגר אחד`
+              break
+            }
+            if (!r.roomId) {
+              errors.roomId = `חדר ${i + 1}: חובה לבחור חדר זמין`
+              break
+            }
+          }
         }
       }
 
@@ -78,16 +102,28 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
         if (store.pricePerNight <= 0 && !hasRoomRates) {
           errors.pricePerNight = "מחיר ללילה חייב להיות גדול מ-0"
         }
+        if (store.paymentMethod === "credit_card") {
+          if (!store.cardHolderName.trim()) errors.cardHolderName = "חובה להזין שם בעל כרטיס"
+          const digits = store.cardNumber.replace(/\D/g, "")
+          if (!digits) errors.cardNumber = "חובה להזין מספר כרטיס"
+          else if (digits.length < 13 || digits.length > 19) errors.cardNumber = "מספר כרטיס לא תקין"
+        }
       }
 
       if (step === 3) {
         if (!store.firstName.trim()) errors.firstName = "חובה להזין שם פרטי"
         if (!store.lastName.trim()) errors.lastName = "חובה להזין שם משפחה"
         if (!store.phone.trim()) errors.phone = "חובה להזין טלפון"
-        if (!store.checkIn) errors.checkIn = "חובה להזין תאריך הגעה"
-        if (!store.checkOut) errors.checkOut = "חובה להזין תאריך עזיבה"
-        if (store.checkIn && store.checkOut && store.checkOut <= store.checkIn) {
-          errors.checkOut = "תאריך עזיבה חייב להיות אחרי הגעה"
+        if (store.rooms.length === 0) {
+          errors.roomId = "חובה להוסיף לפחות חדר אחד"
+        } else {
+          for (let i = 0; i < store.rooms.length; i++) {
+            const r = store.rooms[i]
+            if (!r.checkIn || !r.checkOut || r.checkOut <= r.checkIn || !r.adults || r.adults < 1 || !r.roomId) {
+              errors.roomId = `חדר ${i + 1}: פרטים חסרים`
+              break
+            }
+          }
         }
       }
 
@@ -167,7 +203,8 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
       amountPaid: store.amountPaid,
       currency: store.currency,
       cardHolderName: store.cardHolderName,
-      cardLast4: store.cardLast4,
+      cardNumber: store.cardNumber,
+      cardHolderId: store.cardHolderId,
       cardExpiryMonth: store.cardExpiryMonth,
       cardExpiryYear: store.cardExpiryYear,
       cardApprovalCode: store.cardApprovalCode,
@@ -182,9 +219,15 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
     store.setSubmitting(false)
 
     if (result.success) {
+      toast.success("ההזמנה נוצרה בהצלחה", {
+        description: `מספר הזמנה: ${result.reservationNumber}`,
+        duration: 4000,
+      })
+      new Audio("/sounds/success.wav").play().catch(() => {})
       store.close()
       onCreated?.()
     } else {
+      toast.error(result.error || "שגיאה ביצירת ההזמנה")
       setSubmitError(result.error || "שגיאה ביצירת ההזמנה")
     }
   }, [store, tenantId, propertyId, onCreated, validateStep])
@@ -227,12 +270,33 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
             ))}
           </div>
 
-          {/* Step Progress Bar */}
-          <div className="px-6 pb-4">
-            <div className="flex items-center justify-between max-w-[520px] mx-auto">
-              {STEPS.map((step, i) => (
-                <div key={i} className="flex items-center">
+          {/* Step Progress Bar — RTL: step 1 on the right, 4 on the left, equal spacing */}
+          <div className="px-6 pb-4" dir="rtl">
+            <div className="relative max-w-[520px] mx-auto">
+              {/* Horizontal track — sits behind the circles at their vertical center */}
+              <div
+                className="absolute top-[18px] h-0.5 bg-border/30 rounded-full pointer-events-none"
+                style={{ insetInlineStart: "12.5%", insetInlineEnd: "12.5%" }}
+                aria-hidden
+              />
+              {/* Filled portion up to the current step */}
+              <div
+                className="absolute top-[18px] h-0.5 bg-primary rounded-full transition-[width] pointer-events-none"
+                style={{
+                  insetInlineStart: "12.5%",
+                  width:
+                    STEPS.length > 1
+                      ? `${(activeTab / (STEPS.length - 1)) * 75}%`
+                      : "0%",
+                }}
+                aria-hidden
+              />
+
+              {/* 4 equal columns — guarantees equal spacing regardless of label width */}
+              <div className="relative grid grid-cols-4">
+                {STEPS.map((step, i) => (
                   <button
+                    key={i}
                     type="button"
                     onClick={() => store.setActiveTab(i)}
                     className="flex flex-col items-center gap-1.5 group"
@@ -264,16 +328,8 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
                       {step.label}
                     </span>
                   </button>
-
-                  {i < STEPS.length - 1 && (
-                    <div
-                      className={`w-10 h-0.5 mx-1.5 mt-[-18px] rounded-full transition-colors ${
-                        i < activeTab ? "bg-primary" : "bg-border/30"
-                      }`}
-                    />
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -390,7 +446,7 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={store.isSubmitting}
-                className="min-h-[44px] px-5 py-3 border border-border/30 text-muted-foreground font-bold text-sm rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
+                className="btn btn-outline"
               >
                 שמור טיוטה
               </button>
@@ -403,7 +459,7 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
               <button
                 type="button"
                 onClick={handleBack}
-                className="min-h-[44px] px-6 py-3 border border-border/30 text-muted-foreground font-bold text-sm rounded-xl hover:bg-accent transition-colors flex items-center gap-2"
+                className="btn btn-outline"
               >
                 <Icon name="chevron_right" size="sm" />
                 חזרה
@@ -413,7 +469,7 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
               <button
                 type="button"
                 onClick={handleNext}
-                className="min-h-[44px] px-8 py-3 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center gap-2"
+                className="btn btn-primary"
               >
                 הבא
                 <Icon name="chevron_left" size="sm" />
@@ -423,7 +479,7 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
                 type="button"
                 onClick={handleSubmit}
                 disabled={store.isSubmitting}
-                className="min-h-[44px] px-8 py-3 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                className="btn btn-primary"
               >
                 {store.isSubmitting ? (
                   <>

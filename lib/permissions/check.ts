@@ -43,7 +43,7 @@ export function hasPermission(
  */
 export function canManageRole(managerRole: Role, targetRole: Role): boolean {
   if (managerRole === "super_admin") return true
-  if (managerRole === "admin" && targetRole === "receptionist") return true
+  if (managerRole === "admin" && (targetRole === "receptionist" || targetRole === "cleaner")) return true
   return false
 }
 

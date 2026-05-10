@@ -81,6 +81,22 @@ export function StatusPill({ type, value, size = "sm" }: StatusPillProps) {
   )
 }
 
+/* ── Color helper for inline usage (e.g. selects) ──────────── */
+
+export function getStatusColorClass(
+  type: "reservation" | "payment" | "paymentResult",
+  value: string,
+): string {
+  const map =
+    type === "reservation" ? RESERVATION_STATUS_MAP :
+    type === "payment" ? PAYMENT_STATUS_MAP :
+    PAYMENT_RESULT_MAP
+  const item = map[value]
+  if (!item) return ""
+  const colors = COLOR_MAP[item.color]
+  return colors ? `${colors.bg} ${colors.text}` : ""
+}
+
 /* ── Exports for dropdowns ──────────────────────────────────── */
 
 export const RESERVATION_STATUSES = Object.entries(RESERVATION_STATUS_MAP).map(([value, { label }]) => ({ value, label }))

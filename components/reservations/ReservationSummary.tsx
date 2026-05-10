@@ -15,6 +15,12 @@ function fmtDateHeb(d: string): string {
 export function ReservationSummary() {
   const s = useReservationFormStore()
   const sym = s.currency === "USD" ? "$" : s.currency === "EUR" ? "€" : "₪"
+  const guestsLine = [
+    `${s.adults} מבוגרים`,
+    s.children > 0 ? `${s.children} ילדים` : null,
+    s.infants > 0 ? `${s.infants} תינוקות` : null,
+  ].filter(Boolean).join(", ")
+  const roomsCount = s.rooms.length
 
   return (
     <div className="bg-card rounded-[20px] overflow-hidden shadow-sm border border-border/20">
@@ -58,11 +64,15 @@ export function ReservationSummary() {
             <span className="text-muted-foreground">מספר לילות</span>
             <span className="font-semibold">{s.nights > 0 ? `${s.nights} לילות` : "—"}</span>
           </div>
+          {roomsCount > 0 && (
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">חדרים</span>
+              <span className="font-semibold">{roomsCount}</span>
+            </div>
+          )}
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">אורחים</span>
-            <span className="font-semibold">
-              {s.adults} מבוגרים{s.children > 0 ? `, ${s.children} ילדים` : ""}{s.infants > 0 ? `, ${s.infants} תינוקות` : ""}
-            </span>
+            <span className="font-semibold">{guestsLine || "—"}</span>
           </div>
         </div>
 
@@ -79,10 +89,10 @@ export function ReservationSummary() {
                 <span className="font-semibold">-{sym}{s.discountTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               </div>
             )}
-            {s.extraCharges > 0 && (
+            {Array.isArray(s.extraCharges) && s.extraCharges.length > 0 && (
               <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">חיובים נוספים</span>
-                <span className="font-semibold">{sym}{s.extraCharges.toLocaleString()}</span>
+                <span className="text-muted-foreground">חיובים נוספים ({s.extraCharges.length})</span>
+                <span className="font-semibold">{sym}{s.extraCharges.reduce((sum: number, c: { amount: number }) => sum + (c.amount || 0), 0).toLocaleString()}</span>
               </div>
             )}
             {s.taxAmount > 0 && (

@@ -277,9 +277,9 @@
 }
 
 .report-quick-pill.active {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
-  color: var(--primary-foreground);
-  box-shadow: 0 2px 8px rgba(0, 58, 160, 0.2);
+  background: #1e40af;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.2);
 }
 
 .report-quick-pill:not(.active) {
@@ -306,14 +306,14 @@
 /* ── Export Menu ───────────────────────────────────────────────────────── */
 
 .report-export-btn {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
-  color: var(--primary-foreground);
+  background: #1e40af;
+  color: #ffffff;
   border-radius: 12px;
   padding: 0.5rem 1rem;
   font-size: 14px;
   font-weight: 600;
   min-height: 44px;
-  box-shadow: 0 2px 8px rgba(0, 58, 160, 0.15);
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.15);
   transition: box-shadow 0.2s ease, transform 0.15s ease;
 }
 

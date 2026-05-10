@@ -36,6 +36,8 @@ export type LookupCategoryId =
   | "room_tag"
   | "cancellation_policy"
   | "attachment_category"
+  | "area_type"
+  | "supplier_type"
 
 export interface LookupItemInput {
   category: LookupCategoryId

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Icon } from "@/components/shared/Icon"
+import { DateInput } from "@/components/shared/DateInput"
 import { cn } from "@/lib/utils"
 import { DATE_PRESET_LABELS, COMPARE_LABELS } from "@/hooks/useReportFilters"
 import type { CompareMode, DateRangePreset, ReportFilters } from "@/lib/reports/types"
@@ -101,11 +102,11 @@ export function ReportsFilterBar({
         <div className="report-advanced-filters flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">מ:</span>
-            <input type="date" value={filters.dateRange.from} onChange={(e) => onSetCustomDateRange(e.target.value, filters.dateRange.to)} className="rounded-xl border border-border bg-card px-3 py-2 text-sm min-h-[40px]" />
+            <DateInput value={filters.dateRange.from} onChange={(v) => onSetCustomDateRange(v, filters.dateRange.to)} />
           </label>
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">עד:</span>
-            <input type="date" value={filters.dateRange.to} onChange={(e) => onSetCustomDateRange(filters.dateRange.from, e.target.value)} className="rounded-xl border border-border bg-card px-3 py-2 text-sm min-h-[40px]" />
+            <DateInput value={filters.dateRange.to} onChange={(v) => onSetCustomDateRange(filters.dateRange.from, v)} minDate={filters.dateRange.from} />
           </label>
         </div>
       )}

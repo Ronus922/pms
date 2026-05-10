@@ -41,4 +41,8 @@ export function SourceBadge({ value, size = "sm" }: SourceBadgeProps) {
 
 export const BOOKING_SOURCES = Object.entries(SOURCE_MAP).map(([value, { label }]) => ({ value, label }))
 
+export function getSourceColorClass(value: string): string {
+  return SOURCE_MAP[value]?.color ?? ""
+}
+
 export { SOURCE_MAP }
