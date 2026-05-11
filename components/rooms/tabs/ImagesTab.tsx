@@ -102,7 +102,7 @@ export function ImagesTab({ store }: ImagesTabProps) {
           }}
           placeholder="הוסף תמונה לפי כתובת URL"
           disabled={!canAddMore}
-          className="flex-1 rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+          className="flex-1 rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
         />
         <button
           type="button"

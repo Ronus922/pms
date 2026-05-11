@@ -128,7 +128,7 @@ export function ReservationDetailView({ reservationId, tenantId, onUpdate }: Pro
             </button>
           )}
           <button onClick={() => handleAction("vip")} disabled={!!actionLoading}
-            className="bg-card text-foreground px-5 py-2.5 rounded-xl min-h-[44px] font-bold text-sm shadow-sm border border-border/20 hover:bg-accent transition-all flex items-center gap-2 disabled:opacity-50">
+            className="btn btn-outline">
             <Icon name="star" size="sm" className={data.is_vip ? "text-amber-500" : ""} />
             {data.is_vip ? "הסר VIP" : "VIP"}
           </button>
@@ -146,12 +146,10 @@ export function ReservationDetailView({ reservationId, tenantId, onUpdate }: Pro
         {/* Main content */}
         <div className="col-span-8 max-lg:col-span-12 space-y-6">
           {/* Tabs */}
-          <nav className="flex border-b border-border/20 gap-8">
+          <nav className="flex gap-2 flex-wrap">
             {TABS.map((t) => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className={`pb-4 border-b-2 text-sm font-medium transition-colors ${
-                  tab === t.key ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-primary"
-                }`}>
+                className={`pill-tab ${tab === t.key ? "pill-tab-active" : ""}`}>
                 {t.label}
               </button>
             ))}

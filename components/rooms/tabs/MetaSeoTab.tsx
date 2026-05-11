@@ -24,7 +24,7 @@ export function MetaSeoTab({ store }: MetaSeoTabProps) {
 
   return (
     <div className="space-y-4" dir="rtl">
-      <div className="rounded-[20px] p-5 border border-border/20 shadow-sm space-y-4">
+      <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20 space-y-4">
         {/* seo_title */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-muted-foreground">כותרת SEO</label>
@@ -35,7 +35,7 @@ export function MetaSeoTab({ store }: MetaSeoTabProps) {
               store.setTranslation(store.currentLanguage, "seo_title", e.target.value)
             }
             placeholder={currentTranslation.room_name || "כותרת לתוצאות חיפוש"}
-            className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
           <p className="text-xs text-muted-foreground">
             {currentTranslation.seo_title.length}/60 תווים
@@ -52,7 +52,7 @@ export function MetaSeoTab({ store }: MetaSeoTabProps) {
             }
             placeholder={currentTranslation.meta_search_summary || "תיאור מפורט יותר לתוצאות חיפוש"}
             rows={3}
-            className="w-full rounded-xl border border-border/40 bg-accent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+            className="w-full rounded-xl border-0 bg-accent px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
           />
           <p className="text-xs text-muted-foreground">
             {currentTranslation.seo_description.length}/160 תווים
@@ -63,7 +63,7 @@ export function MetaSeoTab({ store }: MetaSeoTabProps) {
       {/* Google-style preview */}
       <div className="space-y-1.5">
         <label className="text-xs font-bold text-muted-foreground">תצוגה מקדימה בגוגל</label>
-        <div className="rounded-[20px] p-5 border border-border/20 shadow-sm bg-white dark:bg-card">
+        <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20">
           <div className="space-y-1" dir="ltr">
             {/* URL line */}
             <div className="flex items-center gap-1.5">

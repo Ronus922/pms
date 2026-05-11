@@ -66,7 +66,7 @@ function TaskCard({ task, index, total, busy, onStart, onDone }: TaskCardProps) 
       </div>
 
       {/* Checkout time — BIG */}
-      <div className="bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 rounded-xl p-4 mb-4 text-center">
+      <div className="bg-[#1e40af]/10 rounded-xl p-4 mb-4 text-center">
         <div className="text-[11px] font-bold text-muted-foreground mb-1">שעת יציאה</div>
         <div className="text-4xl font-extrabold tabular-nums text-primary" dir="ltr">
           {fmtTime(task.checkout_time)}
@@ -171,7 +171,7 @@ export default function MyTasksPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] px-4 py-4 shadow-md">
+      <header className="sticky top-0 z-40 bg-[#1e40af] px-4 py-4 shadow-md">
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center">

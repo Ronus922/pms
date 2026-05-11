@@ -47,7 +47,7 @@ export function LanguagesTab({ store }: LanguagesTabProps) {
         completionStatus={completionStatus}
       />
 
-      <div className="rounded-[20px] p-5 border border-border/20 shadow-sm space-y-4">
+      <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20 space-y-4">
         {/* room_name */}
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-muted-foreground">שם החדר</label>
@@ -58,7 +58,7 @@ export function LanguagesTab({ store }: LanguagesTabProps) {
               store.setTranslation(store.currentLanguage, "room_name", e.target.value)
             }
             placeholder="לדוגמה: סוויטת דלקס עם נוף לים"
-            className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full rounded-xl border-0 bg-accent min-h-[48px] px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
 
@@ -88,7 +88,7 @@ export function LanguagesTab({ store }: LanguagesTabProps) {
             }
             placeholder="תיאור קצר שיופיע בתוצאות חיפוש (80-140 תווים)"
             rows={3}
-            className="w-full rounded-xl border border-border/40 bg-accent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+            className="w-full rounded-xl border-0 bg-accent px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
           />
           <div className="flex items-center justify-between">
             <div>

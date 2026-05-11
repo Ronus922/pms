@@ -79,10 +79,10 @@ export default function GuestProfilePage() {
         </div>
 
         <div className="flex gap-3">
-          <button className="bg-card text-foreground px-5 py-2.5 rounded-xl font-bold shadow-sm border border-border/20 hover:bg-accent transition-all flex items-center gap-2 text-sm min-h-[44px]">
+          <button className="btn btn-outline">
             <Icon name="edit" size="sm" /> ערוך פרופיל
           </button>
-          <button className="bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-6 py-2.5 rounded-xl font-bold shadow-md hover:shadow-md transition-all flex items-center gap-2 text-sm min-h-[44px]">
+          <button className="btn btn-primary">
             <Icon name="add" size="sm" /> הזמנה חדשה
           </button>
         </div>

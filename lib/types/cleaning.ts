@@ -10,8 +10,14 @@ export type CleaningSourceTrigger =
 export interface CleaningTask {
   id: string
   tenant_id: string
-  room_id: string
-  room_number: string
+  room_id: string | null
+  room_number: string | null
+  /** Target type: "room" for rooms, "area" for operational areas */
+  target_type: "room" | "area"
+  /** Unified target reference: room_id or area_id */
+  target_id: string | null
+  /** Display label: "חדר 101" or "לובי ראשי" */
+  target_label: string | null
   reservation_id: string | null
   reservation_room_id: string | null
   assigned_to: string | null

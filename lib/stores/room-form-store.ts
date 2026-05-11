@@ -35,6 +35,10 @@ interface RoomFormState {
   sort_order: number
   building_id: string
   floor_id: string
+  /** Long-lived room lifecycle state. New model: available / inactive / out_of_order.
+   *  Legacy values (blocked / maintenance / unavailable) may still appear when
+   *  editing older rows but are never selectable from the dropdown. */
+  status: string
 
   // Occupancy
   max_occupancy: number
@@ -67,6 +71,7 @@ interface RoomFormActions {
   open: (roomId?: string) => void
   close: () => void
   setField: (key: string, value: unknown) => void
+  setErrors: (errors: Record<string, string>) => void
   setActiveTab: (tab: number) => void
   setTranslation: (lang: string, field: keyof RoomTranslation, value: string) => void
   setCurrentLanguage: (lang: string) => void
@@ -103,6 +108,7 @@ const DEFAULTS: RoomFormState = {
   sort_order: 0,
   building_id: "",
   floor_id: "",
+  status: "available",
 
   max_occupancy: 2,
   default_guests: 2,
@@ -158,17 +164,32 @@ export const useRoomFormStore = create<RoomFormStore>((set) => ({
 
   setField: (key, value) =>
     set((state) => {
+      // Writing the whole `errors` bag goes through setErrors — this branch
+      // handles individual form fields only. (Prior version let the generic
+      // auto-clear logic collide with a literal `errors` key and silently
+      // wipe form-wide validation errors.)
+      if (key === "errors") {
+        return { errors: (value as Record<string, string>) ?? {} } as Partial<RoomFormStore>
+      }
       const errors = { ...state.errors }
       delete errors[key]
       return { [key]: value, errors } as Partial<RoomFormStore>
     }),
+
+  setErrors: (errors) => set({ errors }),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   setTranslation: (lang, field, value) =>
     set((state) => {
       const langData = state.translations[lang] ?? { ...EMPTY_TRANSLATION }
+      // Mirror setField's auto-clear: when the user starts fixing a
+      // translated field that's currently in error, drop that error so
+      // the inline message disappears on edit.
+      const errors = { ...state.errors }
+      delete errors[field]
       return {
+        errors,
         translations: {
           ...state.translations,
           [lang]: { ...langData, [field]: value },

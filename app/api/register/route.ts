@@ -2,16 +2,95 @@ import { NextResponse } from "next/server"
 import { createAdminSupabase } from "@/lib/supabase/server"
 import { db } from "@/lib/db"
 
+/**
+ * In-process per-IP rate limiter.
+ * Sliding window: max 5 registration attempts per IP per 15 minutes.
+ *
+ * NOTE: This is process-local. If you run multiple Node instances behind
+ * a load balancer, replace with Redis or an edge-side limiter.
+ * This is the minimal hardening required by Phase 1.
+ */
+const RATE_WINDOW_MS = 15 * 60 * 1000
+const RATE_MAX = 5
+const ipHits = new Map<string, number[]>()
+
+function rateLimitIp(ip: string): { allowed: boolean; retryAfterSeconds?: number } {
+  const now = Date.now()
+  const recent = (ipHits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS)
+  if (recent.length >= RATE_MAX) {
+    const oldest = recent[0]
+    const retryAfterSeconds = Math.ceil((RATE_WINDOW_MS - (now - oldest)) / 1000)
+    return { allowed: false, retryAfterSeconds }
+  }
+  recent.push(now)
+  ipHits.set(ip, recent)
+  // Cheap GC: keep map small.
+  if (ipHits.size > 1000) {
+    for (const [k, v] of ipHits) {
+      const fresh = v.filter((t) => now - t < RATE_WINDOW_MS)
+      if (fresh.length === 0) ipHits.delete(k)
+      else ipHits.set(k, fresh)
+    }
+  }
+  return { allowed: true }
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export async function POST(request: Request) {
-  const body = await request.json()
-  const { fullName, businessName, email, password, phone, roomCount, businessType, country } = body
+  // ── Rate limit per client IP (X-Forwarded-For aware) ──
+  const xff = request.headers.get("x-forwarded-for") || ""
+  const ip = (xff.split(",")[0] || request.headers.get("x-real-ip") || "unknown").trim()
+  const rl = rateLimitIp(ip)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "יותר מדי ניסיונות הרשמה. נסה שוב מאוחר יותר." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rl.retryAfterSeconds ?? 60) },
+      },
+    )
+  }
+
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "בקשה לא תקינה" }, { status: 400 })
+  }
+  const { fullName, businessName, email, password, phone, roomCount, businessType, country } = body as {
+    fullName?: string
+    businessName?: string
+    email?: string
+    password?: string
+    phone?: string
+    roomCount?: number
+    businessType?: string
+    country?: string
+  }
 
   if (!fullName || !businessName || !email || !password) {
     return NextResponse.json({ error: "חסרים שדות חובה" }, { status: 400 })
   }
 
-  if (password.length < 6) {
-    return NextResponse.json({ error: "הסיסמה חייבת להכיל לפחות 6 תווים" }, { status: 400 })
+  // Server-side input validation (do not trust the client form).
+  if (typeof email !== "string" || !EMAIL_RE.test(email) || email.length > 254) {
+    return NextResponse.json({ error: "כתובת אימייל לא תקינה" }, { status: 400 })
+  }
+  if (typeof fullName !== "string" || fullName.length > 200) {
+    return NextResponse.json({ error: "שם מלא לא תקין" }, { status: 400 })
+  }
+  if (typeof businessName !== "string" || businessName.length > 200) {
+    return NextResponse.json({ error: "שם עסק לא תקין" }, { status: 400 })
+  }
+  if (typeof password !== "string" || password.length < 8) {
+    return NextResponse.json(
+      { error: "הסיסמה חייבת להכיל לפחות 8 תווים" },
+      { status: 400 },
+    )
+  }
+  if (password.length > 200) {
+    return NextResponse.json({ error: "סיסמה ארוכה מדי" }, { status: 400 })
   }
 
   const supabase = createAdminSupabase()

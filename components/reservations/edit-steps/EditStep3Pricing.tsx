@@ -39,42 +39,63 @@ function fmt(amount: number): string {
 
 export function EditStep3Pricing() {
   const store = useReservationEditStore()
-  const { data, isExternal, rooms, nights, payments, cardRevealed } = store
+  const { data, isExternal, editableRooms, nights, payments, cardRevealed } = store
 
-  // Compute totals from rooms or totalPrice
-  const totalNightlyRate = rooms.length > 0
-    ? rooms.reduce((sum, r) => sum + (Number(r.rate_per_night) || 0), 0)
+  // Compute totals from the LIVE per-room draft. Base amount must be the
+  // SUM of (rate × per-room nights) — multiplying a single outer-span
+  // `nights` by the sum of rates overcharges short-stay rooms in a
+  // multi-room reservation (e.g. room A: 2 nights, room B: 4 nights).
+  const totalNightlyRate = editableRooms.length > 0
+    ? editableRooms.reduce((sum, r) => sum + (Number(r.ratePerNight) || 0), 0)
     : data.totalPrice / Math.max(nights, 1)
 
-  const baseAmount = totalNightlyRate * nights
+  const baseAmount = editableRooms.length > 0
+    ? editableRooms.reduce((sum, r) => {
+        const rci = r.checkIn ? new Date(r.checkIn) : null
+        const rco = r.checkOut ? new Date(r.checkOut) : null
+        const rNights = rci && rco
+          ? Math.max(0, Math.round((rco.getTime() - rci.getTime()) / 86400000))
+          : 0
+        return sum + (Number(r.ratePerNight) || 0) * rNights
+      }, 0)
+    : totalNightlyRate * nights
 
   return (
     <div className="flex flex-col gap-6">
       {/* ── 1. Pricing ──────────────────────────────────────── */}
       <SectionCard title="תמחור">
         <SmartField isExternal={isExternal} lockType={isExternal ? "warning" : "editable"}>
-          {rooms.length > 0 ? (
+          {editableRooms.length > 0 ? (
             <div className="flex flex-col gap-3">
-              {rooms.map((room) => (
-                <div key={room.id} className="flex items-center justify-between bg-accent/50 rounded-xl px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Icon name="bed" size="sm" className="text-primary" />
-                    <span className="text-sm font-bold text-foreground">חדר {room.room_number}</span>
+              {editableRooms.map((room) => {
+                const rci = room.checkIn ? new Date(room.checkIn) : null
+                const rco = room.checkOut ? new Date(room.checkOut) : null
+                const rNights = rci && rco
+                  ? Math.max(0, Math.round((rco.getTime() - rci.getTime()) / 86400000))
+                  : 0
+                const subtotal = (Number(room.ratePerNight) || 0) * rNights
+                return (
+                  <div key={room.id} className="flex items-center justify-between bg-accent/50 rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon name="bed" size="sm" className="text-primary shrink-0" />
+                      <span className="text-sm font-bold text-foreground truncate">חדר {room.roomNumber || "—"}</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5 shrink-0">
+                      <span className="text-sm font-bold tabular-nums text-foreground">{fmt(subtotal)}</span>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">
+                        {fmt(Number(room.ratePerNight))} × {rNights} לילות
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-sm font-bold tabular-nums text-foreground">{fmt(Number(room.rate_per_night))} / לילה</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between border-t border-border/20 pt-3">
-                <span className="text-sm font-bold text-muted-foreground">סה״כ ללילה</span>
-                <span className="text-sm font-bold tabular-nums text-primary">{fmt(totalNightlyRate)}</span>
-              </div>
+                )
+              })}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
               <FormField label="מחיר כולל" required>
                 <div className="relative">
                   <input type="number" value={data.totalPrice || ""} onChange={(e) => store.setField("totalPrice", Number(e.target.value) || 0)} placeholder="0" min={0} dir="ltr" className={`${inputClass} pe-12 text-start tabular-nums`} />
-                  <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">₪</div>
+                  <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">₪</div>
                 </div>
               </FormField>
               <FormField label="מספר לילות">
@@ -92,7 +113,7 @@ export function EditStep3Pricing() {
           <FormField label="הנחה (%)">
             <div className="relative">
               <input type="number" value={data.discountPercent || ""} onChange={(e) => store.setField("discountPercent", Math.min(100, Math.max(0, Number(e.target.value) || 0)))} placeholder="0" min={0} max={100} dir="ltr" className={`${inputClass} pe-12 text-start tabular-nums`} />
-              <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">%</div>
+              <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">%</div>
             </div>
           </FormField>
         </div>
@@ -119,7 +140,17 @@ export function EditStep3Pricing() {
         </div>
 
         <div className="mt-3 flex items-center justify-between px-1">
-          <span className="text-sm text-muted-foreground">מע״מ ({data.taxExempt ? "פטור" : "17%"})</span>
+          <span className="text-sm text-muted-foreground">
+            מע״מ ({(() => {
+              if (data.taxExempt) return "פטור"
+              // Derive effective rate from the stored taxAmount / afterDiscount
+              // so the label matches what was actually charged on this reservation.
+              const base = data.subtotal || 0
+              if (base <= 0 || !data.taxAmount) return "—"
+              const pct = (data.taxAmount / base) * 100
+              return `${pct.toFixed(pct % 1 === 0 ? 0 : 2)}%`
+            })()})
+          </span>
           <span className="text-sm font-bold tabular-nums text-foreground">{fmt(data.taxAmount)}</span>
         </div>
       </SectionCard>
@@ -153,13 +184,13 @@ export function EditStep3Pricing() {
             <FormField label="מקדמה">
               <div className="relative">
                 <input type="number" value={data.deposit || ""} onChange={(e) => store.setField("deposit", Number(e.target.value) || 0)} placeholder="0" min={0} dir="ltr" className={`${inputClass} pe-12 text-start tabular-nums`} />
-                <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">₪</div>
+                <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">₪</div>
               </div>
             </FormField>
             <FormField label="סכום ששולם">
               <div className="relative">
                 <input type="number" value={data.totalPaid || ""} onChange={(e) => store.setField("totalPaid", Number(e.target.value) || 0)} placeholder="0" min={0} dir="ltr" className={`${inputClass} pe-12 text-start tabular-nums`} />
-                <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">₪</div>
+                <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">₪</div>
               </div>
             </FormField>
           </div>
@@ -191,7 +222,7 @@ export function EditStep3Pricing() {
           <div className="flex flex-col items-center gap-3">
             <button
               type="button"
-              className="min-h-[44px] px-8 py-3 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
+              className="btn btn-primary"
             >
               <Icon name="credit_card" size="md" className="text-white" />
               חייב עכשיו

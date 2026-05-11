@@ -16,6 +16,8 @@ interface RoomType {
   id: string
   name: string
   base_price: number
+  default_occupancy: number
+  extra_person_price: number
   max_occupancy: number
   max_adults: number
   max_children: number
@@ -30,6 +32,8 @@ interface RoomType {
 const EMPTY_FORM = {
   name: "",
   base_price: 0,
+  default_occupancy: 2,
+  extra_person_price: 0,
   max_occupancy: 2,
   max_adults: 2,
   max_children: 2,
@@ -76,6 +80,8 @@ export function RoomTypesDialog({ onSaved }: { onSaved?: () => void }) {
     setForm({
       name: rt.name,
       base_price: Number(rt.base_price),
+      default_occupancy: Number(rt.default_occupancy ?? rt.max_occupancy ?? 2),
+      extra_person_price: Number(rt.extra_person_price ?? 0),
       max_occupancy: rt.max_occupancy,
       max_adults: rt.max_adults ?? 2,
       max_children: rt.max_children ?? 2,
@@ -216,10 +222,13 @@ export function RoomTypesDialog({ onSaved }: { onSaved?: () => void }) {
                     />
                   </div>
 
-                  {/* Price + Occupancy */}
+                  {/* Price + base occupancy */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground">מחיר בסיס (₪)</label>
+                      <p className="text-[10.5px] text-muted-foreground/80 leading-snug">
+                        כולל אירוח של תפוסת בסיס
+                      </p>
                       <input
                         type="number"
                         value={form.base_price}
@@ -228,7 +237,40 @@ export function RoomTypesDialog({ onSaved }: { onSaved?: () => void }) {
                       />
                     </div>
                     <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-muted-foreground">תפוסת בסיס (מחיר מלא)</label>
+                      <p className="text-[10.5px] text-muted-foreground/80 leading-snug">
+                        מספר האורחים הכלולים במחיר הבסיס
+                      </p>
+                      <input
+                        type="number"
+                        min={1}
+                        value={form.default_occupancy}
+                        onChange={(e) => setField("default_occupancy", Number(e.target.value))}
+                        className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm min-h-[48px] focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Extra-person price + max occupancy */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-muted-foreground">תוספת לאורח נוסף (₪ ללילה)</label>
+                      <p className="text-[10.5px] text-muted-foreground/80 leading-snug">
+                        חיוב לכל אורח מעל תפוסת הבסיס
+                      </p>
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.extra_person_price}
+                        onChange={(e) => setField("extra_person_price", Number(e.target.value))}
+                        className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm min-h-[48px] focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground">תפוסה מקסימלית</label>
+                      <p className="text-[10.5px] text-muted-foreground/80 leading-snug">
+                        המספר המרבי המותר לאורחים בחדר
+                      </p>
                       <input
                         type="number"
                         value={form.max_occupancy}
@@ -313,7 +355,7 @@ export function RoomTypesDialog({ onSaved }: { onSaved?: () => void }) {
                 <button
                   onClick={handleSave}
                   disabled={saving || !form.name.trim()}
-                  className="bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:shadow-md transition-all min-h-[44px] disabled:opacity-50"
+                  className="btn btn-primary"
                 >
                   {saving ? "שומר..." : editingId ? "עדכן" : "צור סוג חדר"}
                 </button>

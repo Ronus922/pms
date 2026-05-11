@@ -23,6 +23,15 @@ function SectionCard({ title, icon, children }: { title: string; icon?: string; 
   )
 }
 
+/** Format an ISO date (YYYY-MM-DD) + "HH:MM" as "DD/MM/YYYY HH:MM" for the summary. */
+function fmtDateTime(isoDate: string, time: string): string {
+  if (!isoDate) return "---"
+  const [y, m, d] = isoDate.split("-")
+  if (!y || !m || !d) return isoDate
+  const datePart = `${d}/${m}/${y}`
+  return time ? `${datePart} ${time}` : datePart
+}
+
 function ReviewRow({ label, value, dir }: { label: string; value: React.ReactNode; dir?: string }) {
   if (!value || value === "") return null
   return (
@@ -169,7 +178,7 @@ export function Step4Review() {
               <span>כניסה</span>
             </div>
             <span className="text-sm font-bold tabular-nums text-foreground" dir="ltr">
-              {store.checkIn || "---"}
+              {fmtDateTime(store.checkIn, store.checkInTime)}
             </span>
           </div>
           <div className="flex items-center justify-between py-2 mb-1">
@@ -178,16 +187,13 @@ export function Step4Review() {
               <span>יציאה</span>
             </div>
             <span className="text-sm font-bold tabular-nums text-foreground" dir="ltr">
-              {store.checkOut || "---"}
+              {fmtDateTime(store.checkOut, store.checkOutTime)}
             </span>
           </div>
 
           <div className="bg-primary/5 rounded-lg px-3 py-2 text-center mb-2">
             <span className="text-sm font-bold text-primary tabular-nums">{store.nights} לילות</span>
           </div>
-
-          <ReviewRow label="שעת כניסה" value={store.checkInTime} dir="ltr" />
-          <ReviewRow label="שעת יציאה" value={store.checkOutTime} dir="ltr" />
 
           <div className="border-t border-border/20 mt-2 pt-2">
             <div className="flex items-center gap-6">
@@ -215,25 +221,44 @@ export function Step4Review() {
       {/* ── 3. Rooms Summary ─────────────────────────────────── */}
       <SectionCard title="חדרים" icon="bed">
         {store.rooms.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {store.rooms.map((room) => (
-              <div
-                key={room.id}
-                className="flex items-center justify-between bg-accent/50 rounded-xl px-4 py-3"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-bold text-foreground">
-                    חדר {room.roomId ? `#${room.roomId.slice(0, 6)}` : "---"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {BOARD_TYPE_LABELS[room.boardType] || room.boardType}
-                  </span>
+          <div className="flex flex-col gap-3">
+            {store.rooms.map((room, idx) => {
+              const guestName = `${room.guestFirstName || ""} ${room.guestLastName || ""}`.trim()
+              return (
+                <div
+                  key={room.id}
+                  className="bg-accent/50 rounded-xl px-4 py-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-sm font-bold text-foreground truncate">
+                        חדר {idx + 1}: {room.roomTypeName || "—"}
+                        {room.roomNumber ? ` · מס׳ ${room.roomNumber}` : ""}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {BOARD_TYPE_LABELS[room.boardType] || room.boardType}
+                      </span>
+                    </div>
+                    <span className="text-sm font-bold tabular-nums text-primary shrink-0">
+                      {formatCurrency(room.ratePerNight, store.currency)} / לילה
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                    <span dir="ltr" className="tabular-nums">
+                      {fmtDateTime(room.checkIn, "")} → {fmtDateTime(room.checkOut, "")}
+                    </span>
+                    <span>
+                      {room.adults} מבוגרים
+                      {room.children > 0 ? ` · ${room.children} ילדים` : ""}
+                      {room.infants > 0 ? ` · ${room.infants} תינוקות` : ""}
+                    </span>
+                    {guestName && (
+                      <span className="col-span-2">אורח: {guestName}</span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-sm font-bold tabular-nums text-primary">
-                  {formatCurrency(room.ratePerNight, store.currency)} / לילה
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <div className="flex items-center gap-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl px-4 py-3">
@@ -257,10 +282,10 @@ export function Step4Review() {
               color="text-emerald-600 dark:text-emerald-400"
             />
           )}
-          {store.extraCharges > 0 && (
+          {store.extraCharges.length > 0 && (
             <SummaryAmountRow
-              label="תוספות"
-              value={`+${formatCurrency(store.extraCharges, store.currency)}`}
+              label={`תוספות (${store.extraCharges.length})`}
+              value={`+${formatCurrency(store.extraCharges.reduce((s, c) => s + (c.amount || 0), 0), store.currency)}`}
             />
           )}
           <SummaryAmountRow
@@ -303,8 +328,8 @@ export function Step4Review() {
 
           {store.paymentMethod === "credit_card" && (
             <>
-              {store.cardLast4 && (
-                <ReviewRow label="כרטיס" value={`**** ${store.cardLast4}`} dir="ltr" />
+              {store.cardNumber && (
+                <ReviewRow label="כרטיס" value={`**** ${store.cardNumber.slice(-4)}`} dir="ltr" />
               )}
               {store.cardApprovalCode && (
                 <ReviewRow label="קוד אישור" value={store.cardApprovalCode} dir="ltr" />

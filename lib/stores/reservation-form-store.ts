@@ -5,9 +5,31 @@ import { create } from "zustand"
 export interface ReservationRoom {
   id: string
   roomId: string
+  roomNumber: string
   roomTypeId: string
+  roomTypeName: string
   boardType: string
+  /** Per-night total for this room: basePrice + max(0, guests - defaultOccupancy) * extraPersonPrice. */
   ratePerNight: number
+  /** Room-type pricing inputs — kept on the row so the store can recompute
+   *  ratePerNight when guest counts change without re-hitting the DB. */
+  basePrice: number
+  defaultOccupancy: number
+  extraPersonPrice: number
+  /** Per-room effective capacity caps (room override OR room_type fallback).
+   *  Populated when the room is attached — the counter UI reads these
+   *  directly so it mirrors what Room Management displays. */
+  maxOccupancy: number
+  maxAdults: number
+  maxChildren: number
+  maxInfants: number
+  /** Per-room stay dates — each room can differ (e.g. family arriving separately). */
+  checkIn: string
+  checkOut: string
+  /** Per-room guest composition — drives pricing + availability filtering. */
+  adults: number
+  children: number
+  infants: number
   guestFirstName: string
   guestLastName: string
   guestPhone: string
@@ -21,6 +43,13 @@ export interface AttachmentFile {
   type: string
   size: number
   url: string
+}
+
+export interface ExtraChargeItem {
+  id: string
+  type: string
+  description: string
+  amount: number
 }
 
 export interface ReservationFormData {
@@ -79,15 +108,19 @@ export interface ReservationFormData {
   pricePerNight: number
   discountAmount: number
   discountPercent: number
-  extraCharges: number
+  extraCharges: ExtraChargeItem[]
   taxExempt: boolean
+  /** VAT rate as a fraction (0.17 = 17%). Loaded from tenant settings on
+   *  modal open — falls back to the Israeli default when unset. */
+  taxRate: number
   deposit: number
   amountPaid: number
   currency: string
 
   // Credit Card
   cardHolderName: string
-  cardLast4: string
+  cardNumber: string
+  cardHolderId: string
   cardExpiryMonth: string
   cardExpiryYear: string
   cardApprovalCode: string
@@ -131,6 +164,11 @@ export interface ReservationFormStore extends ReservationFormData {
   addRoom: (room: ReservationRoom) => void
   updateRoom: (roomId: string, updates: Partial<ReservationRoom>) => void
   removeRoom: (roomId: string) => void
+
+  // Extra charge actions
+  addExtraCharge: (charge: ExtraChargeItem) => void
+  updateExtraCharge: (id: string, updates: Partial<ExtraChargeItem>) => void
+  removeExtraCharge: (id: string) => void
 
   // Attachment actions
   addAttachment: (file: AttachmentFile) => void
@@ -188,14 +226,16 @@ const DEFAULTS: ReservationFormData = {
   pricePerNight: 0,
   discountAmount: 0,
   discountPercent: 0,
-  extraCharges: 0,
+  extraCharges: [],
   taxExempt: false,
+  taxRate: 0.17,
   deposit: 0,
   amountPaid: 0,
   currency: "ILS",
 
   cardHolderName: "",
-  cardLast4: "",
+  cardNumber: "",
+  cardHolderId: "",
   cardExpiryMonth: "",
   cardExpiryYear: "",
   cardApprovalCode: "",
@@ -208,20 +248,81 @@ const DEFAULTS: ReservationFormData = {
 
 /* ── Computed ───────────────────────────────────────────────── */
 
-const TAX_RATE = 0.17
+/** Per-room nightly rate = basePrice + max(0, guests - defaultOccupancy) * extraPersonPrice.
+ *  Applies to each room using the FULL reservation guest count. In multi-room
+ *  bookings each room is treated as accommodating the reservation's guests
+ *  (safer over-charge than under-charge); admins can edit per-room rate after. */
+export function computeRoomRate(
+  basePrice: number,
+  defaultOccupancy: number,
+  extraPersonPrice: number,
+  guests: number,
+): number {
+  const base = Number(basePrice) || 0
+  const def = Math.max(1, Number(defaultOccupancy) || 1)
+  const extra = Number(extraPersonPrice) || 0
+  const above = Math.max(0, guests - def)
+  return Math.round((base + above * extra) * 100) / 100
+}
 
 function computeDerived(state: ReservationFormData) {
-  const ci = state.checkIn ? new Date(state.checkIn) : null
-  const co = state.checkOut ? new Date(state.checkOut) : null
+  // Recompute per-room nightly rate from base + extras EVERY derive pass, so
+  // per-room guest-count changes propagate to the total immediately. Each room
+  // now has its own composition (adults/children/infants).
+  const recomputedRooms = state.rooms.map((r) => {
+    const roomGuests = (r.adults || 0) + (r.children || 0) + (r.infants || 0)
+    return {
+      ...r,
+      ratePerNight:
+        r.basePrice != null
+          ? computeRoomRate(r.basePrice, r.defaultOccupancy, r.extraPersonPrice, roomGuests)
+          : r.ratePerNight,
+    }
+  })
+
+  // Global dates + composition are DERIVED from rooms (MIN/MAX of dates, SUM
+  // of composition). Fall back to explicit state values if no rooms exist yet.
+  const roomCheckIns = recomputedRooms.map((r) => r.checkIn).filter(Boolean).sort()
+  const roomCheckOuts = recomputedRooms.map((r) => r.checkOut).filter(Boolean).sort()
+  const derivedCheckIn = roomCheckIns[0] ?? state.checkIn
+  const derivedCheckOut = roomCheckOuts[roomCheckOuts.length - 1] ?? state.checkOut
+
+  const derivedAdults = recomputedRooms.length
+    ? recomputedRooms.reduce((s, r) => s + (r.adults || 0), 0)
+    : state.adults
+  const derivedChildren = recomputedRooms.length
+    ? recomputedRooms.reduce((s, r) => s + (r.children || 0), 0)
+    : state.children
+  const derivedInfants = recomputedRooms.length
+    ? recomputedRooms.reduce((s, r) => s + (r.infants || 0), 0)
+    : state.infants
+
+  const ci = derivedCheckIn ? new Date(derivedCheckIn) : null
+  const co = derivedCheckOut ? new Date(derivedCheckOut) : null
+  // Outer span nights (for display only — reservation may span longer than
+  // any single room). Pricing uses per-room nights below.
   const nights = ci && co ? Math.max(0, Math.round((co.getTime() - ci.getTime()) / 86400000)) : 0
 
-  // Multi-room: sum all room rates, or fallback to single pricePerNight
+  // Sum per-room nightly rate (still useful as a "per-night peak" readout).
   const totalNightlyRate =
-    state.rooms.length > 0
-      ? state.rooms.reduce((sum, r) => sum + (r.ratePerNight || 0), 0)
+    recomputedRooms.length > 0
+      ? recomputedRooms.reduce((sum, r) => sum + (r.ratePerNight || 0), 0)
       : state.pricePerNight
 
-  const baseAmount = totalNightlyRate * nights
+  // CORRECT multi-room base amount: sum of (rate × this-room's nights). When
+  // rooms span different date ranges inside one reservation, multiplying a
+  // single outer-span "nights" by the sum of rates overcharges the shorter
+  // stays. Always price each room against its own checkIn/checkOut.
+  const baseAmount =
+    recomputedRooms.length > 0
+      ? recomputedRooms.reduce((sum, r) => {
+          const rci = r.checkIn ? new Date(r.checkIn) : null
+          const rco = r.checkOut ? new Date(r.checkOut) : null
+          const rNights =
+            rci && rco ? Math.max(0, Math.round((rco.getTime() - rci.getTime()) / 86400000)) : 0
+          return sum + (r.ratePerNight || 0) * rNights
+        }, 0)
+      : state.pricePerNight * nights
 
   let discountTotal = 0
   if (state.discountPercent > 0) {
@@ -230,12 +331,30 @@ function computeDerived(state: ReservationFormData) {
     discountTotal = state.discountAmount
   }
 
-  const afterDiscount = Math.max(0, baseAmount - discountTotal) + state.extraCharges
-  const taxAmount = state.taxExempt ? 0 : afterDiscount * TAX_RATE
+  const extraChargesTotal = Array.isArray(state.extraCharges)
+    ? state.extraCharges.reduce((s, c) => s + (c.amount || 0), 0)
+    : (state.extraCharges as number) || 0
+  const afterDiscount = Math.max(0, baseAmount - discountTotal) + extraChargesTotal
+  const effectiveTaxRate = state.taxExempt ? 0 : Math.max(0, Number(state.taxRate) || 0)
+  const taxAmount = afterDiscount * effectiveTaxRate
   const grandTotal = afterDiscount + taxAmount
   const balanceDue = Math.max(0, grandTotal - state.amountPaid - state.deposit)
 
-  return { nights, totalNightlyRate, baseAmount, discountTotal, taxAmount, grandTotal, balanceDue }
+  return {
+    nights,
+    totalNightlyRate,
+    baseAmount,
+    discountTotal,
+    taxAmount,
+    grandTotal,
+    balanceDue,
+    rooms: recomputedRooms,
+    checkIn: derivedCheckIn,
+    checkOut: derivedCheckOut,
+    adults: derivedAdults,
+    children: derivedChildren,
+    infants: derivedInfants,
+  }
 }
 
 /* ── Store ──────────────────────────────────────────────────── */
@@ -269,17 +388,18 @@ export const useReservationFormStore = create<ReservationFormStore>((set) => ({
   setSubmitting: (v) => set({ isSubmitting: v }),
   setQuickView: (open) => set({ quickViewOpen: open }),
 
-  open: (prefill) =>
+  open: (prefill) => {
+    const merged = { ...DEFAULTS, ...(prefill || {}) }
     set({
-      ...DEFAULTS,
-      ...computeDerived(DEFAULTS),
-      ...(prefill || {}),
+      ...merged,
+      ...computeDerived(merged),
       activeTab: 0,
       isSubmitting: false,
       errors: {},
       isOpen: true,
       quickViewOpen: false,
-    }),
+    })
+  },
 
   close: () => set({ isOpen: false, quickViewOpen: false }),
 
@@ -298,7 +418,9 @@ export const useReservationFormStore = create<ReservationFormStore>((set) => ({
     set((state) => {
       const rooms = [...state.rooms, room]
       const updated = { ...state, rooms }
-      return { rooms, ...computeDerived(updated) }
+      // computeDerived now owns the final `rooms` value (it re-prices each row
+      // against the latest guest count), so don't spread `rooms` first.
+      return { ...computeDerived(updated) }
     }),
 
   updateRoom: (roomId, updates) =>
@@ -307,14 +429,34 @@ export const useReservationFormStore = create<ReservationFormStore>((set) => ({
         r.id === roomId ? { ...r, ...updates } : r
       )
       const updated = { ...state, rooms }
-      return { rooms, ...computeDerived(updated) }
+      return { ...computeDerived(updated) }
     }),
 
   removeRoom: (roomId) =>
     set((state) => {
       const rooms = state.rooms.filter((r) => r.id !== roomId)
       const updated = { ...state, rooms }
-      return { rooms, ...computeDerived(updated) }
+      return { ...computeDerived(updated) }
+    }),
+
+  addExtraCharge: (charge) =>
+    set((state) => {
+      const updated = { ...state, extraCharges: [...state.extraCharges, charge] }
+      return { extraCharges: updated.extraCharges, ...computeDerived(updated) }
+    }),
+
+  updateExtraCharge: (id, updates) =>
+    set((state) => {
+      const extraCharges = state.extraCharges.map((c) => c.id === id ? { ...c, ...updates } : c)
+      const updated = { ...state, extraCharges }
+      return { extraCharges, ...computeDerived(updated) }
+    }),
+
+  removeExtraCharge: (id) =>
+    set((state) => {
+      const extraCharges = state.extraCharges.filter((c) => c.id !== id)
+      const updated = { ...state, extraCharges }
+      return { extraCharges, ...computeDerived(updated) }
     }),
 
   addAttachment: (file) =>

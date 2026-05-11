@@ -13,13 +13,13 @@ interface ReportsKpiRowProps {
 export function ReportsKpiRow({ definitions, values, loading }: ReportsKpiRowProps) {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {definitions.map((def) => (
-          <div key={def.id} className="report-kpi-card animate-pulse">
+          <div key={def.id} className="bg-white border border-[#dad9e3] rounded-xl p-6 min-h-[140px] animate-pulse">
             <div className="space-y-3">
-              <div className="h-4 w-24 rounded-lg bg-muted" />
-              <div className="h-8 w-32 rounded-lg bg-muted" />
-              <div className="h-3 w-40 rounded-lg bg-muted" />
+              <div className="h-4 w-24 rounded-lg bg-[#f4f2fc]" />
+              <div className="h-9 w-32 rounded-lg bg-[#f4f2fc]" />
+              <div className="h-3 w-40 rounded-lg bg-[#f4f2fc]" />
             </div>
           </div>
         ))}
@@ -28,7 +28,7 @@ export function ReportsKpiRow({ definitions, values, loading }: ReportsKpiRowPro
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
       {definitions.map((def) => {
         const val = values.find((v) => v.id === def.id)
         if (!val) return null
@@ -37,19 +37,28 @@ export function ReportsKpiRow({ definitions, values, loading }: ReportsKpiRowPro
         const isPositive = val.previousValue !== undefined && val.value >= val.previousValue
 
         return (
-          <div key={def.id} className="report-kpi-card">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-2">
-                <p className="kpi-label">{def.label}</p>
-                <p className="kpi-value">{formatted}</p>
-              </div>
-              {val.previousValue !== undefined && (
-                <span className={isPositive ? "kpi-trend-up" : "kpi-trend-down"}>
-                  <Icon name={isPositive ? "expand_less" : "expand_more"} size="md" />
-                </span>
+          <div
+            key={def.id}
+            className="bg-white border border-[#dad9e3] rounded-xl p-6 min-h-[140px] flex items-start justify-between gap-4"
+          >
+            <div className="flex flex-col gap-1 min-w-0 text-right">
+              <p className="text-sm font-medium text-[#474747]">{def.label}</p>
+              <p className="text-[2.25rem] font-bold tabular-nums text-[#1c1b1f] leading-tight">{formatted}</p>
+              {val.change && (
+                <p className={`text-xs font-semibold ${isPositive ? "text-[#15803d]" : "text-[#b91c1c]"}`}>
+                  {val.change}
+                </p>
               )}
             </div>
-            {val.change && <p className="kpi-change">{val.change}</p>}
+            {val.previousValue !== undefined && (
+              <span
+                className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                  isPositive ? "bg-[#dcfce7] text-[#15803d]" : "bg-[#fee2e2] text-[#b91c1c]"
+                }`}
+              >
+                <Icon name={isPositive ? "trending_up" : "trending_down"} />
+              </span>
+            )}
           </div>
         )
       })}

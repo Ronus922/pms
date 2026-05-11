@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClientSupabase } from "@/lib/supabase/client"
+import { recordLastLogin } from "@/lib/actions/auth"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -28,6 +29,8 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
+
+    await recordLastLogin()
 
     router.push("/dashboard")
     router.refresh()
@@ -87,7 +90,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-xl font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+          className="btn btn-primary"
         >
           {loading ? "מתחבר..." : "כניסה"}
         </button>

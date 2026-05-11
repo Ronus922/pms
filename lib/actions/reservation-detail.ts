@@ -1,8 +1,22 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requirePermission } from "@/lib/auth/actor"
+import { AuthorizationError } from "@/lib/auth/errors"
 
 export async function getReservationFull(reservationId: string) {
+  let tenantId: string
+  try {
+    const actor = await requirePermission("reservations", "view")
+    tenantId = actor.tenantId
+  } catch (err) {
+    if (err instanceof AuthorizationError) return null
+    throw err
+  }
+
+  // Gate at the top: only return data if the reservation belongs to the
+  // actor's tenant. Once this passes, the follow-up queries are scoped by
+  // reservationId, which we've now verified is in-tenant.
   const [res] = await db`
     SELECT
       r.id, r.reservation_number, r.status, r.check_in, r.check_out,
@@ -24,15 +38,28 @@ export async function getReservationFull(reservationId: string) {
       g.preferred_language as guest_language, g.tags as guest_tags
     FROM reservations r
     JOIN guests g ON g.id = r.guest_id
-    WHERE r.id = ${reservationId}
+    WHERE r.id = ${reservationId} AND r.tenant_id = ${tenantId}
   `
   if (!res) return null
 
+  // Merge per-room overrides with room_types defaults so the edit UI
+  // mirrors Room Management's effective values. Per-row composition + guest
+  // contact come from reservation_rooms columns added in migration
+  // 2026-04-21_reservation_rooms_per_room_fields.sql.
   const rooms = await db`
     SELECT rr.id, rr.room_id, rr.check_in, rr.check_out, rr.rate_per_night,
-      rm.room_number, rm.status as room_status,
-      rt.name as room_type_name, rt.max_occupancy,
-      f.name as floor_name, b.name as building_name
+      rr.adults, rr.children, rr.infants,
+      rr.guest_first_name, rr.guest_last_name, rr.guest_phone, rr.guest_email, rr.guest_id_number,
+      rm.room_number, rm.status AS room_status,
+      rt.name AS room_type_name,
+      COALESCE(rm.max_occupancy, rt.max_occupancy) AS max_occupancy,
+      COALESCE(rm.max_adults,    rt.max_adults)    AS max_adults,
+      COALESCE(rm.max_children,  rt.max_children)  AS max_children,
+      COALESCE(rm.max_infants,   rt.max_infants)   AS max_infants,
+      rt.base_price AS base_price,
+      rt.extra_person_price AS extra_person_price,
+      rt.default_occupancy AS default_occupancy,
+      f.name AS floor_name, b.name AS building_name
     FROM reservation_rooms rr
     JOIN rooms rm ON rm.id = rr.room_id
     LEFT JOIN room_types rt ON rt.id = rm.room_type_id

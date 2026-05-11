@@ -201,25 +201,22 @@ export async function getRoomDerivedState(
 }
 
 /**
- * Manual override for admin-only hard states (blocked / maintenance).
- * Does NOT touch cleaning_state or active reservations.
+ * NOTE — removed on 2026-04-23:
+ *   setRoomManualStatus(..., "blocked" | "maintenance")
+ *   blockRoomDates(...)
+ *   unblockRoomDate(...)
+ *
+ * All three were legacy writers for the pre-date-range blocking model
+ * (per-day rows keyed by block_date, plus rooms.status = "blocked" /
+ * "maintenance"). They had zero UI callers at removal time. Replacement
+ * lives in `lib/actions/room-blocks.ts`:
+ *   - createRoomBlock / updateRoomBlock / cancelRoomBlock / deleteRoomBlock
+ *   - setRoomStatus (strictly "available" | "inactive" | "out_of_order")
+ *
+ * If a future integration needs the old shape, build it on top of the
+ * new actions rather than resurrecting these helpers — mixing per-day
+ * rows and date ranges is exactly the bug that motivated the rewrite.
  */
-export async function setRoomManualStatus(
-  tenantId: string,
-  roomId: string,
-  status: "available" | "blocked" | "maintenance"
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    await db`
-      UPDATE rooms
-      SET status = ${status}, updated_at = NOW()
-      WHERE id = ${roomId} AND tenant_id = ${tenantId}
-    `
-    return { success: true }
-  } catch (err: unknown) {
-    return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
-  }
-}
 
 /**
  * Flip a room's cleaning state. Called by the cleaning action layer;
@@ -241,3 +238,7 @@ export async function setRoomCleaningState(
     return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
   }
 }
+
+/* Date-scoped room blocking moved to `lib/actions/room-blocks.ts` — see
+ * migration 2026-04-23. This file retains only the read helpers and the
+ * cleaning-state writer. */

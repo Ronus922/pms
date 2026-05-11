@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from "next-themes"
 import { NuqsAdapter } from "nuqs/adapters/next/app"
+import { Toaster } from "sonner"
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -13,6 +14,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         disableTransitionOnChange
       >
         {children}
+        <Toaster position="top-center" dir="rtl" richColors />
       </ThemeProvider>
     </NuqsAdapter>
   )

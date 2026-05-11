@@ -65,7 +65,7 @@ function fmtDateTime(v: string): string {
 
 export function EditStep4Summary() {
   const store = useReservationEditStore()
-  const { data, rooms, nights, payments, logs, isExternal, reservationNumber, createdAt, updatedAt } = store
+  const { data, editableRooms, nights, payments, logs, isExternal, reservationNumber, createdAt, updatedAt } = store
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,19 +105,21 @@ export function EditStep4Summary() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Icon name="login" size="sm" className="text-emerald-500" /><span>כניסה</span>
             </div>
-            <span className="text-sm font-bold tabular-nums" dir="ltr">{fmtDate(data.checkIn)}</span>
+            <span className="text-sm font-bold tabular-nums" dir="ltr">
+              {fmtDate(data.checkIn)}{data.checkInTime ? ` ${data.checkInTime}` : ""}
+            </span>
           </div>
           <div className="flex items-center justify-between py-2 mb-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Icon name="logout" size="sm" className="text-red-500" /><span>יציאה</span>
             </div>
-            <span className="text-sm font-bold tabular-nums" dir="ltr">{fmtDate(data.checkOut)}</span>
+            <span className="text-sm font-bold tabular-nums" dir="ltr">
+              {fmtDate(data.checkOut)}{data.checkOutTime ? ` ${data.checkOutTime}` : ""}
+            </span>
           </div>
           <div className="bg-primary/5 rounded-lg px-3 py-2 text-center mb-2">
             <span className="text-sm font-bold text-primary tabular-nums">{nights} לילות</span>
           </div>
-          <ReviewRow label="שעת כניסה" value={data.checkInTime} dir="ltr" />
-          <ReviewRow label="שעת יציאה" value={data.checkOutTime} dir="ltr" />
           <div className="border-t border-border/20 mt-2 pt-2">
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-1.5">
@@ -141,19 +143,42 @@ export function EditStep4Summary() {
         </div>
       </SectionCard>
 
-      {/* ── 3. Rooms Summary ─────────────────────────────────── */}
+      {/* ── 3. Rooms Summary — sourced from the live editable draft, not
+             the static snapshot, so unsaved per-room changes show up here. */}
       <SectionCard title="חדרים" icon="bed">
-        {rooms.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {rooms.map((room) => (
-              <div key={room.id} className="flex items-center justify-between bg-accent/50 rounded-xl px-4 py-3">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-bold text-foreground">חדר {room.room_number}</span>
-                  <span className="text-xs text-muted-foreground">{room.room_type_name}</span>
+        {editableRooms.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {editableRooms.map((room, idx) => {
+              const guestName = `${room.guestFirstName || ""} ${room.guestLastName || ""}`.trim()
+              return (
+                <div key={room.id} className="bg-accent/50 rounded-xl px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-sm font-bold text-foreground truncate">
+                        חדר {idx + 1}: {room.roomTypeName || "—"}
+                        {room.roomNumber ? ` · מס׳ ${room.roomNumber}` : ""}
+                      </span>
+                    </div>
+                    <span className="text-sm font-bold tabular-nums text-primary shrink-0">
+                      {fmt(Number(room.ratePerNight))} / לילה
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                    <span dir="ltr" className="tabular-nums">
+                      {fmtDate(room.checkIn)} → {fmtDate(room.checkOut)}
+                    </span>
+                    <span>
+                      {room.adults} מבוגרים
+                      {room.children > 0 ? ` · ${room.children} ילדים` : ""}
+                      {room.infants > 0 ? ` · ${room.infants} תינוקות` : ""}
+                    </span>
+                    {guestName && (
+                      <span className="col-span-2">אורח: {guestName}</span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-sm font-bold tabular-nums text-primary">{fmt(Number(room.rate_per_night))} / לילה</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-4">לא שויכו חדרים</p>
@@ -236,13 +261,13 @@ export function EditStep4Summary() {
       {/* ── 8. Communication Actions ─────────────────────────── */}
       <SectionCard title="תקשורת" icon="forum">
         <div className="flex flex-wrap gap-3">
-          <button type="button" className="min-h-[44px] px-5 py-3 border border-border/30 text-muted-foreground font-bold text-sm rounded-xl hover:bg-accent transition-colors flex items-center gap-2">
+          <button type="button" className="btn btn-outline">
             <Icon name="email" size="sm" />אימייל
           </button>
-          <button type="button" className="min-h-[44px] px-5 py-3 border border-border/30 text-muted-foreground font-bold text-sm rounded-xl hover:bg-accent transition-colors flex items-center gap-2">
+          <button type="button" className="btn btn-outline">
             <Icon name="phone" size="sm" />SMS
           </button>
-          <button type="button" className="min-h-[44px] px-5 py-3 border border-border/30 text-muted-foreground font-bold text-sm rounded-xl hover:bg-accent transition-colors flex items-center gap-2">
+          <button type="button" className="btn btn-outline">
             <Icon name="whatsapp" size="sm" />WhatsApp
           </button>
         </div>

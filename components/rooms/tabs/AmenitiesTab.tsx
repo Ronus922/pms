@@ -63,7 +63,7 @@ export function AmenitiesTab({ store, equipment }: AmenitiesTabProps) {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="חיפוש ציוד..."
-          className="w-full rounded-xl border border-border/40 bg-accent min-h-[48px] pr-10 pl-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="w-full rounded-xl border-0 bg-accent min-h-[48px] pr-10 pl-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
 

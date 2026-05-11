@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClientSupabase } from "@/lib/supabase/client"
+import { recordLastLogin } from "@/lib/actions/auth"
 
 const BUSINESS_TYPES = [
   { value: "hotel", label: "מלון" },
@@ -70,6 +71,8 @@ export default function RegisterPage() {
       setLoading(false)
       return
     }
+
+    await recordLastLogin()
 
     router.push("/dashboard")
     router.refresh()
@@ -155,7 +158,7 @@ export default function RegisterPage() {
                   setStep(2)
                 }
               }}
-              className="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-xl font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition-all min-h-[44px]"
+              className="btn btn-primary"
             >
               המשך
             </button>
@@ -214,7 +217,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-xl font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 min-h-[44px]"
+                className="btn btn-primary"
               >
                 {loading ? "יוצר חשבון..." : "התחל ניסיון"}
               </button>

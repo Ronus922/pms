@@ -10,7 +10,9 @@ const PUBLIC_PATHS = [
   "/register",
   "/forgot-password",
   "/auth/callback",
+  "/api/register",  // tenant + first-user signup endpoint (rate-limited at route level)
   "/api/webhooks",
+  "/api/channex",   // Channex.io inbound webhook (verified by IP allowlist + x-pms-webhook-secret header)
   "/api/cron",
   // Marketing pages
   "/features",

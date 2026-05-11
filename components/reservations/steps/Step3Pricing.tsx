@@ -1,8 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import { Icon } from "@/components/shared/Icon"
 import { FormField, inputClass, selectClass } from "@/components/shared/FormField"
 import { StatusPill } from "@/components/reservations/StatusPill"
+import { ExtraChargesEditor } from "@/components/reservations/ExtraChargesEditor"
 import { useReservationFormStore } from "@/lib/stores/reservation-form-store"
 import { PAYMENT_METHODS, CURRENCY_OPTIONS, CURRENCY_SYMBOLS } from "@/lib/constants/payments"
 
@@ -18,6 +20,40 @@ const YEARS = Array.from({ length: 11 }, (_, i) => ({
 }))
 
 /* ── Helpers ───────────────────────────────────────────────── */
+
+function CardNumberInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [masked, setMasked] = useState(true)
+
+  const raw = value.replace(/\D/g, "").slice(0, 16)
+  const display = masked && raw.length > 4
+    ? `**** **** **** ${raw.slice(-4)}`
+    : raw.replace(/(\d{4})(?=\d)/g, "$1 ")
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={display}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/\D/g, "").slice(0, 16)
+          onChange(digits)
+        }}
+        onFocus={() => setMasked(false)}
+        placeholder="0000 0000 0000 0000"
+        maxLength={19}
+        dir="ltr"
+        className={`${inputClass} text-start tabular-nums pe-12`}
+      />
+      <button
+        type="button"
+        onClick={() => setMasked(!masked)}
+        className="absolute top-1/2 -translate-y-1/2 start-3 text-muted-foreground hover:text-foreground p-1 transition-colors"
+      >
+        <Icon name={masked ? "visibility" : "visibility_off"} size="sm" />
+      </button>
+    </div>
+  )
+}
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -72,31 +108,38 @@ export function Step3Pricing() {
       <SectionCard title="תמחור">
         {store.rooms.length > 0 ? (
           <div className="flex flex-col gap-3">
-            {/* Per-room rate summary */}
-            {store.rooms.map((room) => (
-              <div
-                key={room.id}
-                className="flex items-center justify-between bg-accent/50 rounded-xl px-4 py-3"
-              >
-                <div className="flex items-center gap-2">
-                  <Icon name="bed" size="sm" className="text-primary" />
-                  <span className="text-sm font-bold text-foreground">
-                    חדר {room.roomId ? `#${room.roomId.slice(0, 6)}` : room.roomTypeId.slice(0, 8)}
-                  </span>
+            {/* Per-room rate summary — each row priced against its OWN
+                checkIn/checkOut so multi-room reservations with different
+                date spans show the correct subtotal. */}
+            {store.rooms.map((room) => {
+              const rci = room.checkIn ? new Date(room.checkIn) : null
+              const rco = room.checkOut ? new Date(room.checkOut) : null
+              const rNights = rci && rco
+                ? Math.max(0, Math.round((rco.getTime() - rci.getTime()) / 86400000))
+                : 0
+              const subtotal = (room.ratePerNight || 0) * rNights
+              return (
+                <div
+                  key={room.id}
+                  className="flex items-center justify-between bg-accent/50 rounded-xl px-4 py-3"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon name="bed" size="sm" className="text-primary shrink-0" />
+                    <span className="text-sm font-bold text-foreground truncate">
+                      חדר {room.roomNumber || room.roomId?.slice(0, 6) || "—"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end gap-0.5 shrink-0">
+                    <span className="text-sm font-bold tabular-nums text-foreground">
+                      {formatCurrency(subtotal, store.currency)}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground tabular-nums">
+                      {formatCurrency(room.ratePerNight, store.currency)} × {rNights} לילות
+                    </span>
+                  </div>
                 </div>
-                <span className="text-sm font-bold tabular-nums text-foreground">
-                  {formatCurrency(room.ratePerNight, store.currency)} / לילה
-                </span>
-              </div>
-            ))}
-
-            {/* Total nightly rate */}
-            <div className="flex items-center justify-between border-t border-border/20 pt-3">
-              <span className="text-sm font-bold text-muted-foreground">סה״כ ללילה</span>
-              <span className="text-sm font-bold tabular-nums text-primary">
-                {formatCurrency(store.totalNightlyRate, store.currency)}
-              </span>
-            </div>
+              )
+            })}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
@@ -111,7 +154,7 @@ export function Step3Pricing() {
                   dir="ltr"
                   className={`${inputClass} pe-12 text-start tabular-nums`}
                 />
-                <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">
+                <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">
                   {sym}
                 </div>
               </div>
@@ -133,9 +176,12 @@ export function Step3Pricing() {
           </div>
         )}
 
-        {/* Nights + Base Amount (always shown) */}
+        {/* Span + Base Amount. `store.nights` is the outer span (MAX checkOut
+            − MIN checkIn) — NOT the multiplier for base amount. Base amount
+            sums (rate × per-room-nights) so multi-room reservations with
+            different lengths price correctly. */}
         <div className="grid grid-cols-2 gap-4 mt-4 max-sm:grid-cols-1">
-          <FormField label="מספר לילות">
+          <FormField label="טווח לילות (מצטבר)">
             <div className={`${inputClass} bg-muted/50 tabular-nums flex items-center`}>
               {store.nights}
             </div>
@@ -167,7 +213,7 @@ export function Step3Pricing() {
                 dir="ltr"
                 className={`${inputClass} pe-12 text-start tabular-nums`}
               />
-              <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">
+              <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">
                 {sym}
               </div>
             </div>
@@ -189,7 +235,7 @@ export function Step3Pricing() {
                 dir="ltr"
                 className={`${inputClass} pe-12 text-start tabular-nums`}
               />
-              <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">
+              <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">
                 %
               </div>
             </div>
@@ -197,22 +243,14 @@ export function Step3Pricing() {
         </div>
 
         <div className="mt-4">
-          <FormField label="תוספות" error={store.errors.extraCharges}>
-            <div className="relative">
-              <input
-                type="number"
-                value={store.extraCharges || ""}
-                onChange={(e) => store.setField("extraCharges", Number(e.target.value) || 0)}
-                placeholder="0"
-                min={0}
-                dir="ltr"
-                className={`${inputClass} pe-12 text-start tabular-nums`}
-              />
-              <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">
-                {sym}
-              </div>
-            </div>
-          </FormField>
+          <h4 className="text-sm font-bold text-muted-foreground mb-3">תוספות</h4>
+          <ExtraChargesEditor
+            charges={store.extraCharges}
+            currency={store.currency}
+            onAdd={(c) => store.addExtraCharge(c)}
+            onUpdate={(id, u) => store.updateExtraCharge(id, u)}
+            onRemove={(id) => store.removeExtraCharge(id)}
+          />
         </div>
 
         {/* Tax Exempt Toggle */}
@@ -245,7 +283,7 @@ export function Step3Pricing() {
         {/* Tax Amount */}
         <div className="mt-3 flex items-center justify-between px-1">
           <span className="text-sm text-muted-foreground">
-            מע״מ ({store.taxExempt ? "פטור" : "17%"})
+            מע״מ ({store.taxExempt ? "פטור" : `${(store.taxRate * 100).toFixed(store.taxRate * 100 % 1 === 0 ? 0 : 2)}%`})
           </span>
           <span className="text-sm font-bold tabular-nums text-foreground">
             {formatCurrency(store.taxAmount, store.currency)}
@@ -267,10 +305,10 @@ export function Step3Pricing() {
               color="text-emerald-600 dark:text-emerald-400"
             />
           )}
-          {store.extraCharges > 0 && (
+          {store.extraCharges.length > 0 && (
             <SummaryRow
-              label="תוספות"
-              value={`+${formatCurrency(store.extraCharges, store.currency)}`}
+              label={`תוספות (${store.extraCharges.length})`}
+              value={`+${formatCurrency(store.extraCharges.reduce((s, c) => s + (c.amount || 0), 0), store.currency)}`}
             />
           )}
           <SummaryRow
@@ -334,7 +372,7 @@ export function Step3Pricing() {
                   dir="ltr"
                   className={`${inputClass} pe-12 text-start tabular-nums`}
                 />
-                <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">
+                <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">
                   {sym}
                 </div>
               </div>
@@ -351,7 +389,7 @@ export function Step3Pricing() {
                   dir="ltr"
                   className={`${inputClass} pe-12 text-start tabular-nums`}
                 />
-                <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none text-sm font-bold">
+                <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">
                   {sym}
                 </div>
               </div>
@@ -364,7 +402,7 @@ export function Step3Pricing() {
       {store.paymentMethod === "credit_card" && (
         <SectionCard title="פרטי כרטיס אשראי">
           <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
-            <FormField label="שם בעל הכרטיס" error={store.errors.cardHolderName}>
+            <FormField label="שם בעל הכרטיס" required error={store.errors.cardHolderName}>
               <input
                 type="text"
                 value={store.cardHolderName}
@@ -374,71 +412,55 @@ export function Step3Pricing() {
               />
             </FormField>
 
-            <FormField label="4 ספרות אחרונות" error={store.errors.cardLast4}>
+            <FormField label="מספר כרטיס" required error={store.errors.cardNumber}>
+              <CardNumberInput
+                value={store.cardNumber}
+                onChange={(v) => store.setField("cardNumber", v)}
+              />
+            </FormField>
+
+            <FormField label="ת.ז. בעל הכרטיס" error={store.errors.cardHolderId}>
               <input
                 type="text"
-                value={store.cardLast4}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "").slice(0, 4)
-                  store.setField("cardLast4", val)
-                }}
-                placeholder="1234"
-                maxLength={4}
+                value={store.cardHolderId}
+                onChange={(e) => store.setField("cardHolderId", e.target.value.replace(/\D/g, "").slice(0, 9))}
+                placeholder="000000000"
+                maxLength={9}
                 dir="ltr"
                 className={`${inputClass} text-start tabular-nums`}
               />
             </FormField>
 
-            <FormField label="חודש תוקף" error={store.errors.cardExpiryMonth}>
-              <select
-                value={store.cardExpiryMonth}
-                onChange={(e) => store.setField("cardExpiryMonth", e.target.value)}
-                className={selectClass}
-              >
-                <option value="">חודש</option>
-                {MONTHS.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-
-            <FormField label="שנת תוקף" error={store.errors.cardExpiryYear}>
-              <select
-                value={store.cardExpiryYear}
-                onChange={(e) => store.setField("cardExpiryYear", e.target.value)}
-                className={selectClass}
-              >
-                <option value="">שנה</option>
-                {YEARS.map((y) => (
-                  <option key={y.value} value={y.value}>
-                    {y.label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-
-            <FormField label="קוד אישור" error={store.errors.cardApprovalCode}>
-              <input
-                type="text"
-                value={store.cardApprovalCode}
-                onChange={(e) => store.setField("cardApprovalCode", e.target.value)}
-                placeholder="קוד אישור"
-                dir="ltr"
-                className={`${inputClass} text-start tabular-nums`}
-              />
-            </FormField>
-
-            <FormField label="מספר עסקה" error={store.errors.cardTransactionRef}>
-              <input
-                type="text"
-                value={store.cardTransactionRef}
-                onChange={(e) => store.setField("cardTransactionRef", e.target.value)}
-                placeholder="מספר עסקה"
-                dir="ltr"
-                className={`${inputClass} text-start tabular-nums`}
-              />
+            {/* Month + Year adjacent in one cell per user request. */}
+            <FormField label="תוקף (חודש / שנה)" error={store.errors.cardExpiryMonth || store.errors.cardExpiryYear}>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={store.cardExpiryMonth}
+                  onChange={(e) => store.setField("cardExpiryMonth", e.target.value)}
+                  className={selectClass}
+                  aria-label="חודש"
+                >
+                  <option value="">חודש</option>
+                  {MONTHS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={store.cardExpiryYear}
+                  onChange={(e) => store.setField("cardExpiryYear", e.target.value)}
+                  className={selectClass}
+                  aria-label="שנה"
+                >
+                  <option value="">שנה</option>
+                  {YEARS.map((y) => (
+                    <option key={y.value} value={y.value}>
+                      {y.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </FormField>
 
             <FormField label="תשלומים" error={store.errors.cardInstallments}>
@@ -455,6 +477,19 @@ export function Step3Pricing() {
                 className={`${inputClass} text-start tabular-nums`}
               />
             </FormField>
+
+            {/* Approval code + transaction ref are auto-populated from the CC
+                processor response — readonly in the UI, filled after "חייב עכשיו". */}
+            <FormField label="קוד אישור / מספר עסקה">
+              <input
+                type="text"
+                value={[store.cardApprovalCode, store.cardTransactionRef].filter(Boolean).join(" / ")}
+                readOnly
+                placeholder="יוזן אוטומטית לאחר חיוב"
+                dir="ltr"
+                className={`${inputClass} text-start tabular-nums bg-accent/60 cursor-not-allowed`}
+              />
+            </FormField>
           </div>
 
           {/* Charge Now Button */}
@@ -462,7 +497,7 @@ export function Step3Pricing() {
             <button
               type="button"
               onClick={() => store.setField("paymentResult", "approved")}
-              className="min-h-[44px] px-8 py-3 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
+              className="btn btn-primary"
             >
               <Icon name="credit_card" size="md" className="text-white" />
               חייב עכשיו

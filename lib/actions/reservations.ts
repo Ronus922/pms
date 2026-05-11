@@ -2,8 +2,19 @@
 
 import { db } from "@/lib/db"
 import { createCleaningTasksForCheckout, cancelCleaningTasksForReservation } from "@/lib/actions/cleaning"
+import { requirePermission } from "@/lib/auth/actor"
+import { AuthorizationError } from "@/lib/auth/errors"
 
 export async function getReservationDetails(reservationId: string) {
+  let tenantId: string
+  try {
+    const actor = await requirePermission("reservations", "view")
+    tenantId = actor.tenantId
+  } catch (err) {
+    if (err instanceof AuthorizationError) return null
+    throw err
+  }
+
   const [res] = await db`
     SELECT
       r.id, r.reservation_number, r.status, r.check_in, r.check_out,
@@ -18,11 +29,13 @@ export async function getReservationDetails(reservationId: string) {
       g.country as guest_country
     FROM reservations r
     JOIN guests g ON g.id = r.guest_id
-    WHERE r.id = ${reservationId}
+    WHERE r.id = ${reservationId} AND r.tenant_id = ${tenantId}
   `
 
   if (!res) return null
 
+  // Sub-query is safe: reservationId now verified to be in actor's tenant
+  // via the gate query above.
   const rooms = await db`
     SELECT rr.room_id, rr.check_in, rr.check_out, rr.rate_per_night,
       rm.room_number, rt.name as room_type_name
@@ -36,37 +49,85 @@ export async function getReservationDetails(reservationId: string) {
   return { ...res, rooms }
 }
 
-export async function updateReservationStatus(reservationId: string, tenantId: string, status: string) {
-  await db`
-    UPDATE reservations SET status = ${status}, updated_at = NOW()
-    WHERE id = ${reservationId} AND tenant_id = ${tenantId}
-  `
+export async function updateReservationStatus(
+  reservationId: string,
+  // tenantId IGNORED — derived from server session.
+  // Kept in signature for backwards compatibility with existing UI callers.
+  _tenantId: string,
+  status: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actor = await requirePermission("reservations", "edit")
+    const tenantId = actor.tenantId
 
-  // Room occupancy is DERIVED from reservation_rooms + reservations.status
-  // (see lib/actions/rooms-status.ts). Do NOT write rooms.status for occupancy.
+    const result = await db`
+      UPDATE reservations SET status = ${status}, updated_at = NOW()
+      WHERE id = ${reservationId} AND tenant_id = ${tenantId}
+    `
+    if (result.count === 0) {
+      return { success: false, error: "הזמנה לא נמצאה" }
+    }
 
-  // On check-out: auto-create cleaning tasks + flip rooms.cleaning_state='dirty'
-  if (status === "checked_out") {
-    await createCleaningTasksForCheckout(tenantId, reservationId, "manual_checkout")
+    // Room occupancy is DERIVED from reservation_rooms + reservations.status
+    // (see lib/actions/rooms-status.ts). Do NOT write rooms.status for occupancy.
+
+    // On check-out: auto-create cleaning tasks + flip rooms.cleaning_state='dirty'
+    if (status === "checked_out") {
+      await createCleaningTasksForCheckout(tenantId, reservationId, "manual_checkout")
+    }
+
+    return { success: true }
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
+    return { success: false, error: err instanceof Error ? err.message : "שגיאה בעדכון סטטוס הזמנה" }
   }
-
-  return { success: true }
 }
 
-export async function toggleVip(reservationId: string, tenantId: string) {
-  await db`
-    UPDATE reservations SET is_vip = NOT is_vip, updated_at = NOW()
-    WHERE id = ${reservationId} AND tenant_id = ${tenantId}
-  `
-  return { success: true }
+export async function toggleVip(
+  reservationId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actor = await requirePermission("reservations", "edit")
+    const tenantId = actor.tenantId
+
+    const result = await db`
+      UPDATE reservations SET is_vip = NOT is_vip, updated_at = NOW()
+      WHERE id = ${reservationId} AND tenant_id = ${tenantId}
+    `
+    if (result.count === 0) {
+      return { success: false, error: "הזמנה לא נמצאה" }
+    }
+    return { success: true }
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
+    return { success: false, error: err instanceof Error ? err.message : "שגיאה בעדכון VIP" }
+  }
 }
 
-export async function cancelReservation(reservationId: string, tenantId: string) {
-  await db`
-    UPDATE reservations SET status = 'cancelled', updated_at = NOW()
-    WHERE id = ${reservationId} AND tenant_id = ${tenantId}
-  `
-  // Cancel any pending cleaning tasks tied to this reservation
-  await cancelCleaningTasksForReservation(tenantId, reservationId)
-  return { success: true }
+export async function cancelReservation(
+  reservationId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actor = await requirePermission("reservations", "edit")
+    const tenantId = actor.tenantId
+
+    const result = await db`
+      UPDATE reservations SET status = 'cancelled', updated_at = NOW()
+      WHERE id = ${reservationId} AND tenant_id = ${tenantId}
+    `
+    if (result.count === 0) {
+      return { success: false, error: "הזמנה לא נמצאה" }
+    }
+
+    // Cancel any pending cleaning tasks tied to this reservation
+    await cancelCleaningTasksForReservation(tenantId, reservationId)
+    return { success: true }
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { success: false, error: err.message }
+    return { success: false, error: err instanceof Error ? err.message : "שגיאה בביטול הזמנה" }
+  }
 }

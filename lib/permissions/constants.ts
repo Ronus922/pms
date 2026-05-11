@@ -39,6 +39,7 @@ export const MODULES: { key: string; label: string; icon: string; path: string }
   { key: "housekeeping", label: "ניקיון",          icon: "cleaning_services", path: "/housekeeping" },
   { key: "maintenance",  label: "תחזוקה",          icon: "construction",  path: "/maintenance" },
   { key: "staff",        label: "עובדים",          icon: "person",        path: "/staff" },
+  { key: "attendance",   label: "נוכחות",          icon: "schedule",      path: "/staff/punch" },
   { key: "documents",    label: "מסמכים",          icon: "description",   path: "/documents" },
   { key: "finance",      label: "כספים",           icon: "payments",      path: "/finance" },
   { key: "suppliers",    label: "ספקים",           icon: "local_shipping", path: "/suppliers" },
@@ -62,6 +63,7 @@ export const DEFAULT_RECEPTIONIST: Record<string, { canView: boolean; canEdit: b
   housekeeping: { canView: true,  canEdit: true,  canDelete: false },
   maintenance:  { canView: true,  canEdit: false, canDelete: false },
   staff:        { canView: false, canEdit: false, canDelete: false },
+  attendance:   { canView: true,  canEdit: false, canDelete: false },
   documents:    { canView: true,  canEdit: false, canDelete: false },
   finance:      { canView: false, canEdit: false, canDelete: false },
   suppliers:    { canView: true,  canEdit: false, canDelete: false },
@@ -85,6 +87,7 @@ export const DEFAULT_CLEANER: Record<string, { canView: boolean; canEdit: boolea
   housekeeping: { canView: true,  canEdit: true,  canDelete: false },
   maintenance:  { canView: false, canEdit: false, canDelete: false },
   staff:        { canView: false, canEdit: false, canDelete: false },
+  attendance:   { canView: true,  canEdit: false, canDelete: false },
   documents:    { canView: false, canEdit: false, canDelete: false },
   finance:      { canView: false, canEdit: false, canDelete: false },
   suppliers:    { canView: false, canEdit: false, canDelete: false },
@@ -95,6 +98,45 @@ export const DEFAULT_CLEANER: Record<string, { canView: boolean; canEdit: boolea
   settings:     { canView: false, canEdit: false, canDelete: false },
   billing:      { canView: false, canEdit: false, canDelete: false },
   permissions:  { canView: false, canEdit: false, canDelete: false },
+}
+
+/* ── Default Permissions By Role ────────────────────────────── */
+
+export function getDefaultPermissions(role: Role): Record<string, { canView: boolean; canEdit: boolean; canDelete: boolean }> | null {
+  switch (role) {
+    case "receptionist": return DEFAULT_RECEPTIONIST
+    case "cleaner": return DEFAULT_CLEANER
+    default: return null
+  }
+}
+
+/* ── Role UI Styling ───────────────────────────────────────── */
+
+export const ROLE_STYLES: Record<string, { icon: string; accent: string; border: string; badge: string }> = {
+  super_admin: {
+    icon: "crown",
+    accent: "border-primary bg-primary/5",
+    border: "border-primary",
+    badge: "bg-primary/10 text-primary",
+  },
+  admin: {
+    icon: "admin_panel_settings",
+    accent: "border-[#3F51B5] bg-indigo-50/50",
+    border: "border-[#3F51B5]",
+    badge: "bg-indigo-100 text-indigo-700",
+  },
+  receptionist: {
+    icon: "person",
+    accent: "border-amber-400 bg-amber-50/50",
+    border: "border-amber-400",
+    badge: "bg-amber-100 text-amber-700",
+  },
+  cleaner: {
+    icon: "cleaning_services",
+    accent: "border-teal-400 bg-teal-50/50",
+    border: "border-teal-400",
+    badge: "bg-teal-100 text-teal-700",
+  },
 }
 
 /* ── Modules restricted to super_admin only ─────────────────── */

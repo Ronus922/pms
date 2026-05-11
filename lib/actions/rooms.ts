@@ -5,8 +5,9 @@ import { db } from "@/lib/db"
 export async function getRoomsList(tenantId: string) {
   return db`
     SELECT r.id, r.room_number, r.status,
-      rt.name as room_type_name, rt.max_occupancy,
-      f.name as floor_name, b.name as building_name
+      rt.name AS room_type_name,
+      COALESCE(r.max_occupancy, rt.max_occupancy) AS max_occupancy,
+      f.name AS floor_name, b.name AS building_name
     FROM rooms r
     LEFT JOIN room_types rt ON rt.id = r.room_type_id
     LEFT JOIN floors f ON f.id = r.floor_id

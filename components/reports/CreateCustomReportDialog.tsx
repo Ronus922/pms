@@ -103,7 +103,7 @@ export function CreateCustomReportDialog({ open, onClose, onSave }: CreateCustom
         </div>
 
         <div className="flex flex-row-reverse items-center gap-3 border-t border-border pt-4">
-          <button type="button" disabled={!name.trim() || metrics.length === 0 || groupBy.length === 0} onClick={handleSave} className="flex items-center gap-2 bg-gradient-to-br from-primary to-primary-container text-white px-6 py-3 rounded-xl font-semibold shadow-sm text-sm min-h-[44px] disabled:opacity-40">
+          <button type="button" disabled={!name.trim() || metrics.length === 0 || groupBy.length === 0} onClick={handleSave} className="btn btn-primary">
             <Icon name="add" size="sm" />
             צור דוח
           </button>

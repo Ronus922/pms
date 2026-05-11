@@ -137,7 +137,7 @@ export function LookupTable({
         <button
           type="button"
           onClick={openAdd}
-          className="min-h-[44px] px-5 py-2.5 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center gap-2"
+          className="btn btn-primary"
         >
           <Icon name="add" size="sm" />
           הוסף ערך
@@ -225,7 +225,7 @@ export function LookupTable({
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="min-h-[44px] px-6 py-2.5 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+              className="btn btn-primary"
             >
               {saving ? (
                 <><Icon name="hourglass_empty" size="sm" className="animate-spin" /> שומר...</>

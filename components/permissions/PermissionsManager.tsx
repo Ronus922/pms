@@ -15,11 +15,14 @@ import {
 import {
   ROLES,
   MODULES,
+  ROLE_STYLES,
   DEFAULT_RECEPTIONIST,
   getRoleLabel,
   type Role,
   type ModulePermission,
 } from "@/lib/permissions/constants"
+import { RoleSelector } from "@/components/staff/RoleSelector"
+import { PermissionMatrix } from "@/components/staff/PermissionMatrix"
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -48,19 +51,7 @@ interface InviteForm {
   password: string
 }
 
-/* ── Role Card Styling ──────────────────────────────────────── */
-
-const ROLE_ICON: Record<string, string> = {
-  super_admin: "crown",
-  admin: "admin_panel_settings",
-  receptionist: "person",
-}
-
-const ROLE_ACCENT: Record<string, string> = {
-  super_admin: "border-primary bg-primary/5",
-  admin: "border-[#3F51B5] bg-indigo-50/50",
-  receptionist: "border-amber-400 bg-amber-50/50",
-}
+/* ── (Role styling now in ROLE_STYLES from constants) ──────── */
 
 /* ── Component ──────────────────────────────────────────────── */
 
@@ -262,61 +253,8 @@ export function PermissionsManager({
     })
   }
 
-  /* ── Role Selector Cards (shared between edit + invite) ── */
-  function RoleSelector({
-    value,
-    onChange,
-  }: {
-    value: Role
-    onChange: (r: Role) => void
-  }) {
-    return (
-      <div className="grid gap-3">
-        {assignableRoles.map((r) => {
-          const isSelected = value === r.value
-          return (
-            <button
-              key={r.value}
-              type="button"
-              onClick={() => onChange(r.value)}
-              className={`w-full flex items-center gap-4 p-4 rounded-[20px] border-2 transition-all min-h-[44px] text-right ${
-                isSelected
-                  ? ROLE_ACCENT[r.value]
-                  : "border-border/20 hover:border-primary/30 bg-card"
-              }`}
-            >
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  isSelected
-                    ? "bg-primary/15 text-primary"
-                    : "bg-accent text-muted-foreground"
-                }`}
-              >
-                <Icon name={ROLE_ICON[r.value]} size="md" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold">{r.label}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {r.description}
-                </p>
-              </div>
-              <div
-                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                  isSelected
-                    ? "border-primary bg-primary"
-                    : "border-border/40"
-                }`}
-              >
-                {isSelected && (
-                  <Icon name="check_circle" size="sm" className="text-white" />
-                )}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
+  /* ── assignableRoles as Role[] for the shared RoleSelector ── */
+  const assignableRoleValues = assignableRoles.map((r) => r.value)
 
   /* ── Render ───────────────────────────────────────────────── */
 
@@ -426,6 +364,7 @@ export function PermissionsManager({
                 <RoleSelector
                   value={inviteRole}
                   onChange={setInviteRole}
+                  assignableRoles={assignableRoleValues}
                 />
               </div>
             </>
@@ -513,7 +452,7 @@ export function PermissionsManager({
                 <h3 className="text-sm font-bold text-foreground mb-4">
                   תפקיד
                 </h3>
-                <RoleSelector value={role} onChange={setRole} />
+                <RoleSelector value={role} onChange={setRole} assignableRoles={assignableRoleValues} />
               </div>
 
               {/* Section 3: Permissions Grid (receptionist only) */}
@@ -522,99 +461,10 @@ export function PermissionsManager({
                   <h3 className="text-sm font-bold text-foreground mb-4">
                     הרשאות לפי מודול
                   </h3>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-border/20">
-                          <th className="text-right text-[11px] font-bold text-muted-foreground px-3 py-3">
-                            מודול
-                          </th>
-                          <th className="text-center text-[11px] font-bold text-muted-foreground px-3 py-3 w-20">
-                            צפייה
-                          </th>
-                          <th className="text-center text-[11px] font-bold text-muted-foreground px-3 py-3 w-20">
-                            עריכה
-                          </th>
-                          <th className="text-center text-[11px] font-bold text-muted-foreground px-3 py-3 w-20">
-                            מחיקה
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {MODULES.map((mod) => {
-                          const perm = perms.find(
-                            (p) => p.module === mod.key
-                          )
-                          if (!perm) return null
-                          return (
-                            <tr
-                              key={mod.key}
-                              className="border-b border-border/10 hover:bg-accent/30 transition-colors"
-                            >
-                              {/* Module Label */}
-                              <td className="px-3 py-3">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
-                                    <Icon
-                                      name={mod.icon}
-                                      size="sm"
-                                      className="text-muted-foreground"
-                                    />
-                                  </div>
-                                  <span className="text-xs font-bold">
-                                    {mod.label}
-                                  </span>
-                                </div>
-                              </td>
-
-                              {/* View Checkbox */}
-                              <td className="text-center px-3 py-3">
-                                <label className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={perm.canView}
-                                    onChange={() =>
-                                      togglePerm(mod.key, "canView")
-                                    }
-                                    className="w-5 h-5 rounded-md border-border/40 text-primary focus:ring-primary/20 cursor-pointer accent-primary"
-                                  />
-                                </label>
-                              </td>
-
-                              {/* Edit Checkbox */}
-                              <td className="text-center px-3 py-3">
-                                <label className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={perm.canEdit}
-                                    onChange={() =>
-                                      togglePerm(mod.key, "canEdit")
-                                    }
-                                    className="w-5 h-5 rounded-md border-border/40 text-primary focus:ring-primary/20 cursor-pointer accent-primary"
-                                  />
-                                </label>
-                              </td>
-
-                              {/* Delete Checkbox */}
-                              <td className="text-center px-3 py-3">
-                                <label className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={perm.canDelete}
-                                    onChange={() =>
-                                      togglePerm(mod.key, "canDelete")
-                                    }
-                                    className="w-5 h-5 rounded-md border-border/40 text-primary focus:ring-primary/20 cursor-pointer accent-primary"
-                                  />
-                                </label>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <PermissionMatrix
+                    permissions={perms}
+                    onToggle={togglePerm}
+                  />
                 </div>
               )}
 
@@ -650,7 +500,7 @@ export function PermissionsManager({
               <button
                 onClick={handleInvite}
                 disabled={saving}
-                className="flex items-center gap-2 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 min-h-[44px] px-8 py-3 disabled:opacity-50"
+                className="btn btn-primary"
               >
                 {saving ? (
                   <Icon
@@ -666,7 +516,7 @@ export function PermissionsManager({
               <button
                 onClick={onClose}
                 disabled={saving}
-                className="border border-border/30 text-muted-foreground font-bold text-sm rounded-xl hover:bg-accent transition-colors min-h-[44px] px-6 py-3"
+                className="btn btn-outline"
               >
                 ביטול
               </button>
@@ -678,7 +528,7 @@ export function PermissionsManager({
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-2 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 min-h-[44px] px-8 py-3 disabled:opacity-50"
+                  className="btn btn-primary"
                 >
                   {saving ? (
                     <Icon
@@ -695,7 +545,7 @@ export function PermissionsManager({
                 <button
                   onClick={onClose}
                   disabled={saving}
-                  className="border border-border/30 text-muted-foreground font-bold text-sm rounded-xl hover:bg-accent transition-colors min-h-[44px] px-6 py-3"
+                  className="btn btn-outline"
                 >
                   ביטול
                 </button>

@@ -14,9 +14,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/calendar": "יומן חדרים",
   "/reservations": "הזמנות",
   "/guests": "אורחים",
-  "/rooms": "חדרים",
+  "/rooms": "חדרים ואזורים",
+  "/rooms/blocks": "חסימות חדרים",
   "/housekeeping": "ניקיון",
   "/maintenance": "תחזוקה",
+  "/maintenance/my-tasks": "המשימות שלי — תחזוקה",
   "/staff": "עובדים",
   "/documents": "מסמכים",
   "/finance": "כספים",
@@ -58,9 +60,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Cleaner mobile view → no sidebar, no topbar, no reservation modals
+  // Worker mobile view → no sidebar, no topbar, no reservation modals
   const isCleanerMobileView =
-    tenant.role === "cleaner" || pathname.startsWith("/housekeeping/my-tasks")
+    tenant.role === "cleaner" || pathname.startsWith("/housekeeping/my-tasks") || pathname.startsWith("/maintenance/my-tasks")
 
   if (isCleanerMobileView) {
     return (

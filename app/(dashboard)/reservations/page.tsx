@@ -6,7 +6,6 @@ import { getReservationsList } from "@/lib/actions/guests"
 import { useReservationFormStore } from "@/lib/stores/reservation-form-store"
 import { useReservationEditStore } from "@/lib/stores/reservation-edit-store"
 import { useTenant } from "@/lib/hooks/use-tenant"
-import { ExistingReservationPanel } from "@/components/reservations/ExistingReservationPanel"
 import { STATUS_LABELS, PAYMENT_LABELS, STATUS_BORDER_COLORS } from "@/lib/constants/reservation"
 
 interface Reservation {
@@ -60,16 +59,28 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const openNew = useReservationFormStore((s) => s.open)
   const openEdit = useReservationEditStore((s) => s.open)
+  /* Subscribe to the edit store's save tick — every successful edit bumps
+   * it and this page re-fetches so payment status / color / dates update
+   * without a manual reload. Shared-store pattern because the edit panel
+   * itself lives at the shell level (single instance across the app). */
+  const savedTick = useReservationEditStore((s) => s.savedTick)
 
-  const loadData = useCallback(() => {
-    setLoading(true)
+  const loadData = useCallback((initial = false) => {
+    // Only flip the skeleton on the first mount — subsequent refreshes
+    // (after an edit-panel save) must keep the rendered rows visible so
+    // the saved reservation doesn't briefly "disappear" during refetch.
+    if (initial) setLoading(true)
     getReservationsList(tenantId).then((data) => {
       setReservations(data as unknown as Reservation[])
       setLoading(false)
     })
   }, [tenantId])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadData(true) }, [loadData])
+  useEffect(() => {
+    if (savedTick === 0) return
+    loadData(false)
+  }, [savedTick, loadData])
 
   const filtered = reservations.filter((r) => {
     if (statusFilter !== "all" && r.status !== statusFilter) return false
@@ -90,7 +101,7 @@ export default function ReservationsPage() {
         </div>
         <button
           onClick={() => openNew()}
-          className="bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2 min-h-[44px]"
+          className="btn btn-primary"
         >
           <Icon name="add" size="sm" /> הזמנה חדשה
         </button>
@@ -126,37 +137,30 @@ export default function ReservationsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-card rounded-[20px] shadow-sm border border-border/20 overflow-hidden">
+      <div className="bg-card rounded-[20px] shadow-sm border border-border/20 overflow-hidden" dir="rtl">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px]">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead>
-              <tr className="border-b border-border/20" style={{ backgroundColor: "#f8fafc" }}>
-                <th className="text-right text-sm font-bold text-foreground/80 px-5 py-3.5">מס׳ הזמנה</th>
-                <th className="text-right text-sm font-bold text-foreground/80 px-4 py-3.5">אורח</th>
-                <th className="text-right text-sm font-bold text-foreground/80 px-4 py-3.5">טלפון</th>
-                <th className="text-right text-sm font-bold text-foreground/80 px-4 py-3.5">חדר</th>
-                <th className="text-center text-sm font-bold text-foreground/80 px-4 py-3.5">כניסה</th>
-                <th className="text-center text-sm font-bold text-foreground/80 px-4 py-3.5">יציאה</th>
-                <th className="text-center text-sm font-bold text-foreground/80 px-3 py-3.5">לילות</th>
-                <th className="text-center text-sm font-bold text-foreground/80 px-4 py-3.5">סטטוס</th>
-                <th className="text-center text-sm font-bold text-foreground/80 px-4 py-3.5">תשלום</th>
-                <th className="text-right text-sm font-bold text-foreground/80 px-5 py-3.5">סה״כ</th>
+              <tr className="bg-[#e1e7fa]">
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap w-[180px]">מס׳ הזמנה</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">אורח</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">טלפון</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">חדר</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">כניסה</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">יציאה</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">לילות</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">סטטוס</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">תשלום</th>
+                <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">סה״כ</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/10">
-                    <td className="px-5 py-5"><div className="h-4 w-20 bg-accent rounded-lg animate-pulse" /></td>
-                    <td className="px-4 py-5"><div className="h-4 w-24 bg-accent rounded-lg animate-pulse" /></td>
-                    <td className="px-4 py-5"><div className="h-4 w-20 bg-accent rounded-lg animate-pulse" /></td>
-                    <td className="px-4 py-5"><div className="h-4 w-10 bg-accent rounded-lg animate-pulse" /></td>
-                    <td className="px-4 py-5"><div className="h-4 w-12 bg-accent rounded-lg animate-pulse mx-auto" /></td>
-                    <td className="px-4 py-5"><div className="h-4 w-12 bg-accent rounded-lg animate-pulse mx-auto" /></td>
-                    <td className="px-3 py-5"><div className="h-4 w-6 bg-accent rounded-lg animate-pulse mx-auto" /></td>
-                    <td className="px-4 py-5"><div className="h-5 w-14 bg-accent rounded-full animate-pulse mx-auto" /></td>
-                    <td className="px-4 py-5"><div className="h-4 w-14 bg-accent rounded-lg animate-pulse mx-auto" /></td>
-                    <td className="px-5 py-5"><div className="h-4 w-16 bg-accent rounded-lg animate-pulse" /></td>
+                    {Array.from({ length: 10 }).map((_, j) => (
+                      <td key={j} className="px-5 py-4"><div className="h-4 bg-accent rounded w-3/4 animate-pulse" /></td>
+                    ))}
                   </tr>
                 ))
               ) : filtered.length === 0 ? (
@@ -169,56 +173,82 @@ export default function ReservationsPage() {
                     </div>
                   </td>
                 </tr>
-              ) : filtered.map((r) => (
+              ) : filtered.map((r, idx) => {
+                const isEven = idx % 2 === 1
+                return (
                 <tr
                   key={r.id}
-                  className="border-b border-border/15 hover:bg-accent/40 transition-colors cursor-pointer border-r-4 group"
-                  style={{ borderRightColor: STATUS_BORDER_COLORS[r.status] || "#9ca3af", minHeight: 52 }}
                   onDoubleClick={() => openEdit(r.id, tenantId)}
+                  style={{ borderRightWidth: "4px", borderRightStyle: "solid", borderRightColor: STATUS_BORDER_COLORS[r.status] || "#9ca3af" }}
+                  className={`border-b border-border/10 hover:bg-primary/5 cursor-pointer transition-colors ${isEven ? "bg-accent/40" : ""}`}
                 >
-                  <td className="px-5 py-4">
-                    <span className="text-sm font-bold text-primary">{r.reservation_number}</span>
+                  {/* Reservation number */}
+                  <td className="px-5 py-4 font-bold text-primary tabular-nums whitespace-nowrap">
+                    {r.reservation_number}
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-xs font-bold flex-shrink-0">
-                        {r.guest_name?.charAt(0)}
+
+                  {/* Guest */}
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-primary">{r.guest_name?.charAt(0) || "?"}</span>
                       </div>
-                      <span className="text-sm font-medium">{r.guest_name}</span>
-                      {r.is_vip && <Icon name="star" size="sm" className="text-amber-500" />}
+                      <span className="font-bold text-foreground text-base whitespace-nowrap">{r.guest_name}</span>
+                      {r.is_vip && <Icon name="star" size="sm" className="text-amber-500 shrink-0" />}
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-right text-sm text-muted-foreground tabular-nums" dir="ltr">{r.guest_phone || "—"}</td>
-                  <td className="px-4 py-4">
-                    <span className="text-sm font-bold bg-accent px-2 py-0.5 rounded-lg">{r.room_numbers || "—"}</span>
+
+                  {/* Phone */}
+                  <td className="px-5 py-4 text-foreground tabular-nums whitespace-nowrap" dir="ltr">
+                    <span className="float-right">{r.guest_phone || "—"}</span>
                   </td>
-                  <td className="px-4 py-4 text-center text-sm tabular-nums">{fmtDate(r.check_in)}</td>
-                  <td className="px-4 py-4 text-center text-sm tabular-nums">{fmtDate(r.check_out)}</td>
-                  <td className="px-3 py-4 text-center">
-                    <span className="text-sm font-bold bg-accent/80 px-2 py-0.5 rounded-lg">{calcNights(r.check_in, r.check_out)}</span>
+
+                  {/* Room */}
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-accent text-foreground text-xs font-bold">
+                      {r.room_numbers || "—"}
+                    </span>
                   </td>
-                  <td className="px-4 py-4 text-center">
-                    <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold ${STATUS_COLORS[r.status] || "bg-accent text-muted-foreground"}`}>
+
+                  {/* Check-in */}
+                  <td className="px-5 py-4 text-foreground tabular-nums whitespace-nowrap">{fmtDate(r.check_in)}</td>
+
+                  {/* Check-out */}
+                  <td className="px-5 py-4 text-foreground tabular-nums whitespace-nowrap">{fmtDate(r.check_out)}</td>
+
+                  {/* Nights */}
+                  <td className="px-5 py-4 font-bold text-foreground tabular-nums whitespace-nowrap">
+                    {calcNights(r.check_in, r.check_out)}
+                  </td>
+
+                  {/* Status */}
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${STATUS_COLORS[r.status] || "bg-accent text-muted-foreground"}`}>
                       {STATUS_LABELS[r.status] || r.status}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-center">
-                    <span className={`text-xs font-bold ${PAYMENT_COLORS[r.payment_status] || ""}`}>
+
+                  {/* Payment */}
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    <span className={`text-xs font-bold ${PAYMENT_COLORS[r.payment_status] || "text-muted-foreground"}`}>
                       {PAYMENT_LABELS[r.payment_status] || r.payment_status}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-right">
-                    <span className="text-sm font-bold tabular-nums">{Number(r.total_price).toLocaleString()} ₪</span>
+
+                  {/* Total */}
+                  <td className="px-5 py-4 font-bold text-primary tabular-nums whitespace-nowrap">
+                    {Number(r.total_price).toLocaleString("he-IL")} ₪
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Existing Reservation Edit Panel */}
-      <ExistingReservationPanel onSaved={loadData} />
+      {/* Edit panel is rendered once at the shell level — this page
+          re-fetches via the `savedTick` subscription above whenever a save
+          lands, so no duplicate panel instance is mounted here. */}
     </div>
   )
 }

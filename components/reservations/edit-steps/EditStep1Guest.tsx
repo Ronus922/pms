@@ -2,12 +2,18 @@
 
 import { Icon } from "@/components/shared/Icon"
 import { FormField, inputClass, selectClass, textareaClass } from "@/components/shared/FormField"
-import { StatusPill } from "@/components/reservations/StatusPill"
-import { SourceBadge } from "@/components/reservations/SourceBadge"
+import { getStatusColorClass } from "@/components/reservations/StatusPill"
+import { getSourceColorClass } from "@/components/reservations/SourceBadge"
 import { SmartField } from "@/components/reservations/FieldLock"
 import { useReservationEditStore } from "@/lib/stores/reservation-edit-store"
-import { BOOKING_SOURCE_OPTIONS, RESERVATION_STATUS_OPTIONS, PAYMENT_STATUS_OPTIONS } from "@/lib/constants/reservation"
+import { BOOKING_SOURCE_OPTIONS, PAYMENT_STATUS_OPTIONS } from "@/lib/constants/reservation"
 import { LANGUAGES, COUNTRIES } from "@/lib/constants/localization"
+
+/* Apply a status color to the select itself (bg + text) instead of a pill below. */
+function tintedSelectClass(colorClass: string) {
+  if (!colorClass) return selectClass
+  return `${selectClass.replace("bg-accent", "")} ${colorClass} font-bold`
+}
 
 /* ── Helpers — same visual patterns as Step1Guest ──────────── */
 
@@ -56,59 +62,42 @@ export function EditStep1Guest() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ── 1. Booking Source + Statuses ─────────────────────── */}
-      <SectionCard title="מקור הזמנה וסטטוסים">
-        <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-1">
+      {/* ── 1. Booking Source + Payment Status ──────────────────
+             Reservation-status is intentionally HIDDEN here to match the
+             create form (see Step1Guest.tsx). The underlying `data.status`
+             stays on the store and is persisted by updateReservation —
+             check-in / check-out / cancel live on the action icons + status
+             pill at the top of the panel, not inside this step. */}
+      <SectionCard title="מקור הזמנה וסטטוס תשלום">
+        <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
           {/* Source */}
           <SmartField isExternal={isExternal} lockType={isExternal ? "locked" : "editable"}>
             <FormField label="מקור הזמנה" required>
-              <div className="flex flex-col gap-2">
-                <select
-                  value={data.source}
-                  onChange={(e) => store.setField("source", e.target.value)}
-                  className={selectClass}
-                  disabled={isExternal}
-                >
-                  <option value="">בחר מקור...</option>
-                  {BOOKING_SOURCE_OPTIONS.filter((s) => s.value).map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-                {data.source && <SourceBadge value={data.source} size="md" />}
-              </div>
+              <select
+                value={data.source}
+                onChange={(e) => store.setField("source", e.target.value)}
+                className={tintedSelectClass(getSourceColorClass(data.source))}
+                disabled={isExternal}
+              >
+                <option value="">בחר מקור...</option>
+                {BOOKING_SOURCE_OPTIONS.filter((s) => s.value).map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
             </FormField>
           </SmartField>
 
-          {/* Reservation Status */}
-          <FormField label="סטטוס הזמנה">
-            <div className="flex flex-col gap-2">
-              <select
-                value={data.status}
-                onChange={(e) => store.setField("status", e.target.value)}
-                className={selectClass}
-              >
-                {RESERVATION_STATUS_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-              {data.status && <StatusPill type="reservation" value={data.status} size="md" />}
-            </div>
-          </FormField>
-
           {/* Payment Status */}
           <FormField label="סטטוס תשלום">
-            <div className="flex flex-col gap-2">
-              <select
-                value={data.paymentStatus}
-                onChange={(e) => store.setField("paymentStatus", e.target.value)}
-                className={selectClass}
-              >
-                {PAYMENT_STATUS_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-              {data.paymentStatus && <StatusPill type="payment" value={data.paymentStatus} size="md" />}
-            </div>
+            <select
+              value={data.paymentStatus}
+              onChange={(e) => store.setField("paymentStatus", e.target.value)}
+              className={tintedSelectClass(getStatusColorClass("payment", data.paymentStatus))}
+            >
+              {PAYMENT_STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
           </FormField>
         </div>
       </SectionCard>
@@ -132,7 +121,7 @@ export function EditStep1Guest() {
             <FormField label="טלפון" required>
               <div className="relative">
                 <input type="tel" value={data.phone} onChange={(e) => store.setField("phone", e.target.value)} placeholder="050-0000000" dir="ltr" className={`${inputClass} pe-12 text-start tabular-nums`} />
-                <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none"><Icon name="phone" size="sm" /></div>
+                <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none"><Icon name="phone" size="sm" /></div>
               </div>
             </FormField>
           </SmartField>
@@ -141,7 +130,7 @@ export function EditStep1Guest() {
             <FormField label="אימייל">
               <div className="relative">
                 <input type="email" value={data.email} onChange={(e) => store.setField("email", e.target.value)} placeholder="email@example.com" dir="ltr" className={`${inputClass} pe-12 text-start`} />
-                <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none"><Icon name="email" size="sm" /></div>
+                <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none"><Icon name="email" size="sm" /></div>
               </div>
             </FormField>
           </SmartField>
@@ -150,7 +139,7 @@ export function EditStep1Guest() {
             <FormField label="ת.ז / דרכון">
               <div className="relative">
                 <input type="text" value={data.idNumber} onChange={(e) => store.setField("idNumber", e.target.value)} placeholder="מספר מזהה" dir="ltr" className={`${inputClass} pe-12 text-start tabular-nums`} />
-                <div className="absolute top-1/2 -translate-y-1/2 end-4 text-muted-foreground pointer-events-none"><Icon name="badge" size="sm" /></div>
+                <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none"><Icon name="badge" size="sm" /></div>
               </div>
             </FormField>
           </SmartField>

@@ -1,0 +1,445 @@
+"use client"
+
+import { useEffect, useState, useCallback } from "react"
+import { DotLottieReact } from "@lottiefiles/dotlottie-react"
+import { SidePanel } from "@/components/shared/SidePanel"
+import { Icon } from "@/components/shared/Icon"
+import { FormField, inputClass } from "@/components/shared/FormField"
+import { RoleSelector } from "@/components/staff/RoleSelector"
+import { ProfileTab } from "@/components/staff/tabs/ProfileTab"
+import { AttendanceTab } from "@/components/staff/tabs/AttendanceTab"
+import { PermissionsTab } from "@/components/staff/tabs/PermissionsTab"
+import { ActivityTab } from "@/components/staff/tabs/ActivityTab"
+import { TasksTab } from "@/components/staff/tabs/TasksTab"
+import { HoursTab } from "@/components/staff/tabs/HoursTab"
+import { useStaffStore } from "@/lib/stores/staff-store"
+import { useTenant, usePermissions } from "@/lib/hooks/use-tenant"
+import { getEmployeeProfile } from "@/lib/actions/staff"
+import { inviteUser } from "@/lib/actions/permissions"
+import { ROLES, type Role } from "@/lib/permissions/constants"
+import type { EmployeeWithPermissions, StaffTab } from "@/lib/types/staff"
+
+/* ── Tab Config ────────────────────────────────────────────── */
+
+const TABS: { key: StaffTab; label: string; icon: string }[] = [
+  { key: "profile", label: "פרופיל", icon: "person" },
+  { key: "attendance", label: "דיווח", icon: "schedule" },
+  { key: "permissions", label: "הרשאות", icon: "admin_panel_settings" },
+  { key: "activity", label: "פעילות", icon: "history" },
+  { key: "tasks", label: "משימות", icon: "assignment" },
+  { key: "hours", label: "דיווח שעות", icon: "schedule" },
+]
+
+/* ── Props ─────────────────────────────────────────────────── */
+
+interface EmployeeSidePanelProps {
+  onSaved: () => void
+}
+
+/* ── Component ─────────────────────────────────────────────── */
+
+export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
+  const { tenantId, userId: currentUserId } = useTenant()
+  const { isSuperAdmin, isAdmin } = usePermissions()
+
+  const {
+    selectedEmployeeId,
+    panelMode,
+    activeTab,
+    closePanel,
+    setTab,
+    setEditMode,
+    setViewMode,
+  } = useStaffStore()
+
+  const isOpen = selectedEmployeeId !== null
+  const isInvite = panelMode === "invite"
+
+  /* ── Employee Data ── */
+  const [employee, setEmployee] = useState<EmployeeWithPermissions | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  /* ── Invite Form ── */
+  const [inviteForm, setInviteForm] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    password: "",
+  })
+  const [inviteRole, setInviteRole] = useState<Role>("receptionist")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  const [notFound, setNotFound] = useState(false)
+
+  /* ── Load Employee ── */
+  const loadEmployee = useCallback(async () => {
+    if (!selectedEmployeeId || isInvite) return
+    setLoading(true)
+    setNotFound(false)
+    const data = await getEmployeeProfile(selectedEmployeeId, tenantId)
+    if (!data) {
+      setNotFound(true)
+      setEmployee(null)
+    } else {
+      setEmployee(data)
+    }
+    setLoading(false)
+  }, [selectedEmployeeId, tenantId, isInvite])
+
+  useEffect(() => {
+    if (isOpen && !isInvite) {
+      loadEmployee()
+    }
+    if (isInvite) {
+      setEmployee(null)
+      setInviteForm({ fullName: "", email: "", phone: "", password: "" })
+      setInviteRole("receptionist")
+      setError("")
+    }
+  }, [isOpen, isInvite, loadEmployee])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setEmployee(null)
+      setError("")
+      setNotFound(false)
+    }
+  }, [isOpen])
+
+  /* ── Invite Handler ── */
+  async function handleInvite() {
+    if (!inviteForm.fullName.trim() || !inviteForm.email.trim() || !inviteForm.password.trim()) {
+      setError("יש למלא את כל שדות החובה")
+      return
+    }
+    setSaving(true)
+    setError("")
+
+    const res = await inviteUser(tenantId, currentUserId, {
+      email: inviteForm.email.trim(),
+      fullName: inviteForm.fullName.trim(),
+      phone: inviteForm.phone.trim(),
+      role: inviteRole,
+      password: inviteForm.password,
+    })
+
+    if (!res.success) {
+      setError(res.error || "שגיאה ביצירת העובד")
+      setSaving(false)
+      return
+    }
+
+    setSaving(false)
+    onSaved()
+    closePanel()
+  }
+
+  /* ── Saved handler ── */
+  function handleSaved() {
+    loadEmployee()
+    onSaved()
+    setViewMode()
+  }
+
+  /* ── Assignable roles ── */
+  const assignableRoleValues: Role[] = ROLES
+    .filter((r) => {
+      if (isSuperAdmin) return true
+      if (isAdmin && (r.value === "receptionist" || r.value === "cleaner")) return true
+      return false
+    })
+    .map((r) => r.value)
+
+  /* ── Render ──────────────────────────────────────────────── */
+
+  /* ── Avatar initials ── */
+  function getInitials(name: string): string {
+    if (!name) return "?"
+    return name.split(/\s+/).map((w) => w.charAt(0)).slice(0, 2).join("").toUpperCase()
+  }
+
+  /* ── Toggle active (panel-level) ── */
+  async function handleTogglePanelActive() {
+    if (!employee) return
+    const { toggleUserActive } = await import("@/lib/actions/permissions")
+    const res = await toggleUserActive(employee.id, tenantId, !employee.is_active)
+    if (!res.success) {
+      setError(res.error || "שגיאה בעדכון סטטוס")
+      return
+    }
+    handleSaved()
+  }
+
+  /* ── Footer save trigger (delegates to active tab via event) ── */
+  function handleFooterSave() {
+    document.dispatchEvent(new CustomEvent("staff-panel-save"))
+  }
+
+  return (
+    <SidePanel
+      isOpen={isOpen}
+      onClose={closePanel}
+      title={isInvite ? "הוספת עובד חדש" : employee?.full_name || "פרטי עובד"}
+      subtitle={isInvite ? "יצירת משתמש חדש במערכת" : employee?.email || ""}
+      noPadding
+      hideDefaultHeader={!isInvite}
+    >
+      <div className="flex flex-col h-full min-h-0 bg-white">
+        {/* ── Error Banner ── */}
+        {error && (
+          <div className="mx-6 mt-4 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3 shrink-0">
+            <Icon name="error" size="sm" className="text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-bold text-red-800 dark:text-red-300">{error}</p>
+          </div>
+        )}
+
+        {isInvite ? (
+          /* ─── INVITE MODE ─────────────────────────────────── */
+          <>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Form Fields */}
+              <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20 space-y-4">
+                <h3 className="text-base font-bold text-foreground mb-1">פרטי העובד</h3>
+
+                <FormField label="שם מלא" required>
+                  <input
+                    type="text"
+                    value={inviteForm.fullName}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, fullName: e.target.value }))}
+                    className={inputClass}
+                    placeholder="שם פרטי ומשפחה"
+                  />
+                </FormField>
+
+                <FormField label="אימייל" required>
+                  <input
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+                    className={inputClass}
+                    placeholder="email@example.com"
+                    dir="ltr"
+                  />
+                </FormField>
+
+                <FormField label="טלפון">
+                  <input
+                    type="tel"
+                    value={inviteForm.phone}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, phone: e.target.value }))}
+                    className={inputClass}
+                    placeholder="050-0000000"
+                    dir="ltr"
+                  />
+                </FormField>
+
+                <FormField label="סיסמה" required>
+                  <input
+                    type="password"
+                    value={inviteForm.password}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, password: e.target.value }))}
+                    className={inputClass}
+                    placeholder="סיסמה ראשונית לעובד"
+                  />
+                </FormField>
+              </div>
+
+              {/* Role Selector */}
+              <div className="bg-card rounded-[20px] p-5 shadow-sm border border-border/20">
+                <h3 className="text-base font-bold text-foreground mb-1">בחירת תפקיד</h3>
+                <RoleSelector
+                  value={inviteRole}
+                  onChange={setInviteRole}
+                  assignableRoles={assignableRoleValues}
+                />
+              </div>
+            </div>
+
+            {/* Invite Footer */}
+            <div className="border-t border-border/15 px-6 py-4 bg-card/80 backdrop-blur-sm flex items-center justify-start gap-2 shrink-0">
+              <button
+                onClick={handleInvite}
+                disabled={saving}
+                className="btn btn-primary"
+              >
+                {saving ? (
+                  <Icon name="hourglass_empty" size="sm" className="text-white animate-spin" />
+                ) : (
+                  <Icon name="person_add" size="sm" className="text-white" />
+                )}
+                {saving ? "יוצר..." : "צור עובד"}
+              </button>
+              <button
+                onClick={closePanel}
+                disabled={saving}
+                className="btn btn-outline"
+              >
+                ביטול
+              </button>
+            </div>
+          </>
+        ) : loading ? (
+          /* ─── LOADING ──────────────────────────────────────── */
+          <div className="flex-1 flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+            <Icon name="hourglass_empty" size="xl" className="opacity-30 animate-spin" />
+            <p className="text-sm font-medium">טוען פרטי עובד...</p>
+          </div>
+        ) : notFound ? (
+          /* ─── NOT FOUND ─────────────────────────────────────── */
+          <div className="flex-1 flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+            <Icon name="person_off" size="xl" className="opacity-30" />
+            <p className="text-lg font-medium">עובד לא נמצא</p>
+            <p className="text-sm">ייתכן שהעובד הוסר או שהקישור שגוי</p>
+            <button
+              onClick={closePanel}
+              className="btn btn-outline"
+            >
+              סגור
+            </button>
+          </div>
+        ) : employee ? (
+          /* ─── VIEW / EDIT MODE ──────────────────────────────── */
+          <>
+            {/* Azure-style header */}
+            <div className="relative bg-[#1e40af] border-b border-[#1e40af] px-6 pt-14 pb-5 shrink-0">
+              {/* Close X — SidePanel skill spec */}
+              <button
+                onClick={closePanel}
+                className="absolute left-4 top-4 z-10 p-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="סגור"
+              >
+                <DotLottieReact
+                  src="/lottie/menu-close.lottie"
+                  loop={false}
+                  autoplay
+                  className="w-6 h-6"
+                />
+              </button>
+
+              {/* SUPER ADMIN badge */}
+              {employee.role === "super_admin" && (
+                <span className="absolute right-6 top-4 inline-flex items-center px-2.5 py-1 rounded-md bg-white/20 text-white text-[10px] font-extrabold tracking-wider">
+                  SUPER ADMIN
+                </span>
+              )}
+
+              {/* Identity row — Avatar on RIGHT, name on LEFT (RTL flex) */}
+              <div className="flex items-start gap-4">
+                {/* Avatar — first in flex order = appears on RIGHT in RTL */}
+                <div className="relative shrink-0">
+                  <div className="w-16 h-16 rounded-2xl bg-white/15 text-white flex items-center justify-center font-extrabold text-xl shadow-sm">
+                    {getInitials(employee.full_name)}
+                  </div>
+                  <span className={`absolute bottom-0.5 left-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${employee.is_active ? "bg-emerald-500" : "bg-gray-300"}`} />
+                </div>
+
+                {/* Name + email + edit — second = appears on LEFT side of avatar */}
+                <div className="flex-1 min-w-0 text-right">
+                  <h2 className="text-xl font-extrabold text-white">{employee.full_name}</h2>
+                  <p className="text-sm text-white/70 mt-0.5" dir="ltr" style={{ textAlign: "right" }}>{employee.email}</p>
+                  <button
+                    onClick={setEditMode}
+                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90 hover:text-white transition-colors"
+                  >
+                    <Icon name="edit" size="sm" />
+                    ערוך פרופיל
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab Navigation — Azure Ethos Subtle Card (Variation 3) */}
+            <div className="px-6 pt-3 pb-3 shrink-0 border-b border-[#dad9e3] bg-white">
+              <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+                {TABS.map((tab) => {
+                  const active = activeTab === tab.key
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setTab(tab.key)}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
+                        active
+                          ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                          : "text-[#474747] hover:text-[#1e40af] font-medium"
+                      }`}
+                    >
+                      <Icon name={tab.icon} size="sm" />
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {activeTab === "profile" && (
+                <ProfileTab
+                  employee={employee}
+                  isEditing={panelMode === "edit"}
+                  onEdit={setEditMode}
+                  onSaved={handleSaved}
+                  currentUserId={currentUserId}
+                />
+              )}
+              {activeTab === "attendance" && (
+                <AttendanceTab
+                  employee={employee}
+                  onSaved={handleSaved}
+                />
+              )}
+              {activeTab === "permissions" && (
+                <PermissionsTab
+                  employee={employee}
+                  onSaved={handleSaved}
+                />
+              )}
+              {activeTab === "activity" && (
+                <ActivityTab employeeId={employee.id} />
+              )}
+              {activeTab === "tasks" && (
+                <TasksTab employeeId={employee.id} employeeRole={employee.role} />
+              )}
+              {activeTab === "hours" && (
+                <HoursTab employeeId={employee.id} />
+              )}
+            </div>
+
+            {/* Azure footer */}
+            <div className="border-t border-[#dad9e3] px-6 py-4 bg-white shrink-0 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleFooterSave}
+                disabled={(panelMode !== "edit" && activeTab !== "attendance") || saving}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#1e40af] text-white font-bold text-sm hover:bg-[#1e3a8a] transition-colors min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Icon name="check_circle" size="sm" />
+                שמור שינויים
+              </button>
+
+              {employee.id !== currentUserId && (
+                <button
+                  onClick={() => setError("מחיקת רשומה אינה זמינה כעת — השתמש בהשבת עובד")}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#fecaca] text-[#b91c1c] font-bold text-sm hover:bg-[#fef2f2] transition-colors min-h-[44px]"
+                >
+                  <Icon name="delete" size="sm" />
+                  מחק רשומה
+                </button>
+              )}
+
+              {employee.id !== currentUserId && (
+                <button
+                  onClick={handleTogglePanelActive}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#dad9e3] text-[#6b6280] font-bold text-sm hover:bg-[#f4f2fc] transition-colors min-h-[44px]"
+                >
+                  <Icon name={employee.is_active ? "person_off" : "person"} size="sm" />
+                  {employee.is_active ? "השבת עובד" : "הפעל עובד"}
+                </button>
+              )}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </SidePanel>
+  )
+}

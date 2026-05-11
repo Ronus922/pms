@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { getReservationFull } from "@/lib/actions/reservation-detail"
+import { type ReservationRoom, computeRoomRate } from "@/lib/stores/reservation-form-store"
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -15,6 +16,22 @@ export interface RoomData {
   check_out: string
   room_status: string
   max_occupancy?: number
+  max_adults?: number | null
+  max_children?: number | null
+  max_infants?: number | null
+  /** Per-row composition + guest contact persisted from
+   *  migration 2026-04-21_reservation_rooms_per_room_fields.sql. */
+  adults?: number
+  children?: number
+  infants?: number
+  guest_first_name?: string | null
+  guest_last_name?: string | null
+  guest_phone?: string | null
+  guest_email?: string | null
+  guest_id_number?: string | null
+  base_price?: number
+  extra_person_price?: number
+  default_occupancy?: number
 }
 
 export interface PaymentRecord {
@@ -143,8 +160,13 @@ export interface ReservationEditStore {
   data: ReservationEditData
   originalData: ReservationEditData | null
 
-  // Related data (read-only)
+  // Related data (read-only snapshot from the server — display / legacy usage)
   rooms: RoomData[]
+  /** Editable per-room draft. Each row mirrors reservation_rooms 1:1 so the
+   *  panel writes per-room fields directly (see updateReservationRooms). */
+  editableRooms: ReservationRoom[]
+  /** Snapshot of editableRooms at load time for dirty-detection. */
+  originalEditableRooms: ReservationRoom[] | null
   payments: PaymentRecord[]
   charges: ChargeRecord[]
   logs: LogEntry[]
@@ -152,6 +174,12 @@ export interface ReservationEditStore {
   // Computed
   isDirty: boolean
   nights: number
+
+  /** Monotonic counter bumped on every successful save. Pages (reservations
+   *  table, calendar board, etc.) subscribe to this and re-fetch their list
+   *  queries when it changes — the panel lives at the shell level so it
+   *  can't reach each page's loader directly. */
+  savedTick: number
 
   // Actions
   open: (reservationId: string, tenantId: string) => Promise<void>
@@ -161,9 +189,33 @@ export interface ReservationEditStore {
   setErrors: (errors: Record<string, string>) => void
   setSaving: (v: boolean) => void
   toggleCardReveal: () => void
+  /* Per-room editing actions — true source of truth for rooms during edit. */
+  addEditableRoom: (room: ReservationRoom) => void
+  updateEditableRoom: (id: string, updates: Partial<ReservationRoom>) => void
+  removeEditableRoom: (id: string) => void
+  /* Notify subscribers (table/calendar) that a save just completed. */
+  bumpSaved: () => void
 }
 
 /* ── Helpers ─────────────────────────────────────────────────── */
+
+/** postgres.js returns DATE columns as JavaScript Date objects. A naive
+ *  `String(date).slice(0, 10)` produces "Mon Apr 13" (Date's default
+ *  toString()), NOT "2026-04-13". That breaks <input type="date"> binding
+ *  AND the server-side datesChanged comparison. This helper is the single
+ *  way to coerce any shape coming off the driver into canonical ISO. */
+function toIsoDateValue(v: unknown): string {
+  if (v == null || v === "") return ""
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return ""
+    return v.toISOString().slice(0, 10)
+  }
+  const s = String(v)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const d = new Date(s)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toISOString().slice(0, 10)
+}
 
 function computeNights(checkIn: string, checkOut: string): number {
   if (!checkIn || !checkOut) return 0
@@ -194,8 +246,8 @@ function mapServerToEdit(res: any): ReservationEditData {
     internalNotes: res.internal_notes || "",
     receptionNotes: res.reception_notes || "",
 
-    checkIn: res.check_in ? String(res.check_in).slice(0, 10) : "",
-    checkOut: res.check_out ? String(res.check_out).slice(0, 10) : "",
+    checkIn: toIsoDateValue(res.check_in),
+    checkOut: toIsoDateValue(res.check_out),
     checkInTime: res.actual_checkin_time || res.estimated_arrival_time || "15:00",
     checkOutTime: res.actual_checkout_time || res.estimated_departure_time || "11:00",
     earlyCheckIn: res.is_early_checkin || false,
@@ -229,6 +281,43 @@ function mapServerToEdit(res: any): ReservationEditData {
 function deepEqual(a: ReservationEditData, b: ReservationEditData | null): boolean {
   if (!b) return false
   return JSON.stringify(a) === JSON.stringify(b)
+}
+
+/** Map a loaded reservation_rooms row (RoomData) into the editable canonical
+ *  ReservationRoom shape used across create + edit flows. */
+function roomDataToEditable(row: RoomData): ReservationRoom {
+  return {
+    id: row.id,
+    roomId: row.room_id || "",
+    roomNumber: row.room_number || "",
+    roomTypeId: "",
+    roomTypeName: row.room_type_name || "",
+    boardType: "room_only",
+    ratePerNight: Number(row.rate_per_night) || 0,
+    basePrice: Number(row.base_price) || Number(row.rate_per_night) || 0,
+    defaultOccupancy: Number(row.default_occupancy) || 1,
+    extraPersonPrice: Number(row.extra_person_price) || 0,
+    maxOccupancy: Number(row.max_occupancy) || 0,
+    maxAdults: Number(row.max_adults) || 0,
+    maxChildren: Number(row.max_children) || 0,
+    maxInfants: Number(row.max_infants) || 0,
+    checkIn: toIsoDateValue(row.check_in),
+    checkOut: toIsoDateValue(row.check_out),
+    adults: Number(row.adults) || 1,
+    children: Number(row.children) || 0,
+    infants: Number(row.infants) || 0,
+    guestFirstName: row.guest_first_name || "",
+    guestLastName: row.guest_last_name || "",
+    guestPhone: row.guest_phone || "",
+    guestEmail: row.guest_email || "",
+    guestIdNumber: row.guest_id_number || "",
+  }
+}
+
+function roomsDirty(a: ReservationRoom[], b: ReservationRoom[] | null): boolean {
+  if (!b) return false
+  if (a.length !== b.length) return true
+  return JSON.stringify(a) !== JSON.stringify(b)
 }
 
 /* ── Empty state ─────────────────────────────────────────────── */
@@ -272,14 +361,21 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
   originalData: null,
 
   rooms: [],
+  editableRooms: [],
+  originalEditableRooms: null,
   payments: [],
   charges: [],
   logs: [],
 
   isDirty: false,
   nights: 0,
+  savedTick: 0,
 
   open: async (reservationId, tenantId) => {
+    // Clear every stale field from any previously-open reservation BEFORE
+    // the async fetch resolves. Without this the panel can briefly render
+    // the prior reservation's dates/guest/rooms on top of the new id,
+    // which users read as "my details got lost".
     set({
       isOpen: true,
       isLoading: true,
@@ -288,6 +384,16 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
       activeTab: 0,
       errors: {},
       cardRevealed: false,
+      data: { ...EMPTY_DATA },
+      originalData: null,
+      rooms: [],
+      editableRooms: [],
+      originalEditableRooms: null,
+      payments: [],
+      charges: [],
+      logs: [],
+      isDirty: false,
+      nights: 0,
     })
 
     const raw = await getReservationFull(reservationId)
@@ -303,6 +409,9 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
     const editData = mapServerToEdit(result)
     const isExternal = detectExternal(result.source, result.external_id, result.channel_manager_id)
 
+    const roomsData = (result.rooms || []) as unknown as RoomData[]
+    const editable = roomsData.map(roomDataToEditable)
+
     set({
       isLoading: false,
       reservationNumber: result.reservation_number || "",
@@ -313,7 +422,9 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
       createdBy: result.created_by || "",
       data: editData,
       originalData: { ...editData },
-      rooms: (result.rooms || []) as unknown as RoomData[],
+      rooms: roomsData,
+      editableRooms: editable,
+      originalEditableRooms: editable.map((r) => ({ ...r })),
       payments: (result.payments || []) as unknown as PaymentRecord[],
       charges: (result.charges || []) as unknown as ChargeRecord[],
       logs: (result.logs || []) as unknown as LogEntry[],
@@ -330,6 +441,8 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
     data: { ...EMPTY_DATA },
     originalData: null,
     rooms: [],
+    editableRooms: [],
+    originalEditableRooms: null,
     payments: [],
     charges: [],
     logs: [],
@@ -342,7 +455,9 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
       const newData = { ...state.data, [key]: value }
       return {
         data: newData,
-        isDirty: !deepEqual(newData, state.originalData),
+        isDirty:
+          !deepEqual(newData, state.originalData) ||
+          roomsDirty(state.editableRooms, state.originalEditableRooms),
         nights: (key === "checkIn" || key === "checkOut")
           ? computeNights(newData.checkIn, newData.checkOut)
           : state.nights,
@@ -353,4 +468,71 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
   setErrors: (errors) => set({ errors }),
   setSaving: (v) => set({ isSaving: v }),
   toggleCardReveal: () => set((s) => ({ cardRevealed: !s.cardRevealed })),
+
+  addEditableRoom: (room) =>
+    set((state) => {
+      const editableRooms = [...state.editableRooms, room]
+      return deriveFromRooms(state, editableRooms)
+    }),
+
+  updateEditableRoom: (id, updates) =>
+    set((state) => {
+      const editableRooms = state.editableRooms.map((r) => r.id === id ? { ...r, ...updates } : r)
+      return deriveFromRooms(state, editableRooms)
+    }),
+
+  removeEditableRoom: (id) =>
+    set((state) => {
+      const editableRooms = state.editableRooms.filter((r) => r.id !== id)
+      return deriveFromRooms(state, editableRooms)
+    }),
+
+  bumpSaved: () => set((state) => ({ savedTick: state.savedTick + 1 })),
 }))
+
+/** Keep data.checkIn/checkOut/adults/children/infants in sync with
+ *  editableRooms so pricing + summary display stay consistent with the
+ *  per-room source of truth. Also re-prices each room (matches create-flow
+ *  behavior in computeDerived) so composition changes flow into
+ *  reservation_rooms.rate_per_night on save. */
+function deriveFromRooms(state: ReservationEditStore, editableRooms: ReservationRoom[]) {
+  // Re-price per-room when we have pricing inputs. If basePrice is 0 (old
+  // reservations that never joined room_types), leave ratePerNight untouched
+  // — the admin's stored rate stays as-is.
+  const recomputed = editableRooms.map((r) => {
+    if (!r.basePrice || r.basePrice <= 0) return r
+    const guests = (r.adults || 0) + (r.children || 0) + (r.infants || 0)
+    return {
+      ...r,
+      ratePerNight: computeRoomRate(r.basePrice, r.defaultOccupancy, r.extraPersonPrice, guests),
+    }
+  })
+
+  const cis = recomputed.map((r) => r.checkIn).filter(Boolean).sort()
+  const cos = recomputed.map((r) => r.checkOut).filter(Boolean).sort()
+  const derivedCheckIn = cis[0] ?? state.data.checkIn
+  const derivedCheckOut = cos[cos.length - 1] ?? state.data.checkOut
+  const derivedAdults = recomputed.length
+    ? Math.max(1, recomputed.reduce((s, r) => s + (r.adults || 0), 0))
+    : state.data.adults
+  const derivedChildren = recomputed.reduce((s, r) => s + (r.children || 0), 0)
+  const derivedInfants = recomputed.reduce((s, r) => s + (r.infants || 0), 0)
+
+  const newData: ReservationEditData = {
+    ...state.data,
+    checkIn: derivedCheckIn,
+    checkOut: derivedCheckOut,
+    adults: derivedAdults,
+    children: derivedChildren,
+    infants: derivedInfants,
+  }
+
+  return {
+    editableRooms: recomputed,
+    data: newData,
+    nights: computeNights(newData.checkIn, newData.checkOut),
+    isDirty:
+      !deepEqual(newData, state.originalData) ||
+      roomsDirty(recomputed, state.originalEditableRooms),
+  }
+}
