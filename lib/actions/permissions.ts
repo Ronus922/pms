@@ -7,6 +7,7 @@ import { DEFAULT_RECEPTIONIST, DEFAULT_CLEANER, MODULES, getDefaultPermissions }
 import { requireActor } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 import { canManageRole } from "@/lib/permissions/check"
+import { sendCredentialsEmail } from "@/lib/services/email"
 import crypto from "crypto"
 
 /* ── Types ──────────────────────────────────────────────────── */
@@ -14,10 +15,12 @@ import crypto from "crypto"
 interface StaffMember {
   id: string
   email: string
+  username: string | null
   full_name: string
   phone: string
   role: string
   is_active: boolean
+  allow_google_auth: boolean
   last_login: string | null
   created_at: string
   invited_by: string | null
@@ -31,7 +34,8 @@ interface UserWithPermissions extends StaffMember {
 
 export async function getStaffList(tenantId: string): Promise<StaffMember[]> {
   const rows = await db`
-    SELECT id, email, full_name, phone, role, is_active, last_login, created_at, invited_by
+    SELECT id, email, username, full_name, phone, role, is_active,
+           allow_google_auth, last_login, created_at, invited_by
     FROM users
     WHERE tenant_id = ${tenantId}
     ORDER BY
@@ -48,7 +52,8 @@ export async function getUserWithPermissions(
   tenantId: string
 ): Promise<UserWithPermissions | null> {
   const [user] = await db`
-    SELECT id, email, full_name, phone, role, is_active, last_login, created_at, invited_by
+    SELECT id, email, username, full_name, phone, role, is_active,
+           allow_google_auth, last_login, created_at, invited_by
     FROM users
     WHERE id = ${userId} AND tenant_id = ${tenantId}
   `
@@ -126,15 +131,13 @@ export async function inviteUser(
     fullName: string
     phone: string
     role: Role
-    // password field is now IGNORED — server generates a temp password.
-    // Kept in signature for backwards compatibility.
-    password?: string
+    password: string
+    username?: string | null
+    allowGoogleAuth?: boolean
+    sendCredentials?: boolean
   }
 ): Promise<{ success: boolean; error?: string; userId?: string }> {
   try {
-    // ── AUTHORIZATION ────────────────────────────────────────
-    // Caller must be authenticated, and caller must be allowed to
-    // assign the requested target role.
     const actor = await requireActor()
     if (!canManageRole(actor.role, data.role)) {
       throw new AuthorizationError("אין הרשאה ליצור משתמש בתפקיד זה")
@@ -143,22 +146,31 @@ export async function inviteUser(
     const tenantId = actor.tenantId
     const invitedById = actor.userId
 
-    // Check if email already in use for this tenant
-    const [existing] = await db`
+    const [existingByEmail] = await db`
       SELECT id FROM users WHERE tenant_id = ${tenantId} AND email = ${data.email}
     `
-    if (existing) {
+    if (existingByEmail) {
       return { success: false, error: "משתמש עם אימייל זה כבר קיים" }
     }
 
-    // Server-generated temp password — never accept from client.
-    const tempPassword = generateTempPassword()
+    const cleanedUsername = data.username?.trim() || null
+    if (cleanedUsername) {
+      const [existingByUsername] = await db`
+        SELECT id FROM users
+        WHERE tenant_id = ${tenantId}
+          AND lower(username) = ${cleanedUsername.toLowerCase()}
+      `
+      if (existingByUsername) {
+        return { success: false, error: "שם המשתמש כבר תפוס" }
+      }
+    }
 
-    // Create Supabase auth user
+    const password = data.password || generateTempPassword()
+
     const supabase = createAdminSupabase()
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: data.email,
-      password: tempPassword,
+      password,
       email_confirm: true,
     })
 
@@ -166,16 +178,19 @@ export async function inviteUser(
       return { success: false, error: authError?.message || "שגיאה ביצירת המשתמש" }
     }
 
-    // Create user record
     await db`
-      INSERT INTO users (id, tenant_id, email, full_name, phone, role, is_active, invited_by)
-      VALUES (${authData.user.id}, ${tenantId}, ${data.email}, ${data.fullName},
-        ${data.phone || ""}, ${data.role}, true, ${invitedById})
+      INSERT INTO users (
+        id, tenant_id, email, username, full_name, phone,
+        role, is_active, allow_google_auth, invited_by
+      )
+      VALUES (
+        ${authData.user.id}, ${tenantId}, ${data.email}, ${cleanedUsername},
+        ${data.fullName}, ${data.phone || ""}, ${data.role}, true,
+        ${data.allowGoogleAuth ?? false}, ${invitedById}
+      )
     `
 
-    // Insert default permissions based on role
     const defaultPerms = getDefaultPermissions(data.role)
-
     if (defaultPerms) {
       for (const mod of MODULES) {
         const def = defaultPerms[mod.key] || { canView: false, canEdit: false, canDelete: false }
@@ -186,15 +201,14 @@ export async function inviteUser(
       }
     }
 
-    // Trigger password reset email so the new user sets their own password.
-    // This avoids any plaintext password ever being held by the inviter.
-    try {
-      await supabase.auth.admin.generateLink({
-        type: "recovery",
-        email: data.email,
+    if (data.sendCredentials) {
+      // Non-fatal: account is created even if email delivery fails.
+      await sendCredentialsEmail({
+        to: data.email,
+        fullName: data.fullName,
+        username: cleanedUsername,
+        password,
       })
-    } catch {
-      // Non-fatal: account is created, user can use forgot-password manually.
     }
 
     return { success: true, userId: authData.user.id }
@@ -371,5 +385,192 @@ export async function toggleUserActive(
       return { success: false, error: err.message }
     }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה בעדכון סטטוס" }
+  }
+}
+
+/* ── Update Auth Settings (username + Google flag) ──────────── */
+
+export async function updateUserAuthSettings(
+  userId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
+  data: {
+    username?: string | null
+    allowGoogleAuth?: boolean
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
+
+    const [target] = await db`
+      SELECT id, role FROM users
+      WHERE id = ${userId} AND tenant_id = ${tenantId}
+    `
+    if (!target) return { success: false, error: "משתמש לא נמצא" }
+
+    const targetRole = (target.role as Role) ?? "receptionist"
+    if (!canManageRole(actor.role, targetRole)) {
+      throw new AuthorizationError("אין הרשאה לעדכן הגדרות התחברות של משתמש זה")
+    }
+
+    const cleaned =
+      data.username === undefined ? undefined : data.username?.trim() || null
+
+    if (cleaned !== undefined && cleaned !== null) {
+      const [conflict] = await db`
+        SELECT id FROM users
+        WHERE tenant_id = ${tenantId}
+          AND id <> ${userId}
+          AND lower(username) = ${cleaned.toLowerCase()}
+      `
+      if (conflict) {
+        return { success: false, error: "שם המשתמש כבר תפוס" }
+      }
+    }
+
+    if (cleaned !== undefined && data.allowGoogleAuth !== undefined) {
+      await db`
+        UPDATE users
+        SET username = ${cleaned},
+            allow_google_auth = ${data.allowGoogleAuth},
+            updated_at = NOW()
+        WHERE id = ${userId} AND tenant_id = ${tenantId}
+      `
+    } else if (cleaned !== undefined) {
+      await db`
+        UPDATE users
+        SET username = ${cleaned}, updated_at = NOW()
+        WHERE id = ${userId} AND tenant_id = ${tenantId}
+      `
+    } else if (data.allowGoogleAuth !== undefined) {
+      await db`
+        UPDATE users
+        SET allow_google_auth = ${data.allowGoogleAuth}, updated_at = NOW()
+        WHERE id = ${userId} AND tenant_id = ${tenantId}
+      `
+    }
+
+    return { success: true }
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return { success: false, error: err.message }
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "שגיאה בעדכון הגדרות התחברות",
+    }
+  }
+}
+
+/* ── Reset Password (admin) ──────────────────────────────────── */
+
+export async function resetUserPassword(
+  userId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
+  newPassword: string,
+  options?: { sendEmail?: boolean }
+): Promise<{ success: boolean; error?: string }> {
+  if (!newPassword || newPassword.length < 6) {
+    return { success: false, error: "סיסמה חייבת להכיל לפחות 6 תווים" }
+  }
+
+  try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
+
+    const [target] = await db`
+      SELECT id, role, email, username, full_name
+      FROM users
+      WHERE id = ${userId} AND tenant_id = ${tenantId}
+    `
+    if (!target) return { success: false, error: "המשתמש לא נמצא" }
+
+    const targetRole = (target.role as Role) ?? "receptionist"
+    if (!canManageRole(actor.role, targetRole)) {
+      throw new AuthorizationError("אין הרשאה לאפס סיסמה של משתמש זה")
+    }
+
+    const supabase = createAdminSupabase()
+    const { error: updateError } = await supabase.auth.admin.updateUserById(
+      userId,
+      { password: newPassword }
+    )
+    if (updateError) {
+      return { success: false, error: updateError.message }
+    }
+
+    await db`
+      UPDATE users SET updated_at = NOW()
+      WHERE id = ${userId} AND tenant_id = ${tenantId}
+    `
+
+    if (options?.sendEmail) {
+      await sendCredentialsEmail({
+        to: target.email as string,
+        fullName: target.full_name as string,
+        username: target.username as string | null,
+        password: newPassword,
+      })
+    }
+
+    return { success: true }
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return { success: false, error: err.message }
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "שגיאה באיפוס הסיסמה",
+    }
+  }
+}
+
+/* ── Resend Credentials Email (magic link) ──────────────────── */
+
+export async function resendCredentialsToUser(
+  userId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
+
+    const [target] = await db`
+      SELECT id, role, email FROM users
+      WHERE id = ${userId} AND tenant_id = ${tenantId}
+    `
+    if (!target) return { success: false, error: "המשתמש לא נמצא" }
+
+    const targetRole = (target.role as Role) ?? "receptionist"
+    if (!canManageRole(actor.role, targetRole)) {
+      throw new AuthorizationError("אין הרשאה לשלוח קישור התחברות למשתמש זה")
+    }
+
+    const supabase = createAdminSupabase()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || ""
+    const { error: linkError } = await supabase.auth.admin.generateLink({
+      type: "recovery",
+      email: target.email as string,
+      options: {
+        redirectTo: `${appUrl}/auth/callback?type=recovery`,
+      },
+    })
+
+    if (linkError) {
+      return { success: false, error: linkError.message }
+    }
+
+    return { success: true }
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return { success: false, error: err.message }
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "שגיאה בשליחת הקישור",
+    }
   }
 }

@@ -8,11 +8,13 @@ export interface Employee {
   id: string
   tenant_id: string
   email: string
+  username: string | null
   full_name: string
   phone: string
   avatar_url: string | null
   role: Role
   is_active: boolean
+  allow_google_auth: boolean
   last_login: string | null
   created_at: string
   updated_at: string

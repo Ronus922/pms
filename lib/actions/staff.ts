@@ -18,8 +18,9 @@ export async function getEmployeeList(
 
   const rows = await db`
     SELECT
-      u.id, u.tenant_id, u.email, u.full_name, u.phone, u.avatar_url, u.role,
-      u.is_active, u.last_login, u.created_at, u.updated_at,
+      u.id, u.tenant_id, u.email, u.username, u.full_name, u.phone,
+      u.avatar_url, u.role, u.is_active, u.allow_google_auth,
+      u.last_login, u.created_at, u.updated_at,
       u.invited_by, u.job_title, u.department, u.notes,
       u.emergency_contact, u.start_date,
       inv.full_name AS invited_by_name,
@@ -69,8 +70,9 @@ export async function getEmployeeProfile(
 ): Promise<EmployeeWithPermissions | null> {
   const [user] = await db`
     SELECT
-      u.id, u.tenant_id, u.email, u.full_name, u.phone, u.avatar_url, u.role,
-      u.is_active, u.last_login, u.created_at, u.updated_at,
+      u.id, u.tenant_id, u.email, u.username, u.full_name, u.phone,
+      u.avatar_url, u.role, u.is_active, u.allow_google_auth,
+      u.last_login, u.created_at, u.updated_at,
       u.invited_by, u.job_title, u.department, u.notes,
       u.emergency_contact, u.start_date
     FROM users u

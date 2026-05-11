@@ -9,8 +9,11 @@ import {
   getUserWithPermissions,
   updateUserRole,
   updateUserPermissions,
+  updateUserAuthSettings,
   toggleUserActive,
   inviteUser,
+  resetUserPassword,
+  resendCredentialsToUser,
 } from "@/lib/actions/permissions"
 import {
   ROLES,
@@ -35,10 +38,12 @@ interface PermissionsManagerProps {
 interface UserData {
   id: string
   email: string
+  username: string | null
   full_name: string
   phone: string
   role: string
   is_active: boolean
+  allow_google_auth: boolean
   last_login: string | null
   created_at: string
   permissions: ModulePermission[]
@@ -47,8 +52,11 @@ interface UserData {
 interface InviteForm {
   fullName: string
   email: string
+  username: string
   phone: string
   password: string
+  allowGoogleAuth: boolean
+  sendCredentials: boolean
 }
 
 /* ── (Role styling now in ROLE_STYLES from constants) ──────── */
@@ -80,10 +88,25 @@ export function PermissionsManager({
   const [inviteForm, setInviteForm] = useState<InviteForm>({
     fullName: "",
     email: "",
+    username: "",
     phone: "",
     password: "",
+    allowGoogleAuth: false,
+    sendCredentials: true,
   })
   const [inviteRole, setInviteRole] = useState<Role>("receptionist")
+
+  /* ── Edit-mode Auth State ── */
+  const [username, setUsername] = useState("")
+  const [originalUsername, setOriginalUsername] = useState("")
+  const [allowGoogleAuth, setAllowGoogleAuth] = useState(false)
+  const [originalAllowGoogleAuth, setOriginalAllowGoogleAuth] = useState(false)
+
+  /* ── Reset password modal state ── */
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
+  const [emailNewPassword, setEmailNewPassword] = useState(true)
+  const [resetResult, setResetResult] = useState<{ password: string } | null>(null)
 
   /* ── Load User Data (Edit Mode) ── */
   const loadUser = useCallback(async () => {
@@ -95,6 +118,12 @@ export function PermissionsManager({
       setUser(data as unknown as UserData)
       setRole(data.role as Role)
       setOriginalRole(data.role as Role)
+
+      const u = data as unknown as UserData
+      setUsername(u.username || "")
+      setOriginalUsername(u.username || "")
+      setAllowGoogleAuth(u.allow_google_auth ?? false)
+      setOriginalAllowGoogleAuth(u.allow_google_auth ?? false)
 
       // Build full permissions array for all modules
       const fullPerms: ModulePermission[] = MODULES.map((mod) => {
@@ -125,7 +154,15 @@ export function PermissionsManager({
     }
     if (isInvite) {
       setUser(null)
-      setInviteForm({ fullName: "", email: "", phone: "", password: "" })
+      setInviteForm({
+        fullName: "",
+        email: "",
+        username: "",
+        phone: "",
+        password: "",
+        allowGoogleAuth: false,
+        sendCredentials: true,
+      })
       setInviteRole("receptionist")
       setError("")
     }
@@ -181,9 +218,70 @@ export function PermissionsManager({
       }
     }
 
+    // Auth settings (username + Google) if changed
+    const authChanged =
+      username.trim() !== originalUsername.trim() ||
+      allowGoogleAuth !== originalAllowGoogleAuth
+    if (authChanged) {
+      const res = await updateUserAuthSettings(user.id, tenantId, {
+        username: username.trim() || null,
+        allowGoogleAuth,
+      })
+      if (!res.success) {
+        setError(res.error || "שגיאה בעדכון הגדרות התחברות")
+        setSaving(false)
+        return
+      }
+    }
+
     setSaving(false)
     onSaved()
     onClose()
+  }
+
+  /* ── Reset Password Handler ── */
+  async function handleResetPassword() {
+    if (!user) return
+    if (newPassword.length < 6) {
+      setError("הסיסמה חייבת להכיל לפחות 6 תווים")
+      return
+    }
+    setSaving(true)
+    setError("")
+    const res = await resetUserPassword(user.id, tenantId, newPassword, {
+      sendEmail: emailNewPassword,
+    })
+    if (!res.success) {
+      setError(res.error || "שגיאה באיפוס הסיסמה")
+      setSaving(false)
+      return
+    }
+    setResetResult({ password: newPassword })
+    setNewPassword("")
+    setShowResetPassword(false)
+    setSaving(false)
+  }
+
+  /* ── Resend Credentials Handler ── */
+  async function handleResendCredentials() {
+    if (!user) return
+    setSaving(true)
+    setError("")
+    const res = await resendCredentialsToUser(user.id, tenantId)
+    if (!res.success) {
+      setError(res.error || "שגיאה בשליחת הקישור")
+    }
+    setSaving(false)
+  }
+
+  /* ── Random Password Generator ── */
+  function generateRandomPassword() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+    let out = ""
+    for (let i = 0; i < 10; i++) {
+      out += chars[Math.floor(Math.random() * chars.length)]
+    }
+    setNewPassword(out)
   }
 
   /* ── Toggle Active Handler ── */
@@ -221,6 +319,9 @@ export function PermissionsManager({
       phone: inviteForm.phone.trim(),
       role: inviteRole,
       password: inviteForm.password,
+      username: inviteForm.username.trim() || null,
+      allowGoogleAuth: inviteForm.allowGoogleAuth,
+      sendCredentials: inviteForm.sendCredentials,
     })
 
     if (!res.success) {
@@ -354,6 +455,57 @@ export function PermissionsManager({
                     placeholder="סיסמה ראשונית לעובד"
                   />
                 </FormField>
+
+                <FormField label="שם משתמש (אופציונלי)">
+                  <input
+                    type="text"
+                    value={inviteForm.username}
+                    onChange={(e) =>
+                      setInviteForm((f) => ({ ...f, username: e.target.value }))
+                    }
+                    className={inputClass}
+                    placeholder="לדוגמה: yossi-reception"
+                    dir="ltr"
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    אם תוגדר — העובד יוכל להתחבר גם עם שם המשתמש במקום אימייל.
+                  </p>
+                </FormField>
+
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
+                  <input
+                    type="checkbox"
+                    checked={inviteForm.allowGoogleAuth}
+                    onChange={(e) =>
+                      setInviteForm((f) => ({ ...f, allowGoogleAuth: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold">אפשר התחברות עם Google</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      העובד יוכל להתחבר גם בלחיצה על &ldquo;התחבר עם Google&rdquo; במסך הכניסה.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
+                  <input
+                    type="checkbox"
+                    checked={inviteForm.sendCredentials}
+                    onChange={(e) =>
+                      setInviteForm((f) => ({ ...f, sendCredentials: e.target.checked }))
+                    }
+                    className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold">שלח פרטי התחברות במייל</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      העובד יקבל מייל עם שם המשתמש והסיסמה הראשונית.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* Role Selector */}
@@ -445,6 +597,140 @@ export function PermissionsManager({
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Section: Authentication Settings */}
+              <div className="bg-card rounded-[20px] border border-border/15 p-5 shadow-sm space-y-4">
+                <h3 className="text-sm font-bold text-foreground">הגדרות התחברות</h3>
+
+                <FormField label="שם משתמש">
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className={inputClass}
+                    placeholder="ללא שם משתמש — רק אימייל"
+                    dir="ltr"
+                    autoComplete="off"
+                  />
+                </FormField>
+
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
+                  <input
+                    type="checkbox"
+                    checked={allowGoogleAuth}
+                    onChange={(e) => setAllowGoogleAuth(e.target.checked)}
+                    className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold">אפשר התחברות עם Google</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      כשכבוי, ניסיון Google sign-in למייל שלו ייחסם.
+                    </p>
+                  </div>
+                </label>
+
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-border/15">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent hover:bg-border/40 text-sm font-bold transition-colors min-h-[44px]"
+                  >
+                    <Icon name="key" size="sm" />
+                    איפוס סיסמה
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResendCredentials}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent hover:bg-border/40 text-sm font-bold transition-colors min-h-[44px] disabled:opacity-50"
+                  >
+                    <Icon name="send" size="sm" />
+                    שלח קישור התחברות במייל
+                  </button>
+                </div>
+
+                {showResetPassword && (
+                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800 rounded-xl p-4 space-y-3">
+                    <h4 className="text-sm font-bold flex items-center gap-2">
+                      <Icon name="warning" size="sm" className="text-amber-600" />
+                      איפוס סיסמה
+                    </h4>
+                    <FormField label="סיסמה חדשה">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className={`${inputClass} font-mono`}
+                          placeholder="הקלד או לחץ 'צור אוטומטית'"
+                          dir="ltr"
+                        />
+                        <button
+                          type="button"
+                          onClick={generateRandomPassword}
+                          className="px-3 py-2 rounded-xl bg-white border border-border/40 text-sm font-bold whitespace-nowrap min-h-[44px]"
+                        >
+                          צור אוטומטית
+                        </button>
+                      </div>
+                    </FormField>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={emailNewPassword}
+                        onChange={(e) => setEmailNewPassword(e.target.checked)}
+                        className="w-4 h-4 rounded border-border/40 accent-primary"
+                      />
+                      שלח את הסיסמה החדשה במייל לעובד
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleResetPassword}
+                        disabled={saving || newPassword.length < 6}
+                        className="flex-1 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 min-h-[44px]"
+                      >
+                        {saving ? "שומר..." : "אפס סיסמה"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowResetPassword(false)
+                          setNewPassword("")
+                        }}
+                        className="px-4 py-2 rounded-xl text-sm bg-accent hover:bg-border/40 min-h-[44px]"
+                      >
+                        ביטול
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {resetResult && (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-800 rounded-xl p-4 space-y-2">
+                    <h4 className="text-sm font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                      <Icon name="check_circle" size="sm" />
+                      הסיסמה אופסה בהצלחה
+                    </h4>
+                    <div className="bg-white dark:bg-black/20 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                      <div className="text-[11px] text-muted-foreground mb-1">סיסמה חדשה</div>
+                      <div dir="ltr" className="font-mono text-base font-bold select-all">
+                        {resetResult.password}
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      שמור את הסיסמה כעת — לא תוצג שוב. {emailNewPassword ? "נשלחה גם במייל לעובד." : ""}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setResetResult(null)}
+                      className="text-xs text-emerald-700 dark:text-emerald-400 font-bold hover:underline"
+                    >
+                      סגור
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Section 2: Role Selector */}

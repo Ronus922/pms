@@ -7,6 +7,11 @@ import { FormField, inputClass } from "@/components/shared/FormField"
 import { getRoleLabel, ROLE_STYLES } from "@/lib/permissions/constants"
 import type { EmployeeWithPermissions } from "@/lib/types/staff"
 import { updateEmployeeProfile } from "@/lib/actions/staff"
+import {
+  updateUserAuthSettings,
+  resetUserPassword,
+  resendCredentialsToUser,
+} from "@/lib/actions/permissions"
 import { useTenant } from "@/lib/hooks/use-tenant"
 
 /* ── Props ─────────────────────────────────────────────────── */
@@ -36,28 +41,63 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
     start_date: employee.start_date || "",
   })
 
+  /* ── Auth settings state ─────────────────────────────────── */
+  const [username, setUsername] = useState(employee.username || "")
+  const [originalUsername, setOriginalUsername] = useState(employee.username || "")
+  const [allowGoogleAuth, setAllowGoogleAuth] = useState(employee.allow_google_auth ?? false)
+  const [originalAllowGoogleAuth, setOriginalAllowGoogleAuth] = useState(employee.allow_google_auth ?? false)
+
+  /* ── Reset password modal state ──────────────────────────── */
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
+  const [emailNewPassword, setEmailNewPassword] = useState(true)
+  const [resetResult, setResetResult] = useState<{ password: string } | null>(null)
+  const [authActionPending, setAuthActionPending] = useState(false)
+
   function updateField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
   async function handleSave() {
-    if (!isEditing) return
     setSaving(true)
     setError("")
-    const res = await updateEmployeeProfile(employee.id, tenantId, {
-      full_name: form.full_name,
-      phone: form.phone,
-      job_title: form.job_title || null,
-      department: form.department || null,
-      emergency_contact: form.emergency_contact || null,
-      notes: form.notes || null,
-      start_date: form.start_date || null,
-    })
-    if (!res.success) {
-      setError(res.error || "שגיאה בעדכון")
-      setSaving(false)
-      return
+
+    /* Profile fields — only when in edit mode (those inputs are gated by isEditing) */
+    if (isEditing) {
+      const res = await updateEmployeeProfile(employee.id, tenantId, {
+        full_name: form.full_name,
+        phone: form.phone,
+        job_title: form.job_title || null,
+        department: form.department || null,
+        emergency_contact: form.emergency_contact || null,
+        notes: form.notes || null,
+        start_date: form.start_date || null,
+      })
+      if (!res.success) {
+        setError(res.error || "שגיאה בעדכון")
+        setSaving(false)
+        return
+      }
     }
+
+    /* Auth settings — always-editable, save whenever they changed */
+    const authChanged =
+      username.trim() !== originalUsername.trim() ||
+      allowGoogleAuth !== originalAllowGoogleAuth
+    if (authChanged) {
+      const authRes = await updateUserAuthSettings(employee.id, tenantId, {
+        username: username.trim() || null,
+        allowGoogleAuth,
+      })
+      if (!authRes.success) {
+        setError(authRes.error || "שגיאה בעדכון הגדרות התחברות")
+        setSaving(false)
+        return
+      }
+      setOriginalUsername(username.trim())
+      setOriginalAllowGoogleAuth(allowGoogleAuth)
+    }
+
     setSaving(false)
     onSaved()
   }
@@ -68,7 +108,48 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
     document.addEventListener("staff-panel-save", handler)
     return () => document.removeEventListener("staff-panel-save", handler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing, form])
+  }, [isEditing, form, username, allowGoogleAuth, originalUsername, originalAllowGoogleAuth])
+
+  /* ── Auth side-actions (independent of edit mode) ────────── */
+  async function handleResetPassword() {
+    if (newPassword.length < 6) {
+      setError("הסיסמה חייבת להכיל לפחות 6 תווים")
+      return
+    }
+    setAuthActionPending(true)
+    setError("")
+    const res = await resetUserPassword(employee.id, tenantId, newPassword, {
+      sendEmail: emailNewPassword,
+    })
+    if (!res.success) {
+      setError(res.error || "שגיאה באיפוס הסיסמה")
+      setAuthActionPending(false)
+      return
+    }
+    setResetResult({ password: newPassword })
+    setNewPassword("")
+    setShowResetPassword(false)
+    setAuthActionPending(false)
+  }
+
+  async function handleResendCredentials() {
+    setAuthActionPending(true)
+    setError("")
+    const res = await resendCredentialsToUser(employee.id, tenantId)
+    if (!res.success) {
+      setError(res.error || "שגיאה בשליחת הקישור")
+    }
+    setAuthActionPending(false)
+  }
+
+  function generateRandomPassword() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+    let out = ""
+    for (let i = 0; i < 10; i++) {
+      out += chars[Math.floor(Math.random() * chars.length)]
+    }
+    setNewPassword(out)
+  }
 
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return "---"
@@ -241,6 +322,147 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
           )}
         </div>
       )}
+
+      {/* Auth Settings Card */}
+      <div className="rounded-xl border border-[#dad9e3] bg-white p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Icon name="key" size="sm" className="text-[#1e40af]" />
+          <h3 className="text-base font-bold text-foreground">הגדרות התחברות</h3>
+        </div>
+
+        <FormField label="שם משתמש">
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className={inputClass}
+            placeholder="ללא שם משתמש — רק אימייל"
+            dir="ltr"
+            autoComplete="off"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            אם תוגדר — העובד יוכל להתחבר גם עם שם המשתמש במקום אימייל.
+          </p>
+        </FormField>
+
+        <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
+          <input
+            type="checkbox"
+            checked={allowGoogleAuth}
+            onChange={(e) => setAllowGoogleAuth(e.target.checked)}
+            className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-bold">אפשר התחברות עם Google</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              כשכבוי, ניסיון Google sign-in למייל שלו ייחסם.
+            </p>
+          </div>
+        </label>
+
+        <div className="flex flex-wrap gap-2 pt-3 border-t border-[#f4f2fc]">
+          <button
+            type="button"
+            onClick={() => setShowResetPassword(true)}
+            disabled={authActionPending}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent hover:bg-border/40 text-sm font-bold transition-colors min-h-[44px] disabled:opacity-50"
+          >
+            <Icon name="key" size="sm" />
+            איפוס סיסמה
+          </button>
+          <button
+            type="button"
+            onClick={handleResendCredentials}
+            disabled={authActionPending}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent hover:bg-border/40 text-sm font-bold transition-colors min-h-[44px] disabled:opacity-50"
+          >
+            <Icon name="send" size="sm" />
+            שלח קישור התחברות במייל
+          </button>
+        </div>
+
+        {showResetPassword && (
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800 rounded-xl p-4 space-y-3">
+            <h4 className="text-sm font-bold flex items-center gap-2">
+              <Icon name="warning" size="sm" className="text-amber-600" />
+              איפוס סיסמה
+            </h4>
+            <FormField label="סיסמה חדשה">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className={`${inputClass} font-mono`}
+                  placeholder="הקלד או לחץ 'צור אוטומטית'"
+                  dir="ltr"
+                />
+                <button
+                  type="button"
+                  onClick={generateRandomPassword}
+                  className="px-3 py-2 rounded-xl bg-white border border-border/40 text-sm font-bold whitespace-nowrap min-h-[44px]"
+                >
+                  צור אוטומטית
+                </button>
+              </div>
+            </FormField>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={emailNewPassword}
+                onChange={(e) => setEmailNewPassword(e.target.checked)}
+                className="w-4 h-4 rounded border-border/40 accent-primary"
+              />
+              שלח את הסיסמה החדשה במייל לעובד
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={authActionPending || newPassword.length < 6}
+                className="flex-1 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 min-h-[44px]"
+              >
+                {authActionPending ? "שומר..." : "אפס סיסמה"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResetPassword(false)
+                  setNewPassword("")
+                }}
+                className="px-4 py-2 rounded-xl text-sm bg-accent hover:bg-border/40 min-h-[44px]"
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        )}
+
+        {resetResult && (
+          <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-800 rounded-xl p-4 space-y-2">
+            <h4 className="text-sm font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+              <Icon name="check_circle" size="sm" />
+              הסיסמה אופסה בהצלחה
+            </h4>
+            <div className="bg-white dark:bg-black/20 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+              <div className="text-[11px] text-muted-foreground mb-1">סיסמה חדשה</div>
+              <div dir="ltr" className="font-mono text-base font-bold select-all">
+                {resetResult.password}
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              שמור את הסיסמה כעת — לא תוצג שוב. {emailNewPassword ? "נשלחה גם במייל לעובד." : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => setResetResult(null)}
+              className="text-xs text-emerald-700 dark:text-emerald-400 font-bold hover:underline"
+            >
+              סגור
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

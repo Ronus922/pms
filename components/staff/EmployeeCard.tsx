@@ -76,7 +76,7 @@ export function EmployeeCard({ employee, onClick }: EmployeeCardProps) {
 
         {/* Task Badge (cleaners only) */}
         {employee.role === "cleaner" && employee.active_tasks_count > 0 && (
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold max-sm:hidden">
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold leading-none tabular-nums shrink-0 max-sm:hidden">
             {employee.active_tasks_count}
           </span>
         )}

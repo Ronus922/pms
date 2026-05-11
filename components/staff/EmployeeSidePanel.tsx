@@ -65,6 +65,9 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
     email: "",
     phone: "",
     password: "",
+    username: "",
+    allowGoogleAuth: false,
+    sendCredentials: true,
   })
   const [inviteRole, setInviteRole] = useState<Role>("receptionist")
   const [saving, setSaving] = useState(false)
@@ -93,7 +96,15 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
     }
     if (isInvite) {
       setEmployee(null)
-      setInviteForm({ fullName: "", email: "", phone: "", password: "" })
+      setInviteForm({
+        fullName: "",
+        email: "",
+        phone: "",
+        password: "",
+        username: "",
+        allowGoogleAuth: false,
+        sendCredentials: true,
+      })
       setInviteRole("receptionist")
       setError("")
     }
@@ -122,6 +133,9 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
       phone: inviteForm.phone.trim(),
       role: inviteRole,
       password: inviteForm.password,
+      username: inviteForm.username.trim() || null,
+      allowGoogleAuth: inviteForm.allowGoogleAuth,
+      sendCredentials: inviteForm.sendCredentials,
     })
 
     if (!res.success) {
@@ -243,6 +257,51 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                     placeholder="סיסמה ראשונית לעובד"
                   />
                 </FormField>
+
+                <FormField label="שם משתמש (אופציונלי)">
+                  <input
+                    type="text"
+                    value={inviteForm.username}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, username: e.target.value }))}
+                    className={inputClass}
+                    placeholder="לדוגמה: yossi-reception"
+                    dir="ltr"
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    אם תוגדר — העובד יוכל להתחבר גם עם שם המשתמש במקום אימייל
+                  </p>
+                </FormField>
+
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
+                  <input
+                    type="checkbox"
+                    checked={inviteForm.allowGoogleAuth}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, allowGoogleAuth: e.target.checked }))}
+                    className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold">אפשר התחברות עם Google</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      העובד יוכל להתחבר גם בלחיצה על &ldquo;התחבר עם Google&rdquo; במסך הכניסה
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
+                  <input
+                    type="checkbox"
+                    checked={inviteForm.sendCredentials}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, sendCredentials: e.target.checked }))}
+                    className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold">שלח פרטי התחברות במייל</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      העובד יקבל מייל עם שם המשתמש והסיסמה הראשונית
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* Role Selector */}
@@ -410,7 +469,12 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
             <div className="border-t border-[#dad9e3] px-6 py-4 bg-white shrink-0 flex items-center gap-2 flex-wrap">
               <button
                 onClick={handleFooterSave}
-                disabled={(panelMode !== "edit" && activeTab !== "attendance") || saving}
+                disabled={
+                  (panelMode !== "edit" &&
+                    activeTab !== "attendance" &&
+                    activeTab !== "profile") ||
+                  saving
+                }
                 className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#1e40af] text-white font-bold text-sm hover:bg-[#1e3a8a] transition-colors min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Icon name="check_circle" size="sm" />

@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClientSupabase } from "@/lib/supabase/client"
-import { recordLastLogin } from "@/lib/actions/auth"
 
 const BUSINESS_TYPES = [
   { value: "hotel", label: "מלון" },
@@ -61,18 +60,21 @@ export default function RegisterPage() {
 
     // Sign in with the new credentials
     const supabase = createClientSupabase()
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: form.email,
-      password: form.password,
-    })
+    const { data: signInData, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      })
 
-    if (signInError) {
+    if (signInError || !signInData.user) {
       setError("החשבון נוצר, אך ההתחברות נכשלה. נסה להתחבר מדף הכניסה.")
       setLoading(false)
       return
     }
 
-    await recordLastLogin()
+    // Stamp last_login — fire and forget. Cookies were just set; the API
+    // route reads from the same-origin cookie session.
+    fetch("/api/auth/record-login", { method: "POST" }).catch(() => {})
 
     router.push("/dashboard")
     router.refresh()
