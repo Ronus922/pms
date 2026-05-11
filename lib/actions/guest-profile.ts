@@ -1,8 +1,19 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requirePermission } from "@/lib/auth/actor"
+import { AuthorizationError } from "@/lib/auth/errors"
 
 export async function getGuestProfile(guestId: string) {
+  let tenantId: string
+  try {
+    const actor = await requirePermission("guests", "view")
+    tenantId = actor.tenantId
+  } catch (err) {
+    if (err instanceof AuthorizationError) return null
+    throw err
+  }
+
   const [guest] = await db`
     SELECT id, first_name, last_name, full_name, email, phone, id_number,
       date_of_birth, preferred_language, country, zip_code,
@@ -11,7 +22,7 @@ export async function getGuestProfile(guestId: string) {
       tags, custom_fields, total_reservations, total_revenue, total_cancellations, total_no_shows,
       preferred_room_type_id, preferred_payment_method,
       created_at
-    FROM guests WHERE id = ${guestId}
+    FROM guests WHERE id = ${guestId} AND tenant_id = ${tenantId}
   `
   if (!guest) return null
 
@@ -25,7 +36,7 @@ export async function getGuestProfile(guestId: string) {
     LEFT JOIN reservation_rooms rr ON rr.reservation_id = r.id
     LEFT JOIN rooms rm ON rm.id = rr.room_id
     LEFT JOIN room_types rt ON rt.id = rm.room_type_id
-    WHERE r.guest_id = ${guestId}
+    WHERE r.guest_id = ${guestId} AND r.tenant_id = ${tenantId}
     ORDER BY r.check_in DESC
     LIMIT 20
   `
