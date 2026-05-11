@@ -6,6 +6,15 @@ import { requirePermission } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 
 export async function getReservationDetails(reservationId: string) {
+  let tenantId: string
+  try {
+    const actor = await requirePermission("reservations", "view")
+    tenantId = actor.tenantId
+  } catch (err) {
+    if (err instanceof AuthorizationError) return null
+    throw err
+  }
+
   const [res] = await db`
     SELECT
       r.id, r.reservation_number, r.status, r.check_in, r.check_out,
@@ -20,11 +29,13 @@ export async function getReservationDetails(reservationId: string) {
       g.country as guest_country
     FROM reservations r
     JOIN guests g ON g.id = r.guest_id
-    WHERE r.id = ${reservationId}
+    WHERE r.id = ${reservationId} AND r.tenant_id = ${tenantId}
   `
 
   if (!res) return null
 
+  // Sub-query is safe: reservationId now verified to be in actor's tenant
+  // via the gate query above.
   const rooms = await db`
     SELECT rr.room_id, rr.check_in, rr.check_out, rr.rate_per_night,
       rm.room_number, rt.name as room_type_name
