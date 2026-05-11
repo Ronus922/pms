@@ -6,6 +6,44 @@ The user asked for 9 specific buckets. They are below in order.
 
 ---
 
+## Progress log (updated 2026-05-11)
+
+### Done
+
+| Date | Action | Commits | Branch |
+|---|---|---|---|
+| 2026-05-10 | Audit committed | `e120d95` | `audit/2026-05-11` (split out) |
+| 2026-05-11 | Branch split — feature work moved off audit history | reset + force-push | `feature/username-auth` reset to `a20bba8` |
+| 2026-05-11 | CRITICAL-4 fix: 3 mutations in reservations.ts use `requirePermission` | `273b282` | `feature/username-auth` |
+| 2026-05-11 | CRITICAL-1 fix: getReservationFull gated by tenant | `21d7a95` | `feature/username-auth` |
+| 2026-05-11 | CRITICAL-2 fix: getGuestProfile + reservations sub-query gated by tenant | `3aabf29` | `feature/username-auth` |
+| 2026-05-11 | CRITICAL-3 fix: getReservationDetails gated by tenant | `0ff3aea` | `feature/username-auth` |
+| 2026-05-11 | Channex orchestrator entry-point audit (see below) | none — no CRITICAL #5 found | — |
+
+### Channex orchestrator audit result (2026-05-11)
+
+The user flagged `lib/integrations/channex/orchestrator.ts` (1,017 lines) as a high-risk unaudited surface. Author opened entry points and traced the trust path:
+
+- **Only one webhook-route entry point**: `enqueueJob(input)` at orchestrator.ts:91. The webhook handler in `app/api/channex/webhooks/route.ts:121` passes `connectionRow.tenant_id` which is **derived from DB lookup** (channel_connections row matched by `webhook_secret` OR `channel_property_links.channex_property_id`) — not from the request body.
+- **Other orchestrator consumers**: `lib/actions/channex.ts` imports `enqueueJob`, `loadCallContext`, `processJob`. Author grepped the file: every one of the ~16 exported server actions in that file calls `requirePermission("rooms", ...)` and derives `tenantId` from `actor.tenantId`. No client-trust pattern.
+- **Conclusion**: orchestrator is **CLEAN** of the CRITICAL #4 trust-client-tenantId pattern. The previously-flagged HIGH-3 (webhook property_id fallback bypass) is a separate concern — it's an authentication bypass on the webhook entry, not a tenant trust issue. Each property is FK-tied to one connection in `channel_property_links`, so the tenant correctness is preserved even when the secret check is skipped.
+
+**No new CRITICAL #5 added.** HIGH-3 remains open as it was.
+
+### Still to do (in order)
+
+- HIGH-2: validate `next` param in `app/auth/callback/route.ts:32` (one-line guard).
+- HIGH-4: switch cron `!==` to `crypto.timingSafeEqual` (4 routes — `automation-queue` confirmed, the other 3 still unverified).
+- HIGH-3: remove webhook property_id fallback OR document it as intentional (decision needed).
+- HIGH-1: upload pipeline rebuild — separate milestone.
+- Phase 1-4 cleanup (dead code, src/, deps) — not yet started.
+
+### Outstanding non-audit work on `feature/username-auth`
+
+The branch still has ~14 modified + 4 new files from the username-auth feature work (login/register/forgot/reset pages, lib/actions/auth.ts, lib/services/email.ts, lib/actions/permissions.ts, lib/actions/staff.ts, types, etc.). These need their own commit(s) before the branch is PR-ready. They are NOT part of the audit fix commits.
+
+---
+
 ## 1. ✅ Safe to delete IMMEDIATELY — zero risk
 
 Items where the evidence is "the import graph contains zero references to this path". Verified by grep, not inference.

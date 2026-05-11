@@ -2,6 +2,23 @@
 
 All findings below were verified by the author opening the cited files directly. File:line refs are accurate as of 2026-05-10 21:00 UTC on the `feature/username-auth` branch.
 
+## Status (updated 2026-05-11)
+
+| ID | Status | Fix commit (on `feature/username-auth`) |
+|---|---|---|
+| CRITICAL-1 | ✅ **FIXED** | `21d7a95` — getReservationFull now requirePermission + AND r.tenant_id |
+| CRITICAL-2 | ✅ **FIXED** | `3aabf29` — getGuestProfile now requirePermission + AND tenant_id |
+| CRITICAL-3 | ✅ **FIXED** | `0ff3aea` — getReservationDetails now requirePermission + AND r.tenant_id |
+| CRITICAL-4 | ✅ **FIXED** | `273b282` — 3 mutations now requirePermission + actor.tenantId |
+| HIGH-1 (broken uploads) | ⏳ pending | Architectural rebuild — own milestone |
+| HIGH-2 (open redirect) | ⏳ pending | One-line validation needed |
+| HIGH-3 (Channex webhook bypass) | ⏳ pending | Remove property_id fallback |
+| HIGH-4 (cron timing) | ⏳ pending | Switch to crypto.timingSafeEqual |
+| MEDIUM-1 (lookupEmailByUsername) | accepted | Trade-off documented |
+| MEDIUM-2 (register tenant uniqueness) | unverified | Awaiting business decision |
+
+All 4 CRITICALs are now closed on the `feature/username-auth` branch. Regression test the affected pages (reservation detail, guest profile, reservation list, check-in/check-out, VIP toggle, cancel) before merging.
+
 ---
 
 ## 🔴 CRITICAL-1: Multi-tenant data leak — `getReservationFull` reads any tenant's reservation
