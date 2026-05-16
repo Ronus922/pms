@@ -5,7 +5,6 @@
  * ─────────────────────────────────────────────────────────────────
  * Renders a Google Map with optional geometry overlay and an optional
  * standalone marker. Used by:
- *   • the maps-test page (Part B verification)
  *   • the area picker preview (Part C)
  *   • the address-found preview (Part D)
  *
