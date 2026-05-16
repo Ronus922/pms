@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/Sidebar"
 import { TopBar } from "@/components/layout/TopBar"
 import { ReservationModal } from "@/components/reservations/ReservationModal"
 import { ExistingReservationPanel } from "@/components/reservations/ExistingReservationPanel"
+import { SendMessagePanel } from "@/components/reservations/messaging/SendMessagePanel"
 import { TenantProvider } from "@/lib/hooks/use-tenant"
 import { getTenantForUser } from "@/lib/actions/tenant"
 
@@ -90,6 +91,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
         <ReservationModal />
         <ExistingReservationPanel />
+        <SendMessagePanel />
       </div>
     </TenantProvider>
   )
