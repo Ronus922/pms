@@ -2,17 +2,20 @@
  * Attendance module — TypeScript types
  * ────────────────────────────────────
  * Single source of truth for attendance data shapes.
- * Domain enums live in `@/lib/constants/attendance` and are re-exported here.
+ * Domain enums live in `@/lib/constants/attendance`.
+ *
+ * Two distinct sub-models live here:
+ *   1. Areas + geometry + settings — geofence configuration (admin UI).
+ *   2. Records + summary — one row per shift (clock_in/out on same row),
+ *      with manager-edit audit fields. Supersedes the legacy per-punch
+ *      model (the old `attendance_punches` action file was removed; the
+ *      `attendance_punches` DB table is left in place but is no longer
+ *      referenced by application code).
  */
 
-import type {
-  AttendanceRequired,
-  ShapeType,
-  PunchType,
-  AbsenceType,
-} from "@/lib/constants/attendance"
+import type { ShapeType } from "@/lib/constants/attendance"
 
-export type { AttendanceRequired, ShapeType, PunchType, AbsenceType }
+export type { ShapeType }
 
 /* ── Geometry (discriminated union — matches Zod schema) ─────── */
 
@@ -75,30 +78,7 @@ export interface AttendanceAreaPickerItem {
   color: string
 }
 
-/* ── Attendance Punch row ────────────────────────────────────── */
-
-export interface AttendancePunch {
-  id: string
-  tenant_id: string
-  user_id: string
-  punch_type: PunchType
-  punched_at: string
-  lat: number | null
-  lng: number | null
-  area_id: string | null
-  area_snapshot: AreaGeometry | null
-  is_within_area: boolean | null
-  device_info: Record<string, unknown> | null
-  ip_address: string | null
-  notes: string | null
-  absence_type: AbsenceType | null
-  absence_from: string | null
-  absence_to: string | null
-  created_at: string
-  deleted_at: string | null
-}
-
-/* ── Inputs (server action payloads) ─────────────────────────── */
+/* ── Area Inputs (server action payloads) ────────────────────── */
 
 export interface CreateAreaInput {
   name: string
@@ -119,41 +99,24 @@ export interface UpdateAreaInput {
   is_active?: boolean
 }
 
+/* ── Per-user attendance settings ────────────────────────────── */
+
 export interface AttendanceSettingsInput {
   user_id: string
-  attendance_required: AttendanceRequired
+  attendance_required: import("@/lib/constants/attendance").AttendanceRequired
   attendance_area_id: string | null
   report_absence_in_app: boolean
 }
 
-export interface ClockInput {
-  lat?: number
-  lng?: number
-  accuracy_m?: number
-  device_info?: Record<string, unknown>
-  notes?: string
-}
-
-/* ── Read-side composite types ───────────────────────────────── */
-
 export interface AttendanceSettings {
   user_id: string
-  attendance_required: AttendanceRequired
+  attendance_required: import("@/lib/constants/attendance").AttendanceRequired
   attendance_area_id: string | null
   area_name: string | null
   report_absence_in_app: boolean
 }
 
-/**
- * A "shift" is a clock_in punch optionally paired with a clock_out.
- * Open shift = clock_out is null.
- */
-export interface AttendanceShift {
-  clock_in: AttendancePunch
-  clock_out: AttendancePunch | null
-  duration_ms: number | null
-  is_open: boolean
-}
+/* ── Area deletion conflict envelope ─────────────────────────── */
 
 /** Result envelope returned by `deleteAttendanceArea` when cascade is required. */
 export interface AreaDeletionConflict {
@@ -161,4 +124,49 @@ export interface AreaDeletionConflict {
   error: "AREA_HAS_USERS"
   message: string
   affected_users: { id: string; full_name: string }[]
+}
+
+/* ── Attendance Records (shift-per-row model) ────────────────── */
+
+/**
+ * Provenance of a record. `self` = the worker punched themselves;
+ * `manager_manual` = manager created the row from scratch;
+ * `manager_edit` = a self-punch row that a manager later modified.
+ */
+export type AttendanceSource = "self" | "manager_manual" | "manager_edit"
+
+/**
+ * One row per shift. `clock_out === null` ⇒ shift is currently open.
+ * `work_date` is the calendar day the shift is attributed to
+ * (Asia/Jerusalem — overnight shifts stay on the start day).
+ * `user_name` is populated only when the row is fetched via a JOIN on
+ * `users` (e.g. manager-facing lists); self-fetches leave it undefined.
+ */
+export interface AttendanceRecord {
+  id: string
+  tenant_id: string
+  user_id: string
+  user_name?: string
+  clock_in: string
+  clock_out: string | null
+  work_date: string
+  notes: string | null
+  source: AttendanceSource
+  edited_by: string | null
+  edited_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Daily roll-up — one entry per (user, day) with the day's records
+ * collapsed into a single `total_minutes` plus an `open_shift` flag.
+ */
+export interface AttendanceSummary {
+  user_id: string
+  full_name: string
+  work_date: string
+  total_minutes: number
+  open_shift: boolean
+  records: AttendanceRecord[]
 }
