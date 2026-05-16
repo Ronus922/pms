@@ -6,9 +6,18 @@ import { SidePanel } from "@/components/shared/SidePanel"
 import { Icon } from "@/components/shared/Icon"
 import { StatusPill } from "@/components/reservations/StatusPill"
 import { SourceBadge } from "@/components/reservations/SourceBadge"
+import { toast } from "sonner"
 import { useReservationEditStore } from "@/lib/stores/reservation-edit-store"
+import { useMessagingStore } from "@/lib/stores/messaging-store"
 import { updateReservation } from "@/lib/actions/reservation-update"
 import { updateReservationRooms } from "@/lib/actions/update-reservation-rooms"
+import { exportReservationToExcel } from "@/lib/actions/reservation-export-excel"
+import { downloadReservationPdf } from "@/lib/utils/reservation-pdf-client"
+import {
+  openPrint,
+  openPreview,
+  downloadBase64,
+} from "@/lib/utils/reservation-export-client"
 import { EditStep1Guest } from "./edit-steps/EditStep1Guest"
 import { EditStep2Stay } from "./edit-steps/EditStep2Stay"
 import { EditStep3Pricing } from "./edit-steps/EditStep3Pricing"
@@ -23,13 +32,21 @@ const STEPS = [
   { label: "סיכום ופעולות", icon: "check_circle" },
 ] as const
 
-const ACTION_ICONS = [
-  { icon: "print", label: "הדפסה" },
-  { icon: "file_download", label: "PDF" },
-  { icon: "visibility", label: "תצוגה מקדימה" },
-  { icon: "email", label: "אימייל" },
-  { icon: "phone", label: "SMS" },
-  { icon: "whatsapp", label: "WhatsApp" },
+interface ActionItem {
+  icon: string
+  label: string
+  action: "print" | "pdf" | "excel" | "preview" | "email" | "sms" | "whatsapp"
+  disabled?: boolean
+}
+
+const ACTION_ICONS: readonly ActionItem[] = [
+  { icon: "print",         label: "הדפסה",         action: "print" },
+  { icon: "file_download", label: "הורדת PDF",      action: "pdf" },
+  { icon: "table_rows",    label: "הורדת Excel",    action: "excel" },
+  { icon: "visibility",    label: "תצוגה מקדימה",   action: "preview" },
+  { icon: "email",         label: "שליחת אימייל",   action: "email" },
+  { icon: "phone",         label: "SMS (בקרוב)",    action: "sms",     disabled: true },
+  { icon: "whatsapp",      label: "שליחת WhatsApp", action: "whatsapp" },
 ] as const
 
 /* ── Component ─────────────────────────────────────────────── */
@@ -40,7 +57,9 @@ interface ExistingReservationPanelProps {
 
 export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelProps) {
   const store = useReservationEditStore()
+  const openMessaging = useMessagingStore((m) => m.open)
   const [saveError, setSaveError] = useState("")
+  const [exporting, setExporting] = useState<string>("")
   const bodyRef = useRef<HTMLDivElement>(null)
 
   const activeTab = store.activeTab
@@ -132,6 +151,73 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
     store.close()
     setSaveError("")
   }, [store])
+
+  /* ── Action icon handler ─────────────────────────────────── */
+  const handleAction = useCallback(
+    async (action: ActionItem["action"]) => {
+      const id = store.reservationId
+      if (!id) return
+      switch (action) {
+        case "print":
+          openPrint(id)
+          return
+        case "preview":
+          openPreview(id)
+          return
+        case "pdf": {
+          setExporting("pdf")
+          const res = await downloadReservationPdf(id)
+          setExporting("")
+          if (!res.success) toast.error(res.error || "שגיאה ביצירת PDF")
+          else toast.success("ה-PDF הורד")
+          return
+        }
+        case "excel": {
+          setExporting("excel")
+          const res = await exportReservationToExcel(id)
+          setExporting("")
+          if (!res.success || !res.base64 || !res.filename) {
+            toast.error(res.error || "שגיאה ביצירת קובץ אקסל")
+            return
+          }
+          downloadBase64(
+            res.base64,
+            res.filename,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          toast.success("קובץ ה-Excel הורד")
+          return
+        }
+        case "email":
+          if (!store.data.email) {
+            toast.error("אין כתובת מייל לאורח. הוסף כתובת בטאב פרטי האורח.")
+            return
+          }
+          openMessaging({
+            channel: "email",
+            reservationId: id,
+            tenantId: store.tenantId,
+            defaultRecipient: store.data.email,
+          })
+          return
+        case "whatsapp":
+          if (!store.data.phone) {
+            toast.error("אין מספר טלפון לאורח. הוסף טלפון בטאב פרטי האורח.")
+            return
+          }
+          openMessaging({
+            channel: "whatsapp",
+            reservationId: id,
+            tenantId: store.tenantId,
+            defaultRecipient: store.data.phone,
+          })
+          return
+        case "sms":
+          return
+      }
+    },
+    [store.reservationId, store.tenantId, store.data.email, store.data.phone, openMessaging],
+  )
 
   /* ── Build subtitle ───────────────────────────────────────── */
   const subtitle = store.reservationNumber
@@ -236,17 +322,31 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
 
             {/* Action icons */}
             <div className="flex items-center gap-2 px-6 pb-3">
-              {ACTION_ICONS.map((action) => (
-                <button
-                  key={action.icon}
-                  type="button"
-                  className="w-9 h-9 rounded-xl bg-accent hover:bg-border/40 flex items-center justify-center transition-colors"
-                  aria-label={action.label}
-                  title={action.label}
-                >
-                  <Icon name={action.icon} size="sm" className="text-muted-foreground" />
-                </button>
-              ))}
+              {ACTION_ICONS.map((item) => {
+                const isLoading = exporting === item.action
+                const disabled = item.disabled || isLoading
+                return (
+                  <button
+                    key={item.icon}
+                    type="button"
+                    onClick={() => !disabled && handleAction(item.action)}
+                    disabled={disabled}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                      item.disabled
+                        ? "bg-accent/40 opacity-40 cursor-not-allowed"
+                        : "bg-accent hover:bg-border/40 cursor-pointer"
+                    }`}
+                    aria-label={item.label}
+                    title={item.label}
+                  >
+                    <Icon
+                      name={isLoading ? "hourglass_empty" : item.icon}
+                      size="sm"
+                      className={`text-muted-foreground ${isLoading ? "animate-spin" : ""}`}
+                    />
+                  </button>
+                )
+              })}
             </div>
 
             {/* Step Progress Bar — RTL: step 1 on the right, 4 on the left, equal spacing */}
