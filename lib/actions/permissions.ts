@@ -396,6 +396,20 @@ export async function toggleUserActive(
       throw new AuthorizationError("אין הרשאה לשנות סטטוס של משתמש זה")
     }
 
+    // When deactivating a cleaning-role user, release their active
+    // housekeeping tasks back to the unassigned pool so another cleaner
+    // can be assigned. Done before the users UPDATE so the actor's last
+    // observed state can't leave dangling assignments on a deactivated user.
+    if (!isActive && targetRole === "cleaner") {
+      await db`
+        UPDATE housekeeping_tasks
+        SET assigned_to = NULL, updated_at = NOW()
+        WHERE assigned_to = ${userId}
+          AND tenant_id = ${tenantId}
+          AND status IN ('pending', 'in_progress')
+      `
+    }
+
     await db`
       UPDATE users SET is_active = ${isActive}, updated_at = NOW()
       WHERE id = ${userId} AND tenant_id = ${tenantId}
