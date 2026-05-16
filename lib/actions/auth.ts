@@ -38,6 +38,37 @@ export async function lookupEmailByUsername(
 }
 
 /**
+ * Return display info for the currently authenticated user.
+ * Used by the worker-mobile shell (avatar + menu panel) to render
+ * full_name + email without exposing the whole `users` row.
+ */
+export async function getMyProfile(): Promise<{
+  full_name: string
+  email: string
+} | null> {
+  try {
+    const supabase = await createServerSupabase()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return null
+
+    const [row] = await db`
+      SELECT full_name
+      FROM users
+      WHERE id = ${user.id}
+      LIMIT 1
+    `
+    return {
+      full_name: (row?.full_name as string) ?? "",
+      email: user.email ?? "",
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
  * Stamp users.last_login = NOW() for the *currently authenticated* session
  * user. Read from cookie session — never trust client-supplied user IDs.
  *

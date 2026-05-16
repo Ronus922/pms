@@ -113,6 +113,7 @@ import {
   Wrench,
   Camera,
   Repeat,
+  Menu,
   type LucideProps,
 } from "lucide-react"
 
@@ -160,6 +161,7 @@ const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   login: LogIn,
   logout: LogOut,
   mail: Mail,
+  menu: Menu,
   notifications: Bell,
   person: User,
   person_off: UserX,
