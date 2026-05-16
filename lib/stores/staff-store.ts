@@ -31,7 +31,7 @@ interface StaffStore {
 const DEFAULT_FILTERS: StaffFilter = {
   search: "",
   role: "all",
-  status: "all",
+  status: "active",
 }
 
 /* ── Store ──────────────────────────────────────────────────── */
