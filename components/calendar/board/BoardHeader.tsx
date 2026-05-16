@@ -1,9 +1,11 @@
 "use client"
 
+import { useRef } from "react"
 import { Icon } from "@/components/shared/Icon"
 import { VIEW_DAYS, VIEW_LABEL } from "./board-constants"
 import type { BoardView } from "./board-types"
 import { addDays, todayIso } from "./board-rules"
+import { useCalendarStore } from "@/lib/stores/calendar-store"
 
 interface LegendItem {
   value: string
@@ -45,6 +47,34 @@ export function BoardHeader({
   const days = VIEW_DAYS[view]
   const endIso = addDays(startDateIso, days - 1)
   const isToday = startDateIso === todayIso()
+  const setStartDate = useCalendarStore((s) => s.setStartDate)
+  const dateInputRef = useRef<HTMLInputElement | null>(null)
+
+  function handleDatePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value
+    if (!value) return
+    const [y, m, d] = value.split("-").map(Number)
+    if (!y || !m || !d) return
+    setStartDate(new Date(y, m - 1, d))
+  }
+
+  function openPicker() {
+    const input = dateInputRef.current
+    if (!input) return
+    // showPicker() is the only reliable way to open a native date picker
+    // when the <input> is visually hidden (opacity-0). Without it, some
+    // browsers focus the input but never reveal the calendar.
+    if (typeof input.showPicker === "function") {
+      try {
+        input.showPicker()
+        return
+      } catch {
+        // Fall through to focus() if showPicker is unsupported in context.
+      }
+    }
+    input.focus()
+    input.click()
+  }
 
   return (
     // Explicit dir="rtl" so source order deterministically maps to visual
@@ -69,28 +99,47 @@ export function BoardHeader({
           <button
             onClick={onPrev}
             className="w-8 h-8 rounded-full hover:bg-card flex items-center justify-center"
-            aria-label="התאריכים הקודמים"
-            title="התאריכים הקודמים"
+            aria-label="תקופה קודמת"
+            title="תקופה קודמת"
           >
             <Icon name="chevron_right" size="sm" />
           </button>
 
-          {/* Force LTR on the date range itself so it reads earlier → later
-              left-to-right (20/04/2026 - 10/05/2026), not end-first. */}
-          <span
-            dir="ltr"
-            className="px-3 py-1 text-[12.5px] font-bold text-foreground tabular-nums whitespace-nowrap"
+          {/* Clickable date range — a button visually shows the date and an
+              invisible <input type="date"> sits behind it. The button calls
+              showPicker() so the native calendar opens reliably across
+              Chromium/Firefox/Safari, even when the input is opacity-0. */}
+          <button
+            type="button"
+            onClick={openPicker}
+            className="relative inline-flex items-center min-h-[44px] px-3 py-1 cursor-pointer rounded-full hover:bg-card/60 transition-colors"
+            title="לחץ לבחירת תאריך"
+            aria-label="בחר תאריך התחלה"
           >
-            {formatHebrewDate(startDateIso)} - {formatHebrewDate(endIso)}
-          </span>
+            <span
+              dir="ltr"
+              className="text-[12.5px] font-bold text-foreground tabular-nums whitespace-nowrap pointer-events-none"
+            >
+              {formatHebrewDate(startDateIso)} - {formatHebrewDate(endIso)}
+            </span>
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={startDateIso}
+              onChange={handleDatePick}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+            />
+          </button>
 
           {/* Left side = forward (upcoming). Left-pointing chevron (←) reads
               as "go forward" in RTL (same direction as the reading flow). */}
           <button
             onClick={onNext}
             className="w-8 h-8 rounded-full hover:bg-card flex items-center justify-center"
-            aria-label="התאריכים הבאים"
-            title="התאריכים הבאים"
+            aria-label="תקופה הבאה"
+            title="תקופה הבאה"
           >
             <Icon name="chevron_left" size="sm" />
           </button>

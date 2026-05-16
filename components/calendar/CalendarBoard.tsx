@@ -307,12 +307,6 @@ export function CalendarBoard({ tenantId }: CalendarBoardProps) {
     [statusByRoomId],
   )
 
-  /* ── Reset to today on mount / view change if past ──────── */
-
-  useEffect(() => {
-    if (startDateIso < todayIso()) goToday()
-  }, [startDateIso, goToday])
-
   /* ── Render ──────────────────────────────────────────────── */
 
   return (
