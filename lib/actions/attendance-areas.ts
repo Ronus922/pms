@@ -33,14 +33,45 @@ export async function listAttendanceAreas(): Promise<AttendanceArea[]> {
   const actor = await requirePermission("attendance", "view")
   const rows = await db`
     SELECT
-      id, tenant_id, name, shape_type, geometry, address,
-      color, notes, is_active, created_by,
-      created_at, updated_at, deleted_at
-    FROM attendance_areas
-    WHERE tenant_id = ${actor.tenantId} AND deleted_at IS NULL
-    ORDER BY name
+      a.id, a.tenant_id, a.name, a.shape_type, a.geometry, a.address,
+      a.color, a.notes, a.is_active, a.created_by,
+      a.created_at, a.updated_at, a.deleted_at,
+      COALESCE(lc.cnt, 0)::int AS linked_users_count
+    FROM attendance_areas a
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS cnt
+      FROM users u
+      WHERE u.attendance_area_id = a.id
+        AND u.tenant_id = ${actor.tenantId}
+    ) lc ON TRUE
+    WHERE a.tenant_id = ${actor.tenantId} AND a.deleted_at IS NULL
+    ORDER BY a.name
   `
   return rows as unknown as AttendanceArea[]
+}
+
+/* ── Get Users Linked to an Area (peek, no mutation) ────────── */
+
+/**
+ * Returns the users currently linked to the area via
+ * `users.attendance_area_id`. Used by the delete UX to surface a
+ * "cannot delete — N users assigned" block before any destructive call.
+ */
+export async function getAreaLinkedUsers(
+  areaId: string,
+): Promise<{ id: string; full_name: string }[]> {
+  const actor = await requirePermission("attendance", "view")
+  const rows = await db`
+    SELECT u.id, u.full_name
+    FROM users u
+    INNER JOIN attendance_areas a ON a.id = u.attendance_area_id
+    WHERE u.attendance_area_id = ${areaId}
+      AND u.tenant_id = ${actor.tenantId}
+      AND a.tenant_id = ${actor.tenantId}
+      AND a.deleted_at IS NULL
+    ORDER BY u.full_name
+  `
+  return rows as unknown as { id: string; full_name: string }[]
 }
 
 /* ── Picker list (lightweight — no geometry payload) ────────── */

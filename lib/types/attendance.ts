@@ -59,6 +59,12 @@ export interface AttendanceArea {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  /**
+   * Number of users currently linked to this area via `users.attendance_area_id`.
+   * Populated by `listAttendanceAreas`. Undefined for single-row fetches
+   * (`getAttendanceAreaById`) where it's not joined.
+   */
+  linked_users_count?: number
 }
 
 /** Picker shape used in dropdowns / selectors (no geometry weight). */

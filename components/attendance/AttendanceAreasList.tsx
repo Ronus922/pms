@@ -126,21 +126,36 @@ export function AttendanceAreasList({
                       onEdit(area)
                     }}
                     aria-label={`ערוך ${area.name}`}
+                    title="ערוך אזור"
                     className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#474747] hover:text-[#1e40af] hover:bg-white transition-colors"
                   >
                     <Icon name="edit" size="sm" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDelete(area)
-                    }}
-                    aria-label={`מחק ${area.name}`}
-                    className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#b91c1c] hover:bg-red-50 transition-colors"
-                  >
-                    <Icon name="delete" size="sm" />
-                  </button>
+                  {(() => {
+                    const linked = area.linked_users_count ?? 0
+                    const blocked = linked > 0
+                    const deleteTitle = blocked
+                      ? `לא ניתן למחוק — ${linked} ${linked === 1 ? "עובד משויך" : "עובדים משויכים"}`
+                      : "מחק אזור"
+                    return (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(area)
+                        }}
+                        aria-label={
+                          blocked
+                            ? `לא ניתן למחוק ${area.name} — משויכים עובדים`
+                            : `מחק ${area.name}`
+                        }
+                        title={deleteTitle}
+                        className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#b91c1c] hover:bg-red-50 transition-colors"
+                      >
+                        <Icon name="delete" size="sm" />
+                      </button>
+                    )
+                  })()}
                 </div>
               </div>
             </li>
