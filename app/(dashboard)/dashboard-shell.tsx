@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { TopBar } from "@/components/layout/TopBar"
+import { WorkerTabBar } from "@/components/layout/WorkerTabBar"
 import { ReservationModal } from "@/components/reservations/ReservationModal"
 import { ExistingReservationPanel } from "@/components/reservations/ExistingReservationPanel"
 import { SendMessagePanel } from "@/components/reservations/messaging/SendMessagePanel"
@@ -46,9 +47,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  // Redirect cleaner users to their dedicated view
+  // Redirect cleaner users to their dedicated views. The allowlist
+  // matches the tabs exposed by WorkerTabBar — a cleaner who lands on
+  // any other path is bounced back to the cleaning queue.
   useEffect(() => {
-    if (tenant?.role === "cleaner" && !pathname.startsWith("/housekeeping/my-tasks")) {
+    const allowedPaths = [
+      "/housekeeping/my-tasks",
+      "/maintenance/my-tasks",
+      "/attendance/my",
+    ]
+    if (
+      tenant?.role === "cleaner" &&
+      !allowedPaths.some((p) => pathname.startsWith(p))
+    ) {
       router.replace("/housekeeping/my-tasks")
     }
   }, [tenant, pathname, router])
@@ -68,6 +79,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   if (isCleanerMobileView) {
     return (
       <TenantProvider tenantId={tenant.tenantId} propertyId={tenant.propertyId} userId={tenant.userId} role={tenant.role} permissions={tenant.permissions}>
+        <WorkerTabBar />
         <main className="min-h-screen bg-background">
           {children}
         </main>
