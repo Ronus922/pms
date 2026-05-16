@@ -11,10 +11,8 @@ import {
   updateUserAuthSettings,
   resetUserPassword,
   resendCredentialsToUser,
-  deleteEmployee,
 } from "@/lib/actions/permissions"
 import { useTenant } from "@/lib/hooks/use-tenant"
-import { useStaffStore } from "@/lib/stores/staff-store"
 import { asciiOnly } from "@/lib/utils/text-filters"
 
 /* ── Props ─────────────────────────────────────────────────── */
@@ -60,11 +58,6 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
   const [emailNewPassword, setEmailNewPassword] = useState(true)
   const [resetResult, setResetResult] = useState<{ password: string } | null>(null)
   const [authActionPending, setAuthActionPending] = useState(false)
-
-  /* ── Delete employee state ───────────────────────────────── */
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const closeStaffPanel = useStaffStore((s) => s.closePanel)
 
   function updateField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -173,21 +166,6 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
       setError(res.error || "שגיאה בשליחת הקישור")
     }
     setAuthActionPending(false)
-  }
-
-  async function handleDeleteEmployee() {
-    setDeleting(true)
-    setError("")
-    const res = await deleteEmployee(employee.id, tenantId)
-    if (!res.success) {
-      setError(res.error || "שגיאה במחיקת העובד")
-      setDeleting(false)
-      return
-    }
-    setShowDeleteConfirm(false)
-    setDeleting(false)
-    onSaved() // refresh the staff list
-    closeStaffPanel() // close the side panel
   }
 
   function generateRandomPassword() {
@@ -558,48 +536,6 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
           </div>
         )}
 
-        {/* Danger zone — delete employee */}
-        <div className="pt-4 border-t border-rose-200/60 dark:border-rose-900/40">
-          {!showDeleteConfirm ? (
-            <button
-              type="button"
-              onClick={() => setShowDeleteConfirm(true)}
-              disabled={authActionPending || deleting}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 text-rose-700 dark:text-rose-300 text-sm font-bold transition-colors min-h-[44px] disabled:opacity-50"
-            >
-              <Icon name="delete" size="sm" />
-              מחק עובד
-            </button>
-          ) : (
-            <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-300 dark:border-rose-800 rounded-xl p-4 space-y-3">
-              <h4 className="text-sm font-bold flex items-center gap-2 text-rose-700 dark:text-rose-300">
-                <Icon name="warning" size="sm" />
-                מחיקת עובד
-              </h4>
-              <p className="text-sm text-rose-800 dark:text-rose-200">
-                העובד <strong>{employee.full_name}</strong> יושבת באופן מיידי ולא יוכל להתחבר. הפעולה מסירה אותו מרשימת העובדים הפעילים. הסטוריית הזמנות ומשימות נשמרת.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleDeleteEmployee}
-                  disabled={deleting}
-                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 min-h-[44px]"
-                >
-                  {deleting ? "מוחק..." : "כן, מחק"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  disabled={deleting}
-                  className="px-4 py-2 rounded-xl text-sm bg-white dark:bg-black/20 border border-border/40 min-h-[44px] disabled:opacity-50"
-                >
-                  ביטול
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   )

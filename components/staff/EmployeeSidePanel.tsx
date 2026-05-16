@@ -15,7 +15,7 @@ import { HoursTab } from "@/components/staff/tabs/HoursTab"
 import { useStaffStore } from "@/lib/stores/staff-store"
 import { useTenant, usePermissions } from "@/lib/hooks/use-tenant"
 import { getEmployeeProfile } from "@/lib/actions/staff"
-import { inviteUser } from "@/lib/actions/permissions"
+import { inviteUser, deleteEmployee } from "@/lib/actions/permissions"
 import { ROLES, type Role } from "@/lib/permissions/constants"
 import type { EmployeeWithPermissions, StaffTab } from "@/lib/types/staff"
 import { asciiOnly } from "@/lib/utils/text-filters"
@@ -78,6 +78,10 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
 
   const [notFound, setNotFound] = useState(false)
 
+  /* ── Delete-employee state (footer danger action) ── */
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   /* ── Load Employee ── */
   const loadEmployee = useCallback(async () => {
     if (!selectedEmployeeId || isInvite) return
@@ -120,6 +124,8 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
       setEmployee(null)
       setError("")
       setNotFound(false)
+      setShowDeleteConfirm(false)
+      setDeleting(false)
     }
   }, [isOpen])
 
@@ -228,6 +234,23 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
   /* ── Footer save trigger (delegates to active tab via event) ── */
   function handleFooterSave() {
     document.dispatchEvent(new CustomEvent("staff-panel-save"))
+  }
+
+  /* ── Delete employee (footer danger action) ── */
+  async function handleDeleteEmployee() {
+    if (!employee) return
+    setDeleting(true)
+    setError("")
+    const res = await deleteEmployee(employee.id, tenantId)
+    if (!res.success) {
+      setError(res.error || "שגיאה במחיקת העובד")
+      setDeleting(false)
+      return
+    }
+    setDeleting(false)
+    setShowDeleteConfirm(false)
+    onSaved()
+    closePanel()
   }
 
   return (
@@ -583,23 +606,45 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
               </button>
 
               {employee.id !== currentUserId && (
-                <button
-                  onClick={() => setError("מחיקת רשומה אינה זמינה כעת — השתמש בהשבת עובד")}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#fecaca] text-[#b91c1c] font-bold text-sm hover:bg-[#fef2f2] transition-colors min-h-[44px]"
-                >
-                  <Icon name="delete" size="sm" />
-                  מחק רשומה
-                </button>
-              )}
-
-              {employee.id !== currentUserId && (
-                <button
-                  onClick={handleTogglePanelActive}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#dad9e3] text-[#6b6280] font-bold text-sm hover:bg-[#f4f2fc] transition-colors min-h-[44px]"
-                >
-                  <Icon name={employee.is_active ? "person_off" : "person"} size="sm" />
-                  {employee.is_active ? "השבת עובד" : "הפעל עובד"}
-                </button>
+                showDeleteConfirm ? (
+                  <>
+                    <span className="text-sm text-[#b91c1c] font-bold px-2">
+                      למחוק את {employee.full_name}?
+                    </span>
+                    <button
+                      onClick={handleDeleteEmployee}
+                      disabled={deleting}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#b91c1c] text-white font-bold text-sm hover:bg-[#991b1b] transition-colors min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Icon name="delete" size="sm" />
+                      {deleting ? "מוחק..." : "כן, מחק"}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      disabled={deleting}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#dad9e3] text-[#6b6280] font-bold text-sm hover:bg-[#f4f2fc] transition-colors min-h-[44px] disabled:opacity-50"
+                    >
+                      ביטול
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#fecaca] text-[#b91c1c] font-bold text-sm hover:bg-[#fef2f2] transition-colors min-h-[44px]"
+                    >
+                      <Icon name="delete" size="sm" />
+                      מחק עובד
+                    </button>
+                    <button
+                      onClick={handleTogglePanelActive}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#dad9e3] text-[#6b6280] font-bold text-sm hover:bg-[#f4f2fc] transition-colors min-h-[44px]"
+                    >
+                      <Icon name={employee.is_active ? "person_off" : "person"} size="sm" />
+                      {employee.is_active ? "השבת עובד" : "הפעל עובד"}
+                    </button>
+                  </>
+                )
               )}
             </div>
           </>

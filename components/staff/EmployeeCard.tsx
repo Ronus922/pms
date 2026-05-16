@@ -40,14 +40,16 @@ export function EmployeeCard({ employee, onClick }: EmployeeCardProps) {
       onClick={onClick}
       className={`w-full text-right bg-card rounded-[20px] shadow-sm border border-border/20 border-r-4 ${style?.border || "border-gray-300"} p-5 hover:shadow-md transition-all cursor-pointer group`}
     >
-      <div className="flex items-center gap-4">
+      {/* Fixed-track grid keeps the right-side columns (role badge, status, chevron)
+          aligned across rows regardless of name/email length. */}
+      <div className="grid items-center gap-4 grid-cols-[48px_minmax(0,1fr)_24px_110px_180px_16px] max-sm:grid-cols-[48px_minmax(0,1fr)_110px_16px]">
         {/* Avatar */}
-        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold flex-shrink-0">
+        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
           {getInitials(employee.full_name)}
         </div>
 
         {/* Name + Contact */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-bold text-foreground truncate">
               {employee.full_name}
@@ -74,35 +76,38 @@ export function EmployeeCard({ employee, onClick }: EmployeeCardProps) {
           </div>
         </div>
 
-        {/* Task Badge (cleaners only) */}
-        {employee.role === "cleaner" && employee.active_tasks_count > 0 && (
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold leading-none tabular-nums shrink-0 max-sm:hidden">
-            {employee.active_tasks_count}
-          </span>
-        )}
+        {/* Task Badge slot — always reserved so the role-badge column stays aligned */}
+        <div className="flex items-center justify-center max-sm:hidden">
+          {employee.role === "cleaner" && employee.active_tasks_count > 0 && (
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold leading-none tabular-nums">
+              {employee.active_tasks_count}
+            </span>
+          )}
+        </div>
 
         {/* Role Badge */}
-        <span className={`px-3 py-1.5 rounded-full text-[11px] font-bold ${style?.badge || "bg-slate-100 text-slate-600"}`}>
+        <span className={`inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[11px] font-bold ${style?.badge || "bg-slate-100 text-slate-600"}`}>
           {getRoleLabel(employee.role)}
         </span>
 
-        {/* Status + Last Login */}
+        {/* Status + Last Login — justify-start so the dot + label sit at a fixed
+            position across rows (not centered within the variable-width text). */}
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground max-sm:hidden">
           <span
             className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
               employee.is_active ? "bg-emerald-500" : "bg-gray-300"
             }`}
           />
-          <span>{employee.is_active ? "פעיל" : "מושבת"}</span>
+          <span className="w-10">{employee.is_active ? "פעיל" : "מושבת"}</span>
           <span className="text-border">|</span>
-          <span>{formatLastLogin(employee.last_login)}</span>
+          <span className="tabular-nums">{formatLastLogin(employee.last_login)}</span>
         </div>
 
         {/* Chevron */}
         <Icon
           name="chevron_left"
           size="sm"
-          className="text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0"
+          className="text-muted-foreground/40 group-hover:text-primary transition-colors"
         />
       </div>
     </button>
