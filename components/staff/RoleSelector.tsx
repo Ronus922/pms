@@ -6,7 +6,7 @@ import { ROLES, ROLE_STYLES, type Role } from "@/lib/permissions/constants"
 /* ── Props ─────────────────────────────────────────────────── */
 
 interface RoleSelectorProps {
-  value: Role
+  value: Role | null
   onChange: (role: Role) => void
   assignableRoles: Role[]
 }

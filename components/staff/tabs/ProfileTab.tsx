@@ -11,8 +11,11 @@ import {
   updateUserAuthSettings,
   resetUserPassword,
   resendCredentialsToUser,
+  deleteEmployee,
 } from "@/lib/actions/permissions"
 import { useTenant } from "@/lib/hooks/use-tenant"
+import { useStaffStore } from "@/lib/stores/staff-store"
+import { asciiOnly } from "@/lib/utils/text-filters"
 
 /* ── Props ─────────────────────────────────────────────────── */
 
@@ -46,6 +49,10 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
   const [originalUsername, setOriginalUsername] = useState(employee.username || "")
   const [allowGoogleAuth, setAllowGoogleAuth] = useState(employee.allow_google_auth ?? false)
   const [originalAllowGoogleAuth, setOriginalAllowGoogleAuth] = useState(employee.allow_google_auth ?? false)
+  /* Inline password set — empty means "leave unchanged". Sent to the server
+   * only when length >= 8. Cleared on every successful save. */
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
 
   /* ── Reset password modal state ──────────────────────────── */
   const [showResetPassword, setShowResetPassword] = useState(false)
@@ -53,6 +60,11 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
   const [emailNewPassword, setEmailNewPassword] = useState(true)
   const [resetResult, setResetResult] = useState<{ password: string } | null>(null)
   const [authActionPending, setAuthActionPending] = useState(false)
+
+  /* ── Delete employee state ───────────────────────────────── */
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const closeStaffPanel = useStaffStore((s) => s.closePanel)
 
   function updateField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -98,6 +110,27 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
       setOriginalAllowGoogleAuth(allowGoogleAuth)
     }
 
+    /* Inline password — only sent when admin typed a valid value.
+     * Empty stays untouched, < 8 chars blocks the save with inline error. */
+    const trimmedPassword = password.trim()
+    if (trimmedPassword.length > 0) {
+      if (trimmedPassword.length < 8) {
+        setError("סיסמה חייבת להכיל לפחות 8 תווים")
+        setSaving(false)
+        return
+      }
+      const pwRes = await resetUserPassword(employee.id, tenantId, trimmedPassword, {
+        sendEmail: false,
+      })
+      if (!pwRes.success) {
+        setError(pwRes.error || "שגיאה בעדכון הסיסמה")
+        setSaving(false)
+        return
+      }
+      setPassword("")
+      setShowPassword(false)
+    }
+
     setSaving(false)
     onSaved()
   }
@@ -108,7 +141,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
     document.addEventListener("staff-panel-save", handler)
     return () => document.removeEventListener("staff-panel-save", handler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing, form, username, allowGoogleAuth, originalUsername, originalAllowGoogleAuth])
+  }, [isEditing, form, username, allowGoogleAuth, password, originalUsername, originalAllowGoogleAuth])
 
   /* ── Auth side-actions (independent of edit mode) ────────── */
   async function handleResetPassword() {
@@ -140,6 +173,21 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
       setError(res.error || "שגיאה בשליחת הקישור")
     }
     setAuthActionPending(false)
+  }
+
+  async function handleDeleteEmployee() {
+    setDeleting(true)
+    setError("")
+    const res = await deleteEmployee(employee.id, tenantId)
+    if (!res.success) {
+      setError(res.error || "שגיאה במחיקת העובד")
+      setDeleting(false)
+      return
+    }
+    setShowDeleteConfirm(false)
+    setDeleting(false)
+    onSaved() // refresh the staff list
+    closeStaffPanel() // close the side panel
   }
 
   function generateRandomPassword() {
@@ -334,15 +382,62 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
           <input
             type="text"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => setUsername(asciiOnly(e.target.value))}
             className={inputClass}
             placeholder="ללא שם משתמש — רק אימייל"
             dir="ltr"
+            lang="en"
+            inputMode="email"
             autoComplete="off"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-form-type="other"
           />
           <p className="text-[11px] text-muted-foreground mt-1">
             אם תוגדר — העובד יוכל להתחבר גם עם שם המשתמש במקום אימייל.
           </p>
+        </FormField>
+
+        <FormField label="סיסמה">
+          <div className="relative">
+            <Icon
+              name="lock"
+              size="sm"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+            />
+            <input
+              type={showPassword ? "text" : "password"}
+              name={`np_${employee.id}`}
+              value={password}
+              onChange={(e) => setPassword(asciiOnly(e.target.value))}
+              className={`${inputClass} pr-11 pl-12`}
+              placeholder="השאר ריק כדי לא לשנות סיסמה"
+              dir="ltr"
+              lang="en"
+              inputMode="text"
+              autoComplete="new-password"
+              data-lpignore="true"
+              data-1p-ignore="true"
+              data-form-type="other"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+              className="absolute left-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-border/40 text-muted-foreground"
+            >
+              <Icon name={showPassword ? "visibility_off" : "visibility"} size="sm" />
+            </button>
+          </div>
+          {password.length > 0 && password.length < 8 ? (
+            <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 font-bold">
+              הסיסמה חייבת להכיל לפחות 8 תווים
+            </p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground mt-1">
+              לקביעת סיסמה ראשונית — לעובדים בלי אימייל פעיל. הסיסמה לא תוצג שוב לאחר השמירה.
+            </p>
+          )}
         </FormField>
 
         <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
@@ -462,6 +557,49 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
             </button>
           </div>
         )}
+
+        {/* Danger zone — delete employee */}
+        <div className="pt-4 border-t border-rose-200/60 dark:border-rose-900/40">
+          {!showDeleteConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={authActionPending || deleting}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 text-rose-700 dark:text-rose-300 text-sm font-bold transition-colors min-h-[44px] disabled:opacity-50"
+            >
+              <Icon name="delete" size="sm" />
+              מחק עובד
+            </button>
+          ) : (
+            <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-300 dark:border-rose-800 rounded-xl p-4 space-y-3">
+              <h4 className="text-sm font-bold flex items-center gap-2 text-rose-700 dark:text-rose-300">
+                <Icon name="warning" size="sm" />
+                מחיקת עובד
+              </h4>
+              <p className="text-sm text-rose-800 dark:text-rose-200">
+                העובד <strong>{employee.full_name}</strong> יושבת באופן מיידי ולא יוכל להתחבר. הפעולה מסירה אותו מרשימת העובדים הפעילים. הסטוריית הזמנות ומשימות נשמרת.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleDeleteEmployee}
+                  disabled={deleting}
+                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 min-h-[44px]"
+                >
+                  {deleting ? "מוחק..." : "כן, מחק"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="px-4 py-2 rounded-xl text-sm bg-white dark:bg-black/20 border border-border/40 min-h-[44px] disabled:opacity-50"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -146,14 +146,29 @@ export async function inviteUser(
     const tenantId = actor.tenantId
     const invitedById = actor.userId
 
-    const [existingByEmail] = await db`
-      SELECT id FROM users WHERE tenant_id = ${tenantId} AND email = ${data.email}
-    `
-    if (existingByEmail) {
-      return { success: false, error: "משתמש עם אימייל זה כבר קיים" }
+    const realEmail = data.email?.trim() || null
+    const cleanedUsername = data.username?.trim() || null
+
+    /* Server-side guard: at least one identifier. If no real email, the user
+     * must have a username so they can log in. */
+    if (!realEmail && !cleanedUsername) {
+      return { success: false, error: "נדרש אימייל או שם משתמש" }
+    }
+    /* Synthetic email keeps the auth.users + public.users NOT NULL constraint
+     * satisfied for users created without a real address (cleaners with no
+     * inbox). Domain is reserved and unroutable. */
+    const effectiveEmail =
+      realEmail ?? `${cleanedUsername}-${Date.now()}@no-email.local`
+
+    if (realEmail) {
+      const [existingByEmail] = await db`
+        SELECT id FROM users WHERE tenant_id = ${tenantId} AND email = ${realEmail}
+      `
+      if (existingByEmail) {
+        return { success: false, error: "משתמש עם אימייל זה כבר קיים" }
+      }
     }
 
-    const cleanedUsername = data.username?.trim() || null
     if (cleanedUsername) {
       const [existingByUsername] = await db`
         SELECT id FROM users
@@ -165,11 +180,15 @@ export async function inviteUser(
       }
     }
 
-    const password = data.password || generateTempPassword()
+    const manualPassword = data.password?.trim() || ""
+    if (manualPassword && manualPassword.length < 8) {
+      return { success: false, error: "סיסמה חייבת להכיל לפחות 8 תווים" }
+    }
+    const password = manualPassword || generateTempPassword()
 
     const supabase = createAdminSupabase()
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: data.email,
+      email: effectiveEmail,
       password,
       email_confirm: true,
     })
@@ -184,7 +203,7 @@ export async function inviteUser(
         role, is_active, allow_google_auth, invited_by
       )
       VALUES (
-        ${authData.user.id}, ${tenantId}, ${data.email}, ${cleanedUsername},
+        ${authData.user.id}, ${tenantId}, ${effectiveEmail}, ${cleanedUsername},
         ${data.fullName}, ${data.phone || ""}, ${data.role}, true,
         ${data.allowGoogleAuth ?? false}, ${invitedById}
       )
@@ -201,10 +220,12 @@ export async function inviteUser(
       }
     }
 
-    if (data.sendCredentials) {
+    /* Only attempt delivery to a real address. Synthetic @no-email.local
+     * addresses are unroutable and would just bounce. */
+    if (data.sendCredentials && realEmail) {
       // Non-fatal: account is created even if email delivery fails.
       await sendCredentialsEmail({
-        to: data.email,
+        to: realEmail,
         fullName: data.fullName,
         username: cleanedUsername,
         password,
@@ -388,6 +409,76 @@ export async function toggleUserActive(
   }
 }
 
+/* ── Delete Employee ────────────────────────────────────────── */
+
+/**
+ * Soft-delete an employee. Why soft and not hard:
+ * - Other tables (reservations, tasks, hours, audit logs) FK to users with
+ *   NO CASCADE, so a hard DELETE would either fail or orphan historical data.
+ *
+ * What happens:
+ * 1. is_active flipped to false.
+ * 2. username cleared (frees the per-tenant unique index for reuse).
+ * 3. email suffixed with "_deleted_<unix>" (frees the unique index).
+ * 4. The Supabase auth.users record is hard-deleted — this revokes any open
+ *    sessions and prevents future logins via password or Google.
+ */
+export async function deleteEmployee(
+  userId: string,
+  _tenantId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
+
+    const [target] = await db`
+      SELECT id, role, email, username FROM users
+      WHERE id = ${userId} AND tenant_id = ${tenantId}
+    `
+    if (!target) return { success: false, error: "המשתמש לא נמצא" }
+
+    if (target.id === actor.userId) {
+      throw new AuthorizationError("לא ניתן למחוק את עצמך")
+    }
+
+    const targetRole = (target.role as Role) ?? "receptionist"
+    if (targetRole === "super_admin") {
+      throw new AuthorizationError("לא ניתן למחוק סופר אדמין")
+    }
+    if (!canManageRole(actor.role, targetRole)) {
+      throw new AuthorizationError("אין הרשאה למחוק משתמש זה")
+    }
+
+    const stamp = Date.now()
+    const suffixedEmail = `${target.email}_deleted_${stamp}`
+
+    await db`
+      UPDATE users
+      SET is_active = false,
+          username = NULL,
+          email = ${suffixedEmail},
+          updated_at = NOW()
+      WHERE id = ${userId} AND tenant_id = ${tenantId}
+    `
+
+    // Best-effort: revoke auth so the user is locked out immediately. We
+    // don't fail the whole operation if Supabase returns an error here —
+    // the DB row is already deactivated and emails freed.
+    const supabase = createAdminSupabase()
+    await supabase.auth.admin.deleteUser(userId).catch(() => {})
+
+    return { success: true }
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return { success: false, error: err.message }
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "שגיאה במחיקת המשתמש",
+    }
+  }
+}
+
 /* ── Update Auth Settings (username + Google flag) ──────────── */
 
 export async function updateUserAuthSettings(
@@ -472,8 +563,8 @@ export async function resetUserPassword(
   newPassword: string,
   options?: { sendEmail?: boolean }
 ): Promise<{ success: boolean; error?: string }> {
-  if (!newPassword || newPassword.length < 6) {
-    return { success: false, error: "סיסמה חייבת להכיל לפחות 6 תווים" }
+  if (!newPassword || newPassword.length < 8) {
+    return { success: false, error: "סיסמה חייבת להכיל לפחות 8 תווים" }
   }
 
   try {

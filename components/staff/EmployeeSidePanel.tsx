@@ -18,6 +18,7 @@ import { getEmployeeProfile } from "@/lib/actions/staff"
 import { inviteUser } from "@/lib/actions/permissions"
 import { ROLES, type Role } from "@/lib/permissions/constants"
 import type { EmployeeWithPermissions, StaffTab } from "@/lib/types/staff"
+import { asciiOnly } from "@/lib/utils/text-filters"
 
 /* ── Tab Config ────────────────────────────────────────────── */
 
@@ -66,12 +67,14 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
     phone: "",
     password: "",
     username: "",
-    allowGoogleAuth: false,
+    allowGoogleAuth: true,
+    enableUsernameLogin: false,
     sendCredentials: true,
   })
-  const [inviteRole, setInviteRole] = useState<Role>("receptionist")
+  const [inviteRole, setInviteRole] = useState<Role | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [showInvitePassword, setShowInvitePassword] = useState(false)
 
   const [notFound, setNotFound] = useState(false)
 
@@ -102,11 +105,13 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
         phone: "",
         password: "",
         username: "",
-        allowGoogleAuth: false,
+        allowGoogleAuth: true,
+        enableUsernameLogin: false,
         sendCredentials: true,
       })
-      setInviteRole("receptionist")
+      setInviteRole(null)
       setError("")
+      setShowInvitePassword(false)
     }
   }, [isOpen, isInvite, loadEmployee])
 
@@ -120,22 +125,57 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
 
   /* ── Invite Handler ── */
   async function handleInvite() {
-    if (!inviteForm.fullName.trim() || !inviteForm.email.trim() || !inviteForm.password.trim()) {
-      setError("יש למלא את כל שדות החובה")
+    if (!inviteForm.fullName.trim()) {
+      setError("שם מלא הוא שדה חובה")
+      return
+    }
+    if (!inviteForm.phone.trim()) {
+      setError("טלפון הוא שדה חובה")
+      return
+    }
+    if (!inviteRole) {
+      setError("יש לבחור תפקיד")
+      return
+    }
+    if (!inviteForm.allowGoogleAuth && !inviteForm.enableUsernameLogin) {
+      setError("יש לסמן לפחות שיטת התחברות אחת — Google או שם משתמש וסיסמה")
+      return
+    }
+    if (inviteForm.allowGoogleAuth && !inviteForm.email.trim()) {
+      setError("התחברות עם Google דורשת אימייל")
+      return
+    }
+    const trimmedUsername = inviteForm.username.trim()
+    const trimmedPassword = inviteForm.password.trim()
+    if (inviteForm.enableUsernameLogin && !trimmedUsername) {
+      setError("שם משתמש הוא שדה חובה כשהתחברות עם שם משתמש מופעלת")
+      return
+    }
+    if (inviteForm.enableUsernameLogin && trimmedPassword.length > 0 && trimmedPassword.length < 8) {
+      setError("הסיסמה חייבת להכיל לפחות 8 תווים")
       return
     }
     setSaving(true)
     setError("")
 
+    /* Auth-method routing:
+     * - Username/password disabled → no username sent; server-generated temp
+     *   password (unused if Google-only).
+     * - Enabled with manual password → admin's password used.
+     * - Enabled without password → server temp + credentials email forced. */
+    const hasManualPassword =
+      inviteForm.enableUsernameLogin && trimmedPassword.length >= 8
+    const needsCredentialsEmail =
+      inviteForm.enableUsernameLogin && !hasManualPassword
     const res = await inviteUser(tenantId, currentUserId, {
       email: inviteForm.email.trim(),
       fullName: inviteForm.fullName.trim(),
       phone: inviteForm.phone.trim(),
-      role: inviteRole,
-      password: inviteForm.password,
-      username: inviteForm.username.trim() || null,
+      role: inviteRole as Role,
+      password: hasManualPassword ? trimmedPassword : "",
+      username: inviteForm.enableUsernameLogin ? trimmedUsername || null : null,
       allowGoogleAuth: inviteForm.allowGoogleAuth,
-      sendCredentials: inviteForm.sendCredentials,
+      sendCredentials: needsCredentialsEmail ? true : inviteForm.sendCredentials,
     })
 
     if (!res.success) {
@@ -226,18 +266,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                   />
                 </FormField>
 
-                <FormField label="אימייל" required>
-                  <input
-                    type="email"
-                    value={inviteForm.email}
-                    onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
-                    className={inputClass}
-                    placeholder="email@example.com"
-                    dir="ltr"
-                  />
-                </FormField>
-
-                <FormField label="טלפון">
+                <FormField label="טלפון" required>
                   <input
                     type="tel"
                     value={inviteForm.phone}
@@ -245,32 +274,19 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                     className={inputClass}
                     placeholder="050-0000000"
                     dir="ltr"
+                    inputMode="tel"
                   />
                 </FormField>
 
-                <FormField label="סיסמה" required>
+                <FormField label="אימייל">
                   <input
-                    type="password"
-                    value={inviteForm.password}
-                    onChange={(e) => setInviteForm((f) => ({ ...f, password: e.target.value }))}
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
                     className={inputClass}
-                    placeholder="סיסמה ראשונית לעובד"
-                  />
-                </FormField>
-
-                <FormField label="שם משתמש (אופציונלי)">
-                  <input
-                    type="text"
-                    value={inviteForm.username}
-                    onChange={(e) => setInviteForm((f) => ({ ...f, username: e.target.value }))}
-                    className={inputClass}
-                    placeholder="לדוגמה: yossi-reception"
+                    placeholder="email@example.com — חובה רק להתחברות עם Google"
                     dir="ltr"
-                    autoComplete="off"
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    אם תוגדר — העובד יוכל להתחבר גם עם שם המשתמש במקום אימייל
-                  </p>
                 </FormField>
 
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
@@ -283,7 +299,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                   <div className="flex-1">
                     <p className="text-sm font-bold">אפשר התחברות עם Google</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      העובד יוכל להתחבר גם בלחיצה על &ldquo;התחבר עם Google&rdquo; במסך הכניסה
+                      העובד יוכל להתחבר בלחיצה על &ldquo;התחבר עם Google&rdquo; — צריך רק אימייל
                     </p>
                   </div>
                 </label>
@@ -291,17 +307,102 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
                   <input
                     type="checkbox"
-                    checked={inviteForm.sendCredentials}
-                    onChange={(e) => setInviteForm((f) => ({ ...f, sendCredentials: e.target.checked }))}
+                    checked={inviteForm.enableUsernameLogin}
+                    onChange={(e) => setInviteForm((f) => ({ ...f, enableUsernameLogin: e.target.checked }))}
                     className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
                   />
                   <div className="flex-1">
-                    <p className="text-sm font-bold">שלח פרטי התחברות במייל</p>
+                    <p className="text-sm font-bold">אפשר התחברות עם שם משתמש וסיסמה</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      העובד יקבל מייל עם שם המשתמש והסיסמה הראשונית
+                      לעובדים בלי אימייל פעיל — מנהל קובע שם משתמש וסיסמה
                     </p>
                   </div>
                 </label>
+
+                {inviteForm.enableUsernameLogin && (
+                  <>
+                    <FormField label="שם משתמש" required>
+                      <input
+                        type="text"
+                        value={inviteForm.username}
+                        onChange={(e) =>
+                          setInviteForm((f) => ({ ...f, username: asciiOnly(e.target.value) }))
+                        }
+                        className={inputClass}
+                        placeholder="לדוגמה: yossi-reception"
+                        dir="ltr"
+                        lang="en"
+                        inputMode="email"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-form-type="other"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        אותיות באנגלית, ספרות, נקודה / מקף / קו תחתון בלבד
+                      </p>
+                    </FormField>
+
+                    <FormField label="סיסמה">
+                      <div className="relative">
+                        <Icon
+                          name="lock"
+                          size="sm"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                        />
+                        <input
+                          type={showInvitePassword ? "text" : "password"}
+                          name={`np_${employee?.id ?? "new"}_${selectedEmployeeId ?? "x"}`}
+                          value={inviteForm.password}
+                          onChange={(e) =>
+                            setInviteForm((f) => ({ ...f, password: asciiOnly(e.target.value) }))
+                          }
+                          className={`${inputClass} pr-11 pl-12`}
+                          placeholder="אופציונלי — אם ריק, יישלח קישור הזמנה"
+                          dir="ltr"
+                          lang="en"
+                          inputMode="text"
+                          autoComplete="new-password"
+                          data-lpignore="true"
+                          data-1p-ignore="true"
+                          data-form-type="other"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowInvitePassword((v) => !v)}
+                          aria-label={showInvitePassword ? "הסתר סיסמה" : "הצג סיסמה"}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-border/40 text-muted-foreground"
+                        >
+                          <Icon name={showInvitePassword ? "visibility_off" : "visibility"} size="sm" />
+                        </button>
+                      </div>
+                      {inviteForm.password.length > 0 && inviteForm.password.length < 8 ? (
+                        <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 font-bold">
+                          הסיסמה חייבת להכיל לפחות 8 תווים
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          אם ריק — תיווצר סיסמה אוטומטית ותישלח במייל. אם מולא — העובד יוכל להתחבר מיד.
+                        </p>
+                      )}
+                    </FormField>
+
+                    <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
+                      <input
+                        type="checkbox"
+                        checked={inviteForm.sendCredentials}
+                        onChange={(e) => setInviteForm((f) => ({ ...f, sendCredentials: e.target.checked }))}
+                        className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-bold">שלח פרטי התחברות במייל</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          העובד יקבל מייל עם שם המשתמש והסיסמה הראשונית
+                        </p>
+                      </div>
+                    </label>
+                  </>
+                )}
               </div>
 
               {/* Role Selector */}
