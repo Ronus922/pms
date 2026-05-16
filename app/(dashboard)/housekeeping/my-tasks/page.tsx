@@ -171,21 +171,21 @@ export default function MyTasksPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#1e40af] px-4 py-4 shadow-md">
+      <header className="sticky top-0 z-40 bg-[#1e40af] px-3 py-2.5 shadow-md">
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center">
-              <Icon name="cleaning_services" size="md" className="text-white" />
-            </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-extrabold text-white font-headline">המשימות שלי</h1>
-              <p className="text-xs text-blue-100 tabular-nums">{fmtDate(date)}</p>
+              <h1 className="text-sm font-bold text-white font-headline">המשימות שלי</h1>
+              <p className="text-[11px] text-white opacity-85 tabular-nums">{fmtDate(date)}</p>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+              <Icon name="cleaning_services" size="sm" className="text-white" />
             </div>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={loadTasks}
-                className="w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+                className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
                 aria-label="רענן"
               >
                 <Icon name="refresh" size="sm" className="text-white" />
