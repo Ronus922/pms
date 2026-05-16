@@ -14,23 +14,71 @@
  */
 
 import { db } from "@/lib/db"
+import { isPointInArea } from "@/lib/services/geofencing"
 import type {
+  AreaGeometry,
   AttendanceRecord,
   AttendanceSummary,
 } from "@/lib/types/attendance"
+
+export type GeoCoords = { lat: number; lng: number }
+
+type UserGeofenceRow = {
+  id: string
+  attendance_area_id: string | null
+  geometry: AreaGeometry | null
+  area_name: string | null
+}
+
+async function checkGeofence(
+  tenantId: string,
+  userId: string,
+  coords: GeoCoords | undefined,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [user] = (await db`
+    SELECT u.id, u.attendance_area_id, a.geometry, a.name AS area_name
+    FROM users u
+    LEFT JOIN attendance_areas a
+      ON a.id = u.attendance_area_id
+     AND a.deleted_at IS NULL
+    WHERE u.id = ${userId} AND u.tenant_id = ${tenantId}
+  `) as unknown as [UserGeofenceRow?]
+
+  if (!user || user.attendance_area_id === null) return { ok: true }
+
+  if (!coords) {
+    return { ok: false, error: "נדרשת הרשאת מיקום לדיווח נוכחות" }
+  }
+
+  if (!user.geometry) return { ok: true }
+
+  if (!isPointInArea(coords.lat, coords.lng, user.geometry)) {
+    return {
+      ok: false,
+      error: `יש לדווח מתוך אזור "${user.area_name ?? ""}"`,
+    }
+  }
+  return { ok: true }
+}
 
 /* ── 1. Clock in ──────────────────────────────────────────── */
 
 export async function clockIn(
   tenantId: string,
   userId: string,
+  coords?: GeoCoords,
 ): Promise<{ success: boolean; error?: string; recordId?: string }> {
+  const gate = await checkGeofence(tenantId, userId, coords)
+  if (!gate.ok) return { success: false, error: gate.error }
+
   try {
     const [row] = await db`
       INSERT INTO attendance_records
         (tenant_id, user_id, clock_in, work_date, source)
       VALUES
-        (${tenantId}, ${userId}, NOW(), CURRENT_DATE, 'self')
+        (${tenantId}, ${userId}, NOW(),
+         (NOW() AT TIME ZONE 'Asia/Jerusalem')::date,
+         'self')
       RETURNING id
     `
     return { success: true, recordId: (row as { id: string }).id }
@@ -54,7 +102,11 @@ export async function clockIn(
 export async function clockOut(
   tenantId: string,
   userId: string,
+  coords?: GeoCoords,
 ): Promise<{ success: boolean; error?: string }> {
+  const gate = await checkGeofence(tenantId, userId, coords)
+  if (!gate.ok) return { success: false, error: gate.error }
+
   try {
     const rows = await db`
       UPDATE attendance_records

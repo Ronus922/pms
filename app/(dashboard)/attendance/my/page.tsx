@@ -1,25 +1,18 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { Icon } from "@/components/shared/Icon"
+import { cn } from "@/lib/utils"
 import { useTenant } from "@/lib/hooks/use-tenant"
 import {
   clockIn,
   clockOut,
+  getMyAttendance,
   getOpenShift,
-  getTodayPunches,
 } from "@/lib/actions/attendance"
 import type { AttendanceRecord } from "@/lib/types/attendance"
 
 /* ── Helpers ────────────────────────────────────────────── */
-
-/** "HH:mm:ss" zero-padded, locale-stable. */
-function fmtHMS(d: Date): string {
-  const h = String(d.getHours()).padStart(2, "0")
-  const m = String(d.getMinutes()).padStart(2, "0")
-  const s = String(d.getSeconds()).padStart(2, "0")
-  return `${h}:${m}:${s}`
-}
 
 /** "HH:mm" in he-IL locale (24h). */
 function fmtHM(iso: string): string {
@@ -49,6 +42,19 @@ function fmtHebrewDate(d: Date): string {
   })
 }
 
+/** "מאי 2026" */
+function fmtHebrewMonth(d: Date): string {
+  return d.toLocaleDateString("he-IL", { month: "long", year: "numeric" })
+}
+
+/** Local-tz `YYYY-MM-DD` (avoids UTC drift from `Date#toISOString`). */
+function toISODateLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
 /** Hours decimal from a closed shift (clock_out - clock_in). */
 function shiftHours(rec: AttendanceRecord): number {
   if (!rec.clock_out) return 0
@@ -58,13 +64,26 @@ function shiftHours(rec: AttendanceRecord): number {
   )
 }
 
+/** Best-effort browser geolocation; `null` if unsupported, denied, or timed out. */
+async function getCurrentCoords(): Promise<{ lat: number; lng: number } | null> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) return null
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    )
+  })
+}
+
 /* ── Page ───────────────────────────────────────────────── */
 
 export default function MyAttendancePage() {
   const { tenantId, userId } = useTenant()
 
   const [openShift, setOpenShift] = useState<AttendanceRecord | null>(null)
-  const [todayPunches, setTodayPunches] = useState<AttendanceRecord[]>([])
+  const [monthRecords, setMonthRecords] = useState<AttendanceRecord[]>([])
   const [busy, setBusy] = useState(false)
   const [now, setNow] = useState(new Date())
 
@@ -72,12 +91,18 @@ export default function MyAttendancePage() {
   const clockRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadData = useCallback(async () => {
-    const [shift, punches] = await Promise.all([
+    const today = new Date()
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const lastOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+    const fromDate = toISODateLocal(firstOfMonth)
+    const toDate = toISODateLocal(lastOfMonth)
+
+    const [shift, month] = await Promise.all([
       getOpenShift(tenantId, userId),
-      getTodayPunches(tenantId, userId),
+      getMyAttendance(tenantId, userId, fromDate, toDate),
     ])
     setOpenShift(shift)
-    setTodayPunches(punches)
+    setMonthRecords(month)
   }, [tenantId, userId])
 
   useEffect(() => {
@@ -95,7 +120,8 @@ export default function MyAttendancePage() {
 
   const handleClockIn = useCallback(async () => {
     setBusy(true)
-    const res = await clockIn(tenantId, userId)
+    const coords = await getCurrentCoords()
+    const res = await clockIn(tenantId, userId, coords ?? undefined)
     if (!res.success && res.error) {
       alert(res.error)
     }
@@ -105,7 +131,8 @@ export default function MyAttendancePage() {
 
   const handleClockOut = useCallback(async () => {
     setBusy(true)
-    const res = await clockOut(tenantId, userId)
+    const coords = await getCurrentCoords()
+    const res = await clockOut(tenantId, userId, coords ?? undefined)
     if (!res.success && res.error) {
       alert(res.error)
     }
@@ -114,140 +141,278 @@ export default function MyAttendancePage() {
   }, [tenantId, userId, loadData])
 
   const isOpen = openShift !== null
-  const closedTodayCount = todayPunches.filter((p) => p.clock_out).length
-  const todayCycles = todayPunches.length
-  const totalHoursToday = todayPunches.reduce((sum, p) => sum + shiftHours(p), 0)
+
+  /* ── Monthly aggregates ─────────────────────────────────── */
+
+  const totalMonthHours = monthRecords.reduce(
+    (sum, r) => sum + shiftHours(r),
+    0,
+  )
+  const workedDays = new Set(
+    monthRecords.map((r) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Jerusalem",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(r.clock_in)),
+    ),
+  ).size
+
+  const monthDays = useMemo(() => {
+    type DayShift = {
+      clockIn: string
+      clockOut: string | null
+      hours: number | null
+    }
+    type Day = {
+      dateISO: string
+      dateDisplay: string
+      weekday: string
+      shifts: DayShift[]
+      totalHours: number
+    }
+
+    const byDate = new Map<string, AttendanceRecord[]>()
+    for (const r of monthRecords) {
+      // Group by clock_in projected to Asia/Jerusalem, not by the DB's
+      // work_date — older rows had work_date stored under UTC and would
+      // otherwise land in the wrong day.
+      const dt = new Date(r.clock_in)
+      const key = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Jerusalem",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(dt)
+      const arr = byDate.get(key) ?? []
+      arr.push(r)
+      byDate.set(key, arr)
+    }
+
+    const days: Day[] = []
+    for (const [dateISO, records] of byDate) {
+      records.sort((a, b) => {
+        const aTime = new Date(a.clock_in).getTime()
+        const bTime = new Date(b.clock_in).getTime()
+        return aTime - bTime
+      })
+
+      // Anchor at midday to dodge DST flips when formatting in IL TZ.
+      const date = new Date(`${dateISO}T12:00:00Z`)
+      const shifts: DayShift[] = records.map((r) => {
+        const hours = r.clock_out
+          ? (new Date(r.clock_out).getTime() -
+              new Date(r.clock_in).getTime()) /
+            3_600_000
+          : null
+        return {
+          clockIn: fmtHM(r.clock_in),
+          clockOut: r.clock_out ? fmtHM(r.clock_out) : null,
+          hours,
+        }
+      })
+
+      const totalHours = shifts.reduce(
+        (sum, s) => sum + (s.hours ?? 0),
+        0,
+      )
+
+      days.push({
+        dateISO,
+        dateDisplay: date.toLocaleDateString("he-IL", {
+          timeZone: "Asia/Jerusalem",
+        }),
+        weekday: date.toLocaleDateString("he-IL", {
+          weekday: "short",
+          timeZone: "Asia/Jerusalem",
+        }),
+        shifts,
+        totalHours,
+      })
+    }
+
+    days.sort((a, b) => a.dateISO.localeCompare(b.dateISO))
+    return days
+  }, [monthRecords])
 
   /* ── Render ─────────────────────────────────────────────── */
 
   return (
     <div className="min-h-screen bg-background">
       {/* Sticky gradient header */}
-      <header className="sticky top-0 z-40 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] px-4 py-4 shadow-md">
+      <header className="sticky top-0 z-40 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] px-3 py-2.5 shadow-md">
         <div className="max-w-md mx-auto flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center">
-            <Icon name="schedule" size="md" className="text-white" />
-          </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-extrabold text-white font-headline">
+            <h1 className="text-sm font-bold text-white font-headline">
               שעון נוכחות
             </h1>
-            <p className="text-xs text-blue-100">{fmtHebrewDate(now)}</p>
+            <p className="text-[11px] text-white opacity-85">{fmtHebrewDate(now)}</p>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+            <Icon name="schedule" size="sm" className="text-white" />
           </div>
         </div>
       </header>
 
       {/* Body */}
       <main className="max-w-md mx-auto p-4 space-y-4">
-        {/* Hero card */}
-        <section className="rounded-[20px] bg-card border border-border/15 p-6 shadow-sm flex flex-col items-center gap-6">
-          {/* Live wall clock */}
-          <div className="text-5xl font-extrabold tabular-nums text-center" dir="ltr">
-            {fmtHMS(now)}
-          </div>
-
-          {/* Giant punch button */}
+        {/* Standalone circular punch button (no card wrapper) */}
+        <div className="flex flex-col items-center gap-2 py-5">
           <button
             type="button"
             onClick={isOpen ? handleClockOut : handleClockIn}
             disabled={busy}
-            className={`w-48 h-48 rounded-full shadow-2xl flex flex-col items-center justify-center gap-3 text-white font-extrabold text-2xl transition-all active:scale-95 hover:shadow-3xl disabled:opacity-50 disabled:cursor-not-allowed ${
-              isOpen
-                ? "bg-gradient-to-br from-rose-400 to-rose-600"
-                : "bg-gradient-to-br from-emerald-400 to-emerald-600"
-            }`}
             aria-label={isOpen ? "יצאתי" : "הגעתי"}
+            className={cn(
+              "w-32 h-32 rounded-full",
+              "flex flex-col items-center justify-center gap-1",
+              "text-white font-extrabold text-base",
+              "shadow-2xl transition-all duration-300",
+              "active:scale-95 disabled:opacity-60",
+              isOpen
+                ? "bg-gradient-to-br from-rose-400 via-rose-500 to-rose-600 hover:shadow-rose-300/50"
+                : "bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 hover:shadow-emerald-300/50",
+            )}
           >
-            <Icon name={isOpen ? "logout" : "login"} size="xl" className="text-white" />
-            {isOpen ? "יצאתי" : "הגעתי"}
+            {busy ? (
+              <>
+                <Icon name="my_location" size="lg" className="animate-pulse" />
+                <span className="text-xs font-bold">מאתר מיקום...</span>
+              </>
+            ) : isOpen ? (
+              <>
+                <Icon name="logout" size="lg" />
+                <span>יצאתי</span>
+              </>
+            ) : (
+              <>
+                <Icon name="login" size="lg" />
+                <span>הגעתי</span>
+              </>
+            )}
           </button>
 
-          {/* Active-shift hint + live elapsed timer */}
           {isOpen && openShift && (
-            <div className="text-center space-y-1">
-              <p className="text-xs text-muted-foreground">
+            <div className="text-center space-y-0.5">
+              <div className="text-[11px] text-muted-foreground">
                 פעיל מ-{fmtHM(openShift.clock_in)}
-              </p>
-              <p
-                className="text-2xl font-extrabold tabular-nums text-emerald-600"
+              </div>
+              <div
+                className="text-base font-extrabold tabular-nums text-rose-600"
                 dir="ltr"
               >
                 {fmtElapsed(now.getTime() - new Date(openShift.clock_in).getTime())}
-              </p>
+              </div>
             </div>
           )}
+        </div>
+
+        {/* Monthly summary card (moved above cycles) */}
+        <section className="bg-card rounded-[20px] border border-border/15 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-l from-[#003aa0] to-[#3F51B5] px-5 py-3 flex items-center justify-between">
+            <span className="text-white font-bold text-sm">
+              {fmtHebrewMonth(now)}
+            </span>
+            <span className="text-white/80 text-xs">סיכום חודשי</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 p-4">
+            <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-3 text-center">
+              <div className="text-xs text-emerald-700 dark:text-emerald-400 font-bold mb-1">
+                סה״כ שעות
+              </div>
+              <div
+                className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-300 tabular-nums"
+                dir="ltr"
+              >
+                {totalMonthHours.toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3 text-center">
+              <div className="text-xs text-blue-700 dark:text-blue-400 font-bold mb-1">
+                ימי עבודה
+              </div>
+              <div
+                className="text-2xl font-extrabold text-blue-700 dark:text-blue-300 tabular-nums"
+                dir="ltr"
+              >
+                {workedDays}
+              </div>
+            </div>
+          </div>
         </section>
 
-        {/* Today's cycles */}
-        <section className="rounded-[20px] bg-card border border-border/15 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-sm">מחזורים היום</h2>
-            <span className="text-[11px] font-bold tabular-nums bg-accent text-foreground/80 px-2.5 py-1 rounded-full">
-              {todayCycles}
-            </span>
+        {/* Monthly attendance report */}
+        <section className="bg-card rounded-[20px] border border-border/15 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-border/10">
+            <h3 className="font-bold text-sm">
+              דוח נוכחות - {fmtHebrewMonth(now)}
+            </h3>
           </div>
+          <div className="grid grid-cols-5 gap-2 px-4 py-2 bg-muted/50 border-b border-border/10 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+            <div>תאריך</div>
+            <div>יום</div>
+            <div className="text-center">הגעה</div>
+            <div className="text-center">יציאה</div>
+            <div className="text-end">סה״כ</div>
+          </div>
+          <div className="divide-y divide-border/10">
+            {monthDays.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                אין דיווחי נוכחות בחודש זה
+              </div>
+            ) : (
+              monthDays.map((day) => {
+                const isMultiShift = day.shifts.length > 1
 
-          {todayCycles === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-6">
-              <Icon
-                name="schedule"
-                size="xl"
-                className="text-muted-foreground opacity-30"
-              />
-              <p className="text-sm text-muted-foreground">
-                טרם דווחה משמרת היום
-              </p>
-            </div>
-          ) : (
-            <>
-              <ul className="space-y-2">
-                {todayPunches.map((rec, idx) => {
-                  const open = rec.clock_out === null
-                  const start = fmtHM(rec.clock_in)
-                  const end = open ? "פעיל" : fmtHM(rec.clock_out!)
-                  const hours = open ? null : shiftHours(rec).toFixed(2)
-                  return (
-                    <li
-                      key={rec.id}
-                      className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl bg-accent/40"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[11px] font-bold text-muted-foreground tabular-nums shrink-0">
-                          מחזור {idx + 1}:
-                        </span>
-                        <span className="text-sm font-bold tabular-nums" dir="ltr">
-                          {start} - {end}
-                        </span>
-                        {open && (
-                          <span
-                            className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"
-                            aria-label="פעיל"
-                          />
-                        )}
-                      </div>
-                      {hours !== null && (
-                        <span className="text-xs font-bold text-muted-foreground tabular-nums shrink-0">
-                          ({hours} שע׳)
-                        </span>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-
-              {closedTodayCount > 0 && (
-                <div className="mt-4 pt-3 border-t border-border/20 flex items-center justify-between">
-                  <span className="text-sm font-bold">סה״כ היום:</span>
-                  <span
-                    className="text-base font-extrabold tabular-nums"
-                    dir="ltr"
+                return (
+                  <div
+                    key={day.dateISO}
+                    className="border-b border-border/10 last:border-b-0"
                   >
-                    {totalHoursToday.toFixed(2)} שעות
-                  </span>
-                </div>
-              )}
-            </>
-          )}
+                    {day.shifts.map((shift, idx) => (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-5 gap-2 px-4 py-2.5 text-xs items-center"
+                      >
+                        <div className="font-bold tabular-nums" dir="ltr">
+                          {idx === 0 ? day.dateDisplay : ""}
+                        </div>
+                        <div className="text-muted-foreground">
+                          {idx === 0 ? day.weekday : ""}
+                        </div>
+                        <div className="tabular-nums text-center" dir="ltr">
+                          {shift.clockIn}
+                        </div>
+                        <div className="tabular-nums text-center" dir="ltr">
+                          {shift.clockOut ?? "-"}
+                        </div>
+                        <div className="tabular-nums text-end font-bold">
+                          {shift.hours !== null
+                            ? shift.hours.toFixed(2)
+                            : "-"}
+                        </div>
+                      </div>
+                    ))}
+
+                    {isMultiShift && (
+                      <div className="grid grid-cols-5 gap-2 px-4 py-1.5 bg-muted/30 text-[11px] items-center border-t border-border/5">
+                        <div></div>
+                        <div></div>
+                        <div></div>
+                        <div className="text-end text-muted-foreground font-bold">
+                          סה״כ:
+                        </div>
+                        <div className="tabular-nums text-end font-extrabold text-primary">
+                          {day.totalHours.toFixed(2)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
         </section>
       </main>
     </div>
