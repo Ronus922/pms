@@ -84,7 +84,6 @@ export const attendanceSettingsSchema = z
     user_id: z.string().uuid(),
     attendance_required: z.enum(ATTENDANCE_REQUIRED),
     attendance_area_id: z.string().uuid().nullable(),
-    report_absence_in_app: z.boolean(),
   })
   .refine(
     (d) => {

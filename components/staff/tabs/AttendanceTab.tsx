@@ -38,13 +38,11 @@ interface AttendanceTabProps {
 interface FormState {
   attendance_required: AttendanceRequired
   attendance_area_id: string | null
-  report_absence_in_app: boolean
 }
 
 const INITIAL_FORM: FormState = {
   attendance_required: "none",
   attendance_area_id: null,
-  report_absence_in_app: false,
 }
 
 export function AttendanceTab({
@@ -75,7 +73,6 @@ export function AttendanceTab({
           setForm({
             attendance_required: settings.attendance_required,
             attendance_area_id: settings.attendance_area_id,
-            report_absence_in_app: settings.report_absence_in_app,
           })
         }
         setAreas(areaList)
@@ -127,7 +124,6 @@ export function AttendanceTab({
       user_id: employee.id,
       attendance_required: form.attendance_required,
       attendance_area_id: form.attendance_area_id,
-      report_absence_in_app: form.report_absence_in_app,
     })
 
     setSaving(false)
@@ -245,29 +241,6 @@ export function AttendanceTab({
           )}
         </div>
       )}
-
-      {/* ── Additional options ─────────────────────────────── */}
-      <div className="rounded-[20px] bg-card p-5 shadow-sm border border-border/20">
-        <h3 className="text-base font-bold text-foreground mb-3">
-          אפשרויות נוספות
-        </h3>
-        <label className="flex items-center gap-3 p-3 rounded-xl transition-colors min-h-[44px] cursor-pointer hover:bg-[#f4f2fc]">
-          <input
-            type="checkbox"
-            checked={form.report_absence_in_app}
-            onChange={(e) =>
-              setForm((f) => ({
-                ...f,
-                report_absence_in_app: e.target.checked,
-              }))
-            }
-            className="h-4 w-4 cursor-pointer accent-[#1e40af]"
-          />
-          <span className="text-sm text-foreground">
-            אפשר לעובד לדווח על היעדרות באפליקציה
-          </span>
-        </label>
-      </div>
 
       {/* ── Saving indicator ───────────────────────────────── */}
       {saving && (

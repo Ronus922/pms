@@ -6,7 +6,16 @@ import { Icon } from "@/components/shared/Icon"
 import { usePermissions } from "@/lib/hooks/use-tenant"
 import { useReservationFormStore } from "@/lib/stores/reservation-form-store"
 
-const NAV_ITEMS = [
+type NavItem = {
+  href: string
+  icon: string
+  label: string
+  module: string
+  /** When true, require `edit` (not just `view`) on the module. */
+  requiresEdit?: boolean
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", icon: "dashboard", label: "דשבורד", module: "dashboard" },
   { href: "/calendar", icon: "calendar_month", label: "תפוסה", module: "calendar" },
   { href: "/reservations", icon: "receipt_long", label: "הזמנות", module: "reservations" },
@@ -17,6 +26,9 @@ const NAV_ITEMS = [
   { href: "/housekeeping", icon: "cleaning_services", label: "ניקיון", module: "housekeeping" },
   { href: "/maintenance", icon: "build", label: "תחזוקה", module: "maintenance" },
   { href: "/staff", icon: "badge", label: "עובדים", module: "staff" },
+  { href: "/attendance", icon: "schedule", label: "נוכחות", module: "attendance" },
+  { href: "/attendance/my-requests", icon: "event_busy", label: "הבקשות שלי", module: "absence_requests" },
+  { href: "/attendance/requests", icon: "fact_check", label: "אישור בקשות", module: "absence_requests", requiresEdit: true },
   { href: "/documents", icon: "description", label: "מסמכים", module: "documents" },
   { href: "/finance", icon: "payments", label: "כספים", module: "finance" },
   { href: "/suppliers", icon: "local_shipping", label: "ספקים", module: "suppliers" },
@@ -41,7 +53,11 @@ export function Sidebar({ tenantName = "GuestHub", collapsed = false, onToggle }
   const { can } = usePermissions()
   const openNewReservation = useReservationFormStore((s) => s.open)
 
-  const visibleNav = NAV_ITEMS.filter((item) => can(item.module, "view"))
+  const visibleNav = NAV_ITEMS.filter((item) =>
+    item.requiresEdit
+      ? can(item.module, "edit")
+      : can(item.module, "view"),
+  )
   const visibleBottom = BOTTOM_ITEMS.filter((item) => can(item.module, "view"))
 
   function isActive(href: string) {

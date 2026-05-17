@@ -41,7 +41,6 @@ export async function getAttendanceSettings(
       u.id                     AS user_id,
       u.attendance_required,
       u.attendance_area_id,
-      u.report_absence_in_app,
       a.name                   AS area_name
     FROM users u
     LEFT JOIN attendance_areas a
@@ -98,7 +97,6 @@ export async function updateAttendanceSettings(
       UPDATE users SET
         attendance_required   = ${data.attendance_required},
         attendance_area_id    = ${data.attendance_area_id},
-        report_absence_in_app = ${data.report_absence_in_app},
         updated_at            = NOW()
       WHERE id = ${data.user_id} AND tenant_id = ${actor.tenantId}
     `

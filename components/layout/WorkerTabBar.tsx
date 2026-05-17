@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Icon } from "@/components/shared/Icon"
 import { SidePanel } from "@/components/shared/SidePanel"
 import { getMyProfile } from "@/lib/actions/auth"
@@ -31,8 +31,15 @@ function initials(name: string): string {
     .join("")
 }
 
+/* Items shown inside the hamburger menu — secondary destinations
+ * that don't earn a spot in the 3-tab strip (which stays compact). */
+const MENU_ITEMS = [
+  { href: "/attendance/my-requests", icon: "event_busy", label: "הבקשות שלי" },
+] as const
+
 export function WorkerTabBar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [profile, setProfile] = useState<{
@@ -126,6 +133,32 @@ export function WorkerTabBar() {
                 {email || "—"}
               </span>
             </div>
+          </div>
+
+          {/* Secondary destinations */}
+          <div className="bg-card border border-border/15 rounded-[20px] p-2 space-y-1">
+            {MENU_ITEMS.map((item) => {
+              const active = pathname.startsWith(item.href)
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    router.push(item.href)
+                  }}
+                  className={`w-full min-h-[52px] rounded-xl flex items-center gap-3 px-4 text-right font-bold transition-colors ${
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-accent text-foreground"
+                  }`}
+                >
+                  <Icon name={item.icon} size="md" />
+                  <span className="flex-1">{item.label}</span>
+                  <Icon name="chevron_left" size="sm" className="opacity-60" />
+                </button>
+              )
+            })}
           </div>
 
           <button

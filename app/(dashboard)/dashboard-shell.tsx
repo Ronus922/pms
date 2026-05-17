@@ -55,6 +55,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       "/housekeeping/my-tasks",
       "/maintenance/my-tasks",
       "/attendance/my",
+      "/attendance/my-requests",
     ]
     if (
       tenant?.role === "cleaner" &&
