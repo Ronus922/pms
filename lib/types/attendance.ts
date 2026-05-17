@@ -105,7 +105,6 @@ export interface AttendanceSettingsInput {
   user_id: string
   attendance_required: import("@/lib/constants/attendance").AttendanceRequired
   attendance_area_id: string | null
-  report_absence_in_app: boolean
 }
 
 export interface AttendanceSettings {
@@ -113,7 +112,6 @@ export interface AttendanceSettings {
   attendance_required: import("@/lib/constants/attendance").AttendanceRequired
   attendance_area_id: string | null
   area_name: string | null
-  report_absence_in_app: boolean
 }
 
 /* ── Area deletion conflict envelope ─────────────────────────── */
@@ -136,6 +134,19 @@ export interface AreaDeletionConflict {
 export type AttendanceSource = "self" | "manager_manual" | "manager_edit"
 
 /**
+ * Classification of an attendance row. `regular` = worked shift
+ * (only type that requires both clock_in/out). Non-regular types
+ * mark calendar absence/time-off; for those, clock_in is a sentinel
+ * (typically midnight of work_date) and clock_out is NULL.
+ */
+export type AttendanceEntryType =
+  | "regular"
+  | "vacation"
+  | "sick"
+  | "holiday"
+  | "absence"
+
+/**
  * One row per shift. `clock_out === null` ⇒ shift is currently open.
  * `work_date` is the calendar day the shift is attributed to
  * (Asia/Jerusalem — overnight shifts stay on the start day).
@@ -147,11 +158,14 @@ export interface AttendanceRecord {
   tenant_id: string
   user_id: string
   user_name?: string
-  clock_in: string
+  /** NULL for non-regular entries (vacation/sick/holiday/absence) — those
+   *  are date-only rows and don't carry shift timestamps. */
+  clock_in: string | null
   clock_out: string | null
   work_date: string
   notes: string | null
   source: AttendanceSource
+  entry_type: AttendanceEntryType
   edited_by: string | null
   edited_at: string | null
   created_at: string
@@ -169,4 +183,37 @@ export interface AttendanceSummary {
   total_minutes: number
   open_shift: boolean
   records: AttendanceRecord[]
+}
+
+/* ── Manager Monthly View ────────────────────────────────────── */
+
+/** Lightweight staff picker entry for the attendance manager UI. */
+export interface AttendanceStaffOption {
+  id: string
+  full_name: string
+  role: string
+  is_active: boolean
+}
+
+/**
+ * Monthly KPI roll-up for a single employee — derived from the
+ * month's `regular` records only (non-regular entries don't count
+ * toward worked hours).
+ */
+export interface MonthlyAttendanceSummary {
+  work_days: number
+  total_minutes: number
+  avg_minutes_per_day: number
+  overtime_minutes: number
+  issues: string[]
+}
+
+export interface UpsertAttendanceEntryInput {
+  id?: string | null
+  user_id: string
+  work_date: string
+  entry_type: AttendanceEntryType
+  clock_in_time?: string | null
+  clock_out_time?: string | null
+  notes?: string | null
 }

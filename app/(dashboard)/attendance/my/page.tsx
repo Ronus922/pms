@@ -10,12 +10,14 @@ import {
   getMyAttendance,
   getOpenShift,
 } from "@/lib/actions/attendance"
-import type { AttendanceRecord } from "@/lib/types/attendance"
+import { ENTRY_TYPE_META } from "@/components/attendance/AttendanceEntryPanel"
+import type { AttendanceEntryType, AttendanceRecord } from "@/lib/types/attendance"
 
 /* ── Helpers ────────────────────────────────────────────── */
 
-/** "HH:mm" in he-IL locale (24h). */
-function fmtHM(iso: string): string {
+/** "HH:mm" in he-IL locale (24h). Returns "—" for null (non-regular rows). */
+function fmtHM(iso: string | null): string {
+  if (!iso) return "—"
   return new Date(iso).toLocaleTimeString("he-IL", {
     hour: "2-digit",
     minute: "2-digit",
@@ -55,9 +57,12 @@ function toISODateLocal(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-/** Hours decimal from a closed shift (clock_out - clock_in). */
+/** Hours decimal from a closed shift (clock_out - clock_in).
+ *  Returns 0 for non-regular rows (vacation/sick/etc — they have no
+ *  clock timestamps and aren't worked time) or for open shifts. */
 function shiftHours(rec: AttendanceRecord): number {
-  if (!rec.clock_out) return 0
+  if (rec.entry_type !== "regular") return 0
+  if (!rec.clock_in || !rec.clock_out) return 0
   return (
     (new Date(rec.clock_out).getTime() - new Date(rec.clock_in).getTime()) /
     3_600_000
@@ -148,19 +153,17 @@ export default function MyAttendancePage() {
     (sum, r) => sum + shiftHours(r),
     0,
   )
+  // Worked days: distinct work_date for REGULAR shifts only. Vacation
+  // and sick days are intentionally excluded — they aren't "worked".
   const workedDays = new Set(
-    monthRecords.map((r) =>
-      new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Jerusalem",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date(r.clock_in)),
-    ),
+    monthRecords
+      .filter((r) => r.entry_type === "regular")
+      .map((r) => r.work_date),
   ).size
 
   const monthDays = useMemo(() => {
     type DayShift = {
+      entryType: AttendanceEntryType
       clockIn: string
       clockOut: string | null
       hours: number | null
@@ -173,40 +176,39 @@ export default function MyAttendancePage() {
       totalHours: number
     }
 
+    // Group by work_date (returned by the action as YYYY-MM-DD string).
+    // Non-regular rows have NULL clock_in and so can only be anchored by
+    // work_date; regular rows would land on the same key.
     const byDate = new Map<string, AttendanceRecord[]>()
     for (const r of monthRecords) {
-      // Group by clock_in projected to Asia/Jerusalem, not by the DB's
-      // work_date — older rows had work_date stored under UTC and would
-      // otherwise land in the wrong day.
-      const dt = new Date(r.clock_in)
-      const key = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Jerusalem",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(dt)
-      const arr = byDate.get(key) ?? []
+      const arr = byDate.get(r.work_date) ?? []
       arr.push(r)
-      byDate.set(key, arr)
+      byDate.set(r.work_date, arr)
     }
 
     const days: Day[] = []
     for (const [dateISO, records] of byDate) {
+      // Sort: non-regular first (display reads naturally), then by
+      // clock_in time. NULL clock_in sorts before any timestamp.
       records.sort((a, b) => {
-        const aTime = new Date(a.clock_in).getTime()
-        const bTime = new Date(b.clock_in).getTime()
+        if (a.entry_type !== "regular" && b.entry_type === "regular") return -1
+        if (a.entry_type === "regular" && b.entry_type !== "regular") return 1
+        const aTime = a.clock_in ? new Date(a.clock_in).getTime() : 0
+        const bTime = b.clock_in ? new Date(b.clock_in).getTime() : 0
         return aTime - bTime
       })
 
       // Anchor at midday to dodge DST flips when formatting in IL TZ.
       const date = new Date(`${dateISO}T12:00:00Z`)
       const shifts: DayShift[] = records.map((r) => {
-        const hours = r.clock_out
-          ? (new Date(r.clock_out).getTime() -
-              new Date(r.clock_in).getTime()) /
-            3_600_000
-          : null
+        const hours =
+          r.entry_type === "regular" && r.clock_in && r.clock_out
+            ? (new Date(r.clock_out).getTime() -
+                new Date(r.clock_in).getTime()) /
+              3_600_000
+            : null
         return {
+          entryType: r.entry_type,
           clockIn: fmtHM(r.clock_in),
           clockOut: r.clock_out ? fmtHM(r.clock_out) : null,
           hours,
@@ -293,7 +295,7 @@ export default function MyAttendancePage() {
             )}
           </button>
 
-          {isOpen && openShift && (
+          {isOpen && openShift?.clock_in && (
             <div className="text-center space-y-0.5">
               <div className="text-[11px] text-muted-foreground">
                 פעיל מ-{fmtHM(openShift.clock_in)}
@@ -370,30 +372,44 @@ export default function MyAttendancePage() {
                     key={day.dateISO}
                     className="border-b border-border/10 last:border-b-0"
                   >
-                    {day.shifts.map((shift, idx) => (
-                      <div
-                        key={idx}
-                        className="grid grid-cols-5 gap-2 px-4 py-2.5 text-xs items-center"
-                      >
-                        <div className="font-bold tabular-nums" dir="ltr">
-                          {idx === 0 ? day.dateDisplay : ""}
+                    {day.shifts.map((shift, idx) => {
+                      const isNonRegular = shift.entryType !== "regular"
+                      const meta = ENTRY_TYPE_META[shift.entryType]
+                      return (
+                        <div
+                          key={idx}
+                          className={cn(
+                            "grid grid-cols-5 gap-2 px-4 py-2.5 text-xs items-center",
+                            isNonRegular && "bg-primary/5",
+                          )}
+                        >
+                          <div className="font-bold tabular-nums" dir="ltr">
+                            {idx === 0 ? day.dateDisplay : ""}
+                          </div>
+                          <div className="text-muted-foreground">
+                            {idx === 0 ? day.weekday : ""}
+                          </div>
+                          <div className="tabular-nums text-center text-muted-foreground" dir="ltr">
+                            {isNonRegular ? "—" : shift.clockIn}
+                          </div>
+                          <div className="tabular-nums text-center text-muted-foreground" dir="ltr">
+                            {isNonRegular ? "—" : (shift.clockOut ?? "-")}
+                          </div>
+                          <div className="text-end font-bold">
+                            {isNonRegular ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold whitespace-nowrap">
+                                <span aria-hidden>{meta.emoji}</span>
+                                {meta.label}
+                              </span>
+                            ) : shift.hours !== null ? (
+                              <span className="tabular-nums" dir="ltr">{shift.hours.toFixed(2)}</span>
+                            ) : (
+                              "-"
+                            )}
+                          </div>
                         </div>
-                        <div className="text-muted-foreground">
-                          {idx === 0 ? day.weekday : ""}
-                        </div>
-                        <div className="tabular-nums text-center" dir="ltr">
-                          {shift.clockIn}
-                        </div>
-                        <div className="tabular-nums text-center" dir="ltr">
-                          {shift.clockOut ?? "-"}
-                        </div>
-                        <div className="tabular-nums text-end font-bold">
-                          {shift.hours !== null
-                            ? shift.hours.toFixed(2)
-                            : "-"}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
 
                     {isMultiShift && (
                       <div className="grid grid-cols-5 gap-2 px-4 py-1.5 bg-muted/30 text-[11px] items-center border-t border-border/5">
