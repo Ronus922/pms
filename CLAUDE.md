@@ -9,6 +9,7 @@
 8. **DRY Components** - מבנה שחוזר → קומפוננטה רוחבית עם props לתוכן/צבעים. אין קוד כפול!
 9. **CSS Cleanup** - כשמוחקים/מבטלים אלמנט → תמיד שאל: "למחוק גם את ה-CSS שלו?" אל תשאיר CSS יתום!
 10. **ניהול context (קריטי!)** - אחרי כל 2 משימות חייבים להריץ `/compact`. אם המשתמש מסרב - להזהיר: "השיחה תתקע בקרוב ולא יהיה אפשר לשחזר". לפני סגירה - `/end`. **אסור לחכות ל-3+ משימות בלי compact!**
+11. **RTL Logical Properties** - ב-RTL: `start`=ימין, `end`=שמאל. לקוד חדש העדף logical (`ms`/`me`/`ps`/`pe`/`text-start`/`text-end`/`border-s`/`border-e`/`rounded-s`/`rounded-e`/`start-`/`end-`). root `<html>` תמיד `dir="rtl"` (אסור `dir` בקבצים מקוננים, פרט לבידוד bidi של טלפון/אימייל/URL/מספרים → `dir="ltr"`). **לעולם אל תריץ codemod גורף שמהפך כיוונים — הקוד RTL-authored**, ו-`text-right`/`border-r`/`mr`/`pr` הם בכוונה בצד ה-start (ימין).
 
 ---
 
