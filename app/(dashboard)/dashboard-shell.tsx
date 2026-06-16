@@ -21,6 +21,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/housekeeping": "ניקיון",
   "/maintenance": "תחזוקה",
   "/maintenance/my-tasks": "המשימות שלי — תחזוקה",
+  "/maintenance/report": "דיווח על תקלה",
   "/staff": "עובדים",
   "/documents": "מסמכים",
   "/finance": "כספים",
@@ -54,6 +55,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     const allowedPaths = [
       "/housekeeping/my-tasks",
       "/maintenance/my-tasks",
+      "/maintenance/report",
       "/attendance/my",
       "/attendance/my-requests",
     ]
@@ -75,7 +77,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Worker mobile view → no sidebar, no topbar, no reservation modals
   const isCleanerMobileView =
-    tenant.role === "cleaner" || pathname.startsWith("/housekeeping/my-tasks") || pathname.startsWith("/maintenance/my-tasks")
+    tenant.role === "cleaner" ||
+    pathname.startsWith("/housekeeping/my-tasks") ||
+    pathname.startsWith("/maintenance/my-tasks") ||
+    pathname.startsWith("/maintenance/report")
 
   if (isCleanerMobileView) {
     return (

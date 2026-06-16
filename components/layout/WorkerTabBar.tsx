@@ -95,7 +95,7 @@ export function WorkerTabBar() {
         </div>
 
         {/* Row 2: tabs */}
-        <div className="grid grid-cols-3 gap-1.5 p-1.5">
+        <div className="grid grid-cols-4 gap-1.5 p-1.5">
           {TABS.map((tab) => {
             const active = pathname.startsWith(tab.href)
             return (
@@ -114,6 +114,17 @@ export function WorkerTabBar() {
               </Link>
             )
           })}
+          {/* Report issue — action button, not a tab. Stays visually distinct
+              so cleaners can always reach it from any worker screen. */}
+          <button
+            type="button"
+            onClick={() => router.push("/maintenance/report")}
+            className="rounded-xl min-h-[52px] flex flex-col items-center justify-center gap-1 border-2 border-transparent bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-md hover:shadow-lg transition-shadow active:scale-[0.98]"
+            aria-label="פתח תקלה"
+          >
+            <Icon name="report_problem" size="md" />
+            <span className="text-[11px] font-bold">תקלה</span>
+          </button>
         </div>
       </nav>
 

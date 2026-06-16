@@ -54,6 +54,33 @@ const ACTION_COLORS: Record<string, string> = {
   reordered: "bg-slate-400",
 }
 
+type AuditChangeMap = Record<string, { old: unknown; new: unknown }>
+
+/**
+ * Historic audit rows stored changes_json double-encoded (a JSON string inside
+ * jsonb), so the driver hands them back as a string; new rows come back as a
+ * proper object. Normalize both — fall back to raw text only if unparseable.
+ */
+function normalizeChanges(value: unknown): { map: AuditChangeMap | null; raw: string | null } {
+  if (value && typeof value === "object") {
+    return { map: value as AuditChangeMap, raw: null }
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (!trimmed) return { map: null, raw: null }
+    try {
+      const parsed: unknown = JSON.parse(trimmed)
+      if (parsed && typeof parsed === "object") {
+        return { map: parsed as AuditChangeMap, raw: null }
+      }
+    } catch {
+      /* not valid JSON — show as raw text */
+    }
+    return { map: null, raw: trimmed }
+  }
+  return { map: null, raw: null }
+}
+
 export function MaintenanceAuditTimeline({ entries, loading }: MaintenanceAuditTimelineProps) {
   if (loading) {
     return (
@@ -90,7 +117,7 @@ export function MaintenanceAuditTimeline({ entries, loading }: MaintenanceAuditT
           const label = MAINTENANCE_AUDIT_LABELS[entry.action] ?? entry.action
           const icon = ACTION_ICONS[entry.action] ?? "info"
           const dotColor = ACTION_COLORS[entry.action] ?? "bg-slate-400"
-          const changes = entry.changes_json
+          const { map: changes, raw: rawChanges } = normalizeChanges(entry.changes_json)
 
           return (
             <div key={entry.id} className="flex gap-3 relative">
@@ -134,6 +161,11 @@ export function MaintenanceAuditTimeline({ entries, loading }: MaintenanceAuditT
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+                {rawChanges && (
+                  <div className="mt-1.5 text-[11px] text-muted-foreground break-all">
+                    {rawChanges}
                   </div>
                 )}
               </div>

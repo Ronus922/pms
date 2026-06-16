@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { requirePermission } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
+import { createAdminSupabase } from "@/lib/supabase/server"
 import { MAINTENANCE_STATUS_TRANSITIONS } from "@/lib/constants/maintenance"
 import type {
   MaintenanceTask,
@@ -54,15 +55,6 @@ async function getNextTaskNumber(tenantId: string): Promise<number> {
   return Number(row.next)
 }
 
-function safeJsonStringify(value: unknown): string {
-  return JSON.stringify(value, (_key, val) => {
-    if (val instanceof Date) {
-      return Number.isNaN(val.getTime()) ? null : val.toISOString()
-    }
-    return val
-  })
-}
-
 async function insertAudit(
   tenantId: string,
   taskId: string,
@@ -75,7 +67,7 @@ async function insertAudit(
     INSERT INTO maintenance_task_audit_log
       (tenant_id, task_id, action, changed_by, changed_by_name, changes_json)
     VALUES
-      (${tenantId}::uuid, ${taskId}::uuid, ${action}::text, ${changedBy}::uuid, ${changedByName}::text, ${safeJsonStringify(changes)}::jsonb)
+      (${tenantId}::uuid, ${taskId}::uuid, ${action}::text, ${changedBy}::uuid, ${changedByName}::text, ${db.json(changes as unknown as Parameters<typeof db.json>[0])})
   `
 }
 
@@ -367,7 +359,21 @@ export async function getMaintenanceTaskMedia(
       AND tenant_id = ${tenantId}
     ORDER BY phase, sort_order
   `
-  return rows as unknown as MaintenanceTaskMedia[]
+  const media = rows as unknown as MaintenanceTaskMedia[]
+
+  // Resolve storage paths (legacy full URLs are passed through unchanged).
+  const supabase = createAdminSupabase()
+  const resolved = await Promise.all(
+    media.map(async (m) => {
+      if (!m.file_url) return m
+      if (m.file_url.startsWith("http://") || m.file_url.startsWith("https://")) return m
+      const { data } = await supabase.storage
+        .from("maintenance-media")
+        .createSignedUrl(m.file_url, 3600)
+      return data?.signedUrl ? { ...m, file_url: data.signedUrl } : m
+    }),
+  )
+  return resolved
 }
 
 /* ── Read: Workers ─────────────────────────────────────────── */
@@ -389,16 +395,20 @@ export async function getMaintenanceWorkers(
 
 export async function getRoomsForPicker(
   tenantId: string,
-): Promise<Array<{ id: string; room_number: string; room_type_name: string }>> {
+): Promise<Array<{ id: string; room_number: string; room_type_name: string; max_occupancy: number | null }>> {
   const rows = await db`
-    SELECT r.id, r.room_number, COALESCE(rt.name, '') AS room_type_name
+    SELECT
+      r.id,
+      r.room_number,
+      COALESCE(rt.name, '') AS room_type_name,
+      COALESCE(r.max_occupancy, rt.max_occupancy) AS max_occupancy
     FROM rooms r
     LEFT JOIN room_types rt ON rt.id = r.room_type_id
     WHERE r.tenant_id = ${tenantId}
       AND r.is_active = true
     ORDER BY r.room_number
   `
-  return rows as unknown as Array<{ id: string; room_number: string; room_type_name: string }>
+  return rows as unknown as Array<{ id: string; room_number: string; room_type_name: string; max_occupancy: number | null }>
 }
 
 /* ── Write: Create ─────────────────────────────────────────── */

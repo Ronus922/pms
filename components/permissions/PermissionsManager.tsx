@@ -10,6 +10,7 @@ import {
   updateUserRole,
   updateUserPermissions,
   updateUserAuthSettings,
+  updateUserCanAssignMaintenance,
   toggleUserActive,
   inviteUser,
   resetUserPassword,
@@ -44,6 +45,7 @@ interface UserData {
   role: string
   is_active: boolean
   allow_google_auth: boolean
+  can_assign_maintenance: boolean
   last_login: string | null
   created_at: string
   permissions: ModulePermission[]
@@ -101,6 +103,8 @@ export function PermissionsManager({
   const [originalUsername, setOriginalUsername] = useState("")
   const [allowGoogleAuth, setAllowGoogleAuth] = useState(false)
   const [originalAllowGoogleAuth, setOriginalAllowGoogleAuth] = useState(false)
+  const [canAssignMaintenance, setCanAssignMaintenance] = useState(false)
+  const [originalCanAssignMaintenance, setOriginalCanAssignMaintenance] = useState(false)
 
   /* ── Reset password modal state ── */
   const [showResetPassword, setShowResetPassword] = useState(false)
@@ -124,6 +128,8 @@ export function PermissionsManager({
       setOriginalUsername(u.username || "")
       setAllowGoogleAuth(u.allow_google_auth ?? false)
       setOriginalAllowGoogleAuth(u.allow_google_auth ?? false)
+      setCanAssignMaintenance(u.can_assign_maintenance ?? false)
+      setOriginalCanAssignMaintenance(u.can_assign_maintenance ?? false)
 
       // Build full permissions array for all modules
       const fullPerms: ModulePermission[] = MODULES.map((mod) => {
@@ -229,6 +235,24 @@ export function PermissionsManager({
       })
       if (!res.success) {
         setError(res.error || "שגיאה בעדכון הגדרות התחברות")
+        setSaving(false)
+        return
+      }
+    }
+
+    // Maintenance assign capability (non-admin roles only)
+    const assignFlagChanged =
+      canAssignMaintenance !== originalCanAssignMaintenance &&
+      role !== "super_admin" &&
+      role !== "admin"
+    if (assignFlagChanged) {
+      const res = await updateUserCanAssignMaintenance(
+        user.id,
+        tenantId,
+        canAssignMaintenance,
+      )
+      if (!res.success) {
+        setError(res.error || "שגיאה בעדכון הרשאת שיוך תקלות")
         setSaving(false)
         return
       }
@@ -753,6 +777,37 @@ export function PermissionsManager({
                   />
                 </div>
               )}
+
+              {/* Section 4: Maintenance assignment capability */}
+              <div className="bg-card rounded-[20px] border border-border/15 p-5 shadow-sm space-y-3">
+                <h3 className="text-sm font-bold text-foreground">הרשאות תחזוקה</h3>
+                {role === "super_admin" || role === "admin" ? (
+                  <div className="flex items-start gap-3 p-3 rounded-xl border border-border/30 bg-accent/30">
+                    <Icon name="check_circle" size="sm" className="text-emerald-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold">הקצאת תקלות תחזוקה</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        מופעל אוטומטית עבור אדמין וסופר־אדמין.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-border/30 bg-accent/30 cursor-pointer min-h-[44px]">
+                    <input
+                      type="checkbox"
+                      checked={canAssignMaintenance}
+                      onChange={(e) => setCanAssignMaintenance(e.target.checked)}
+                      className="w-5 h-5 rounded border-border/40 text-primary focus:ring-primary/20 accent-primary"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold">הקצאת תקלות תחזוקה</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        כשמופעל, המשתמש יוכל לשייך תקלות לעובדי תחזוקה ישירות מטופס הדיווח.
+                      </p>
+                    </div>
+                  </label>
+                )}
+              </div>
 
               {/* Full access note for admin/super_admin */}
               {role !== "receptionist" && (

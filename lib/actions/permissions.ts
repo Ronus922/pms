@@ -21,6 +21,7 @@ interface StaffMember {
   role: string
   is_active: boolean
   allow_google_auth: boolean
+  can_assign_maintenance: boolean
   last_login: string | null
   created_at: string
   invited_by: string | null
@@ -35,7 +36,8 @@ interface UserWithPermissions extends StaffMember {
 export async function getStaffList(tenantId: string): Promise<StaffMember[]> {
   const rows = await db`
     SELECT id, email, username, full_name, phone, role, is_active,
-           allow_google_auth, last_login, created_at, invited_by
+           allow_google_auth, can_assign_maintenance,
+           last_login, created_at, invited_by
     FROM users
     WHERE tenant_id = ${tenantId}
     ORDER BY
@@ -53,7 +55,8 @@ export async function getUserWithPermissions(
 ): Promise<UserWithPermissions | null> {
   const [user] = await db`
     SELECT id, email, username, full_name, phone, role, is_active,
-           allow_google_auth, last_login, created_at, invited_by
+           allow_google_auth, can_assign_maintenance,
+           last_login, created_at, invited_by
     FROM users
     WHERE id = ${userId} AND tenant_id = ${tenantId}
   `
@@ -676,6 +679,51 @@ export async function resendCredentialsToUser(
     return {
       success: false,
       error: err instanceof Error ? err.message : "שגיאה בשליחת הקישור",
+    }
+  }
+}
+
+/* ── Toggle Maintenance Assign Capability ───────────────────── */
+
+export async function updateUserCanAssignMaintenance(
+  userId: string,
+  _tenantId: string,
+  value: boolean,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
+
+    const [target] = await db`
+      SELECT id, role FROM users
+      WHERE id = ${userId} AND tenant_id = ${tenantId}
+    `
+    if (!target) return { success: false, error: "משתמש לא נמצא" }
+
+    const targetRole = (target.role as Role) ?? "receptionist"
+    if (targetRole === "super_admin" || targetRole === "admin") {
+      return {
+        success: false,
+        error: "אדמין וסופר־אדמין מקבלים את ההרשאה הזו אוטומטית",
+      }
+    }
+    if (!canManageRole(actor.role, targetRole)) {
+      throw new AuthorizationError("אין הרשאה לעדכן משתמש זה")
+    }
+
+    await db`
+      UPDATE users
+      SET can_assign_maintenance = ${value}, updated_at = NOW()
+      WHERE id = ${userId} AND tenant_id = ${tenantId}
+    `
+    return { success: true }
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return { success: false, error: err.message }
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "שגיאה בעדכון ההרשאה",
     }
   }
 }
