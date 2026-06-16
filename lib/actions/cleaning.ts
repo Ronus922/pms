@@ -140,12 +140,12 @@ export async function createAreaCleaningTask(
     const result = await db`
       INSERT INTO housekeeping_tasks
         (tenant_id, target_type, target_id, target_label,
-         room_id, room_number, reservation_id, reservation_room_id,
+         room_id, reservation_id, reservation_room_id,
          assigned_to, status, priority, order_index,
          source_trigger, scheduled_date, checkout_date, notes)
       VALUES
         (${tenantId}, 'area', ${input.area_id}, ${input.area_name},
-         NULL, NULL, NULL, NULL,
+         NULL, NULL, NULL,
          ${input.assigned_to ?? null}, 'pending', 'normal', ${nextOrder},
          'manager_manual', ${input.scheduled_date}, ${input.scheduled_date},
          ${input.notes ?? null})
@@ -451,7 +451,9 @@ export async function getCleaningBoard(
   await ensureTasksForRecentCheckouts(tenantId, 14)
   await ensureTasksForCheckoutsOn(tenantId, date)
   await ensureTasksForDirtyRooms(tenantId)
-  await ensureTasksForUpcomingCheckouts(tenantId, 3)
+  // 48-hour forward window only — anything further out clutters the
+  // "waiting for assignment" board with guests who haven't checked in yet.
+  await ensureTasksForUpcomingCheckouts(tenantId, 2)
 
   // 1. All cleaner users
   const cleanerRows = await db`
@@ -474,16 +476,19 @@ export async function getCleaningBoard(
       hk.assigned_to, hk.status, hk.priority,
       hk.checkin_date, hk.checkout_date, hk.checkout_time,
       hk.order_index, hk.source_trigger, hk.notes,
+      hk.guest_count, hk.image_url, hk.created_by,
       hk.started_at, hk.completed_at, hk.created_at, hk.updated_at,
       COALESCE(hk.target_type, 'room') AS target_type,
       hk.target_id,
       COALESCE(hk.target_label, r.room_number) AS target_label,
       r.room_number,
       u.full_name AS cleaner_name,
+      cu.full_name AS creator_name,
       g.full_name AS guest_name
     FROM housekeeping_tasks hk
     LEFT JOIN rooms r ON r.id = hk.room_id
     LEFT JOIN users u ON u.id = hk.assigned_to
+    LEFT JOIN users cu ON cu.id = hk.created_by
     LEFT JOIN reservations res ON res.id = hk.reservation_id
     LEFT JOIN guests g ON g.id = res.guest_id
     WHERE hk.tenant_id = ${tenantId}
@@ -561,14 +566,20 @@ export async function getMyCleaningQueue(
       hk.assigned_to, hk.status, hk.priority,
       hk.checkin_date, hk.checkout_date, hk.checkout_time,
       hk.order_index, hk.source_trigger, hk.notes,
+      hk.guest_count, hk.image_url, hk.created_by,
       hk.started_at, hk.completed_at, hk.created_at, hk.updated_at,
       COALESCE(hk.target_type, 'room') AS target_type,
       hk.target_id,
       COALESCE(hk.target_label, r.room_number) AS target_label,
       r.room_number,
-      NULL AS cleaner_name
+      NULL AS cleaner_name,
+      cu.full_name AS creator_name,
+      g.full_name AS guest_name
     FROM housekeeping_tasks hk
     LEFT JOIN rooms r ON r.id = hk.room_id
+    LEFT JOIN users cu ON cu.id = hk.created_by
+    LEFT JOIN reservations res ON res.id = hk.reservation_id
+    LEFT JOIN guests g ON g.id = res.guest_id
     WHERE hk.tenant_id = ${tenantId}
       AND hk.assigned_to = ${userId}
       AND (
@@ -818,6 +829,9 @@ export async function createManualCleaningTask(
     checkout_time?: string
     cleaner_user_id: string | null
     notes?: string
+    scheduled_date?: string
+    guest_count?: number | null
+    image_url?: string | null
   }
 ): Promise<{ success: boolean; error?: string; taskId?: string }> {
   try {
@@ -831,18 +845,92 @@ export async function createManualCleaningTask(
 
     const nextOrder = await getNextOrderIndex(tenantId, input.cleaner_user_id)
     const time = input.checkout_time ?? DEFAULT_CHECKOUT_TIME
+    const scheduledDate = input.scheduled_date ?? input.checkout_date
+
+    // If the caller didn't already provide a reservation link, try to find
+    // an active reservation_room for the same room+checkout_date and link
+    // the manual task to it. Otherwise the self-healing sweeps in
+    // getCleaningBoard (`ensureTasksForCheckoutsOn`, `ensureTasksForUpcomingCheckouts`)
+    // would see "this reservation has no task" and create a duplicate
+    // unassigned task for the same room.
+    let resId = input.reservation_id
+    let resRoomId = input.reservation_room_id
+    let checkinDate = input.checkin_date
+    if (!resRoomId) {
+      const [match] = await db`
+        SELECT rr.id AS reservation_room_id,
+               rr.reservation_id,
+               rr.check_in
+        FROM reservation_rooms rr
+        JOIN reservations res ON res.id = rr.reservation_id
+        WHERE rr.tenant_id = ${tenantId}
+          AND rr.room_id = ${input.room_id}
+          AND rr.check_out = ${input.checkout_date}::date
+          AND res.status IN ('confirmed','checked_in','checked_out')
+        ORDER BY (res.status = 'checked_in') DESC,
+                 (res.status = 'confirmed') DESC,
+                 rr.check_out DESC
+        LIMIT 1
+      `
+      if (match) {
+        resRoomId = match.reservation_room_id as string
+        resId = match.reservation_id as string
+        checkinDate = checkinDate ?? (match.check_in as string | null)
+      }
+    }
+
+    // Adopt-or-insert: if an active task already exists for this room on this
+    // checkout_date (typically a self-healed unassigned one for the matching
+    // reservation), upgrade IT instead of creating a second row. This is
+    // exactly the duplication the user reported — the manual task and the
+    // self-healed task end up as siblings for the same room+date otherwise.
+    const [existing] = await db`
+      SELECT id, assigned_to
+      FROM housekeeping_tasks
+      WHERE tenant_id = ${tenantId}
+        AND room_id = ${input.room_id}
+        AND checkout_date = ${input.checkout_date}::date
+        AND status IN ('pending','in_progress')
+      ORDER BY (assigned_to IS NULL) DESC, created_at ASC
+      LIMIT 1
+    `
+    if (existing) {
+      if (existing.assigned_to && existing.assigned_to !== input.cleaner_user_id) {
+        return {
+          success: false,
+          error: "כבר קיימת משימה פעילה לחדר זה בתאריך זה — ערוך אותה ישירות",
+        }
+      }
+      await db`
+        UPDATE housekeeping_tasks
+        SET assigned_to    = ${input.cleaner_user_id},
+            guest_count    = COALESCE(${input.guest_count ?? null}, guest_count),
+            image_url      = COALESCE(${input.image_url ?? null},   image_url),
+            notes          = COALESCE(${input.notes ?? null},       notes),
+            reservation_id      = COALESCE(reservation_id,      ${resId}),
+            reservation_room_id = COALESCE(reservation_room_id, ${resRoomId}),
+            checkin_date   = COALESCE(checkin_date,   ${checkinDate}),
+            source_trigger = 'manager_manual',
+            created_by     = COALESCE(created_by, ${actor.userId}),
+            order_index    = ${nextOrder},
+            updated_at     = NOW()
+        WHERE id = ${existing.id as string} AND tenant_id = ${tenantId}
+      `
+      return { success: true, taskId: existing.id as string }
+    }
 
     const [row] = await db`
       INSERT INTO housekeeping_tasks
         (tenant_id, room_id, reservation_id, reservation_room_id,
          checkin_date, checkout_date, checkout_time,
          assigned_to, status, priority, order_index, source_trigger, notes,
-         scheduled_date)
+         scheduled_date, guest_count, image_url, created_by)
       VALUES
-        (${tenantId}, ${input.room_id}, ${input.reservation_id}, ${input.reservation_room_id},
-         ${input.checkin_date}, ${input.checkout_date}, ${time},
+        (${tenantId}, ${input.room_id}, ${resId}, ${resRoomId},
+         ${checkinDate}, ${input.checkout_date}, ${time},
          ${input.cleaner_user_id}, 'pending', 'normal', ${nextOrder},
-         'manager_manual', ${input.notes ?? null}, ${input.checkout_date})
+         'manager_manual', ${input.notes ?? null}, ${scheduledDate},
+         ${input.guest_count ?? null}, ${input.image_url ?? null}, ${actor.userId})
       RETURNING id
     `
     return { success: true, taskId: row.id as string }
@@ -850,6 +938,26 @@ export async function createManualCleaningTask(
     if (err instanceof AuthorizationError) return { success: false, error: err.message }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
   }
+}
+
+/* ── Cleaner Picker ─────────────────────────────────────── */
+
+/**
+ * All active users with role='cleaner' for the current tenant.
+ * Used by the "create cleaning task" panel to populate the assignee select.
+ */
+export async function getCleanersList(
+  tenantId: string
+): Promise<CleanerSummary[]> {
+  const rows = await db`
+    SELECT id, full_name, email, avatar_url
+    FROM users
+    WHERE tenant_id = ${tenantId}
+      AND is_active = true
+      AND role = 'cleaner'
+    ORDER BY full_name
+  `
+  return rows as unknown as CleanerSummary[]
 }
 
 export async function deleteCleaningTask(

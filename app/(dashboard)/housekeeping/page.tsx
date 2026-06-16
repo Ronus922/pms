@@ -154,10 +154,19 @@ function SortableTaskCard({ task, onClick, isUnassigned }: TaskCardProps) {
             <div className="text-xs font-bold text-violet-600 truncate">{task.target_label}</div>
           ) : task.guest_name ? (
             <div className="text-xs font-bold text-foreground truncate">{task.guest_name}</div>
+          ) : task.source_trigger === "manager_manual" ? (
+            <div className="text-xs font-bold text-foreground truncate">
+              הוקצא ע&quot;י: {task.creator_name ?? "—"}
+            </div>
           ) : null}
-          {task.target_type === "room" && (
+          {task.target_type === "room" && task.checkin_date && (
             <div className="text-[12px] text-muted-foreground tabular-nums">
-              {fmtDate(task.checkin_date ?? "")} → {fmtDate(task.checkout_date)}
+              {fmtDate(task.checkin_date)} → {fmtDate(task.checkout_date)}
+            </div>
+          )}
+          {task.target_type === "room" && !task.checkin_date && (
+            <div className="text-[12px] text-muted-foreground tabular-nums">
+              {fmtDate(task.checkout_date)}
             </div>
           )}
           {task.target_type === "area" && (
@@ -1070,6 +1079,10 @@ export default function HousekeepingPage() {
                         ) : activeTask.guest_name ? (
                           <div className="text-xs font-bold text-foreground truncate max-w-[140px]">
                             {activeTask.guest_name}
+                          </div>
+                        ) : activeTask.source_trigger === "manager_manual" ? (
+                          <div className="text-xs font-bold text-foreground truncate max-w-[140px]">
+                            הוקצא ע&quot;י: {activeTask.creator_name ?? "—"}
                           </div>
                         ) : null}
                         <div className="text-sm font-bold tabular-nums" dir="ltr">

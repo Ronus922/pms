@@ -32,6 +32,14 @@ export interface CleaningTask {
   order_index: number
   source_trigger: CleaningSourceTrigger | null
   notes: string | null
+  /** Number of guests the room should be prepared for (room tasks only) */
+  guest_count: number | null
+  /** Optional manager-attached image URL */
+  image_url: string | null
+  /** ID of the user who created this task manually */
+  created_by: string | null
+  /** Joined full_name of the creator — surfaced on cards for manual tasks */
+  creator_name?: string | null
   started_at: string | null
   completed_at: string | null
   created_at: string

@@ -38,6 +38,11 @@ function TaskCard({ task, index, total, busy, onStart, onDone }: TaskCardProps) 
   const isPending = task.status === "pending"
   const isInProgress = task.status === "in_progress"
   const isDone = task.status === "done"
+  const subtitle =
+    task.guest_name ??
+    (task.source_trigger === "manager_manual"
+      ? `הוקצא ע"י: ${task.creator_name ?? "—"}`
+      : null)
 
   return (
     <div
@@ -58,12 +63,34 @@ function TaskCard({ task, index, total, busy, onStart, onDone }: TaskCardProps) 
           <div>
             <div className="text-[11px] text-muted-foreground">חדר</div>
             <div className="text-lg font-extrabold">מס׳ {task.room_number}</div>
+            {subtitle && (
+              <div className="text-[11px] font-semibold text-muted-foreground truncate max-w-[180px]">
+                {subtitle}
+              </div>
+            )}
           </div>
         </div>
-        <div className="text-[11px] font-bold text-muted-foreground bg-accent px-3 py-1.5 rounded-full tabular-nums">
-          {index + 1} / {total}
+        <div className="flex flex-col items-end gap-1">
+          <div className="text-[11px] font-bold text-muted-foreground bg-accent px-3 py-1.5 rounded-full tabular-nums">
+            {index + 1} / {total}
+          </div>
+          {task.guest_count != null && (
+            <div className="text-[11px] font-extrabold text-rose-700 bg-rose-50 dark:bg-rose-950/30 dark:text-rose-300 border border-rose-200 dark:border-rose-900 px-2.5 py-1 rounded-full tabular-nums flex items-center gap-1">
+              <Icon name="group" size="sm" />
+              {task.guest_count} אורחים
+            </div>
+          )}
         </div>
       </div>
+
+      {task.image_url && (
+        // eslint-disable-next-line @next/next/no-img-element -- locally-served uploads; next/image config not required
+        <img
+          src={task.image_url}
+          alt="תמונה למשימה"
+          className="w-full h-44 object-cover rounded-xl mb-4 border border-border/20"
+        />
+      )}
 
       {/* Checkout time — BIG */}
       <div className="bg-[#1e40af]/10 rounded-xl p-4 mb-4 text-center">
@@ -181,16 +208,14 @@ export default function MyTasksPage() {
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
               <Icon name="cleaning_services" size="sm" className="text-white" />
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={loadTasks}
-                className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
-                aria-label="רענן"
-              >
-                <Icon name="refresh" size="sm" className="text-white" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={loadTasks}
+              className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+              aria-label="רענן"
+            >
+              <Icon name="refresh" size="sm" className="text-white" />
+            </button>
           </div>
           <div className="flex items-center gap-2 mt-3 text-[11px] text-blue-100">
             <span className="bg-white/15 px-2.5 py-1 rounded-full font-bold">
