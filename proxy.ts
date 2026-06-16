@@ -28,7 +28,7 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p))
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   try {
     return await updateSession(request)
   } catch {
