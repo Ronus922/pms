@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 import { sendEmail } from "@/lib/services/email"
 
 interface SendInput {
@@ -51,8 +52,12 @@ export async function sendReservationEmailFromTemplate(
   if (!input.subject?.trim()) return { success: false, error: "חובה למלא נושא" }
   if (!input.body?.trim()) return { success: false, error: "חובה למלא תוכן" }
 
+  // Tenant derived from the session — never trust input.tenantId.
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
+
   const [tenant] = await db`
-    SELECT name FROM tenants WHERE id = ${input.tenantId}
+    SELECT name FROM tenants WHERE id = ${tenantId}
   ` as unknown as Array<{ name: string }>
   const businessName = tenant?.name || "GuestHub"
   const html = wrapHtml(input.body, businessName)
@@ -66,7 +71,7 @@ export async function sendReservationEmailFromTemplate(
           tenant_id, template_id, channel_type, recipient, subject, body_snapshot,
           delivery_status, sent_at
         ) VALUES (
-          ${input.tenantId}, ${input.templateId || null}, 'email',
+          ${tenantId}, ${input.templateId || null}, 'email',
           ${input.recipient.trim()}, ${input.subject.trim()}, ${input.body},
           'sent', NOW()
         )
@@ -77,7 +82,7 @@ export async function sendReservationEmailFromTemplate(
           tenant_id, template_id, channel_type, recipient, subject, body_snapshot,
           delivery_status, failed_at, error_message
         ) VALUES (
-          ${input.tenantId}, ${input.templateId || null}, 'email',
+          ${tenantId}, ${input.templateId || null}, 'email',
           ${input.recipient.trim()}, ${input.subject.trim()}, ${input.body},
           'failed', NOW(), ${res.error || "unknown"}
         )

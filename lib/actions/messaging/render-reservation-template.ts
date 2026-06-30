@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 import { getReservationFull } from "@/lib/actions/reservation-detail"
 import { interpolate } from "@/lib/utils/interpolate-template"
 import type { AutomationTemplate } from "@/lib/types/automations"
@@ -27,11 +28,14 @@ function fmtMoney(n: unknown, c = "ILS"): string {
 }
 
 export async function renderReservationTemplate(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   reservationId: string,
   templateId: string,
 ): Promise<{ success: boolean; subject?: string; body?: string; error?: string }> {
   try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
     const [template] = await db`
       SELECT * FROM automation_templates WHERE id = ${templateId} AND tenant_id = ${tenantId}
     ` as unknown as [AutomationTemplate | undefined]
