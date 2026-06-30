@@ -15,7 +15,7 @@
 
 import { db } from "@/lib/db"
 import { isPointInArea } from "@/lib/services/geofencing"
-import { requirePermission } from "@/lib/auth/actor"
+import { requireActor, requirePermission } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 import type {
   AreaGeometry,
@@ -69,10 +69,13 @@ async function checkGeofence(
 /* ── 1. Clock in ──────────────────────────────────────────── */
 
 export async function clockIn(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   userId: string,
   coords?: GeoCoords,
 ): Promise<{ success: boolean; error?: string; recordId?: string }> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const gate = await checkGeofence(tenantId, userId, coords)
   if (!gate.ok) return { success: false, error: gate.error }
 
@@ -105,10 +108,13 @@ export async function clockIn(
 /* ── 2. Clock out ─────────────────────────────────────────── */
 
 export async function clockOut(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   userId: string,
   coords?: GeoCoords,
 ): Promise<{ success: boolean; error?: string }> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const gate = await checkGeofence(tenantId, userId, coords)
   if (!gate.ok) return { success: false, error: gate.error }
 
@@ -137,9 +143,12 @@ export async function clockOut(
 /* ── 3. Get open shift (or null) ──────────────────────────── */
 
 export async function getOpenShift(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   userId: string,
 ): Promise<AttendanceRecord | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT *
     FROM attendance_records
@@ -159,11 +168,14 @@ export async function getOpenShift(
  * DB session's TZ rather than the Node process's local TZ).
  */
 export async function getMyAttendance(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   userId: string,
   fromDate?: string,
   toDate?: string,
 ): Promise<AttendanceRecord[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const fromFrag = fromDate ? db`${fromDate}::date` : db`CURRENT_DATE - 30`
   const toFrag = toDate ? db`${toDate}::date` : db`CURRENT_DATE`
 
@@ -186,9 +198,12 @@ export async function getMyAttendance(
 /* ── 5. Get today's punches ───────────────────────────────── */
 
 export async function getTodayPunches(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   userId: string,
 ): Promise<AttendanceRecord[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT *
     FROM attendance_records
@@ -208,9 +223,12 @@ export async function getTodayPunches(
  * records=[]) so managers can see who didn't punch.
  */
 export async function getAttendanceBoard(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   date: string,
 ): Promise<AttendanceSummary[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const users = (await db`
     SELECT id, full_name, role
     FROM users
@@ -265,7 +283,8 @@ export async function getAttendanceBoard(
 /* ── 7. Update record (manager edit) ──────────────────────── */
 
 export async function updateAttendanceRecord(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   recordId: string,
   input: {
     clock_in?: string
@@ -275,6 +294,8 @@ export async function updateAttendanceRecord(
   editedBy: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
     const rows = await db`
       UPDATE attendance_records SET
         clock_in   = COALESCE(${input.clock_in ?? null}::timestamptz, clock_in),
@@ -303,7 +324,8 @@ export async function updateAttendanceRecord(
 /* ── 8. Create record (manager-manual) ────────────────────── */
 
 export async function createAttendanceRecord(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   userId: string,
   input: {
     clock_in: string
@@ -313,6 +335,8 @@ export async function createAttendanceRecord(
   editedBy: string,
 ): Promise<{ success: boolean; error?: string; recordId?: string }> {
   try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
     const [row] = await db`
       INSERT INTO attendance_records
         (tenant_id, user_id, clock_in, clock_out, work_date,

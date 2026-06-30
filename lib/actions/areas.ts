@@ -1,16 +1,19 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { requirePermission } from "@/lib/auth/actor"
+import { requireActor, requirePermission } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 import type { Area, AreaCreateInput, AreaUpdateInput, AreaPickerItem } from "@/lib/types/area"
 
 /* ── Get All Areas ────────────────────────────────────────── */
 
 export async function getAreas(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   activeOnly = false
 ): Promise<Area[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT
       a.id, a.tenant_id, a.property_id,
@@ -40,9 +43,12 @@ export async function getAreas(
 /* ── Get Area by ID ───────────────────────────────────────── */
 
 export async function getAreaById(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   areaId: string
 ): Promise<Area | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT
       a.id, a.tenant_id, a.property_id,
@@ -155,9 +161,12 @@ export async function updateArea(
 /* ── Lightweight Picker Lists ─────────────────────────────── */
 
 export async function getAreasForPicker(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   opts?: { cleaningRelevant?: boolean; maintenanceRelevant?: boolean }
 ): Promise<AreaPickerItem[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT
       a.id, a.name, a.code,

@@ -1,8 +1,10 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 
 export async function getReservationFull(reservationId: string) {
+  const actor = await requireActor()
   const [res] = await db`
     SELECT
       r.id, r.reservation_number, r.status, r.check_in, r.check_out,
@@ -24,7 +26,7 @@ export async function getReservationFull(reservationId: string) {
       g.preferred_language as guest_language, g.tags as guest_tags
     FROM reservations r
     JOIN guests g ON g.id = r.guest_id
-    WHERE r.id = ${reservationId}
+    WHERE r.id = ${reservationId} AND r.tenant_id = ${actor.tenantId}
   `
   if (!res) return null
 

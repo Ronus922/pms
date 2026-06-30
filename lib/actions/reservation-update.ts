@@ -1,23 +1,26 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 import type { ReservationEditData } from "@/lib/stores/reservation-edit-store"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
-import { createCleaningTasksForCheckout, syncTaskTimesForReservation } from "@/lib/actions/cleaning"
+import { createCleaningTasksForCheckout, syncTaskTimesForReservation } from "@/lib/services/cleaning-tasks"
 
 /**
  * Replace a room in an existing reservation.
  * Validates availability of the new room for the reservation dates.
  */
 export async function replaceReservationRoom(
-  tenantId: string,
+  _tenantId: string,
   reservationRoomId: string,
   reservationId: string,
   newRoomId: string,
   checkIn: string,
   checkOut: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   try {
     // Plausibility gate — defence in depth for this legacy path. Even though
     // no UI calls replaceReservationRoom today, any external caller (script,
@@ -111,10 +114,12 @@ interface UpdateResult {
 
 export async function updateReservation(
   reservationId: string,
-  tenantId: string,
+  _tenantId: string,
   guestId: string,
   data: ReservationEditData
 ): Promise<UpdateResult> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   try {
     // CORE RULE — capacity against current room(s) before persisting updated
     // guest counts. See project_room_capacity_pricing_core.md §C.

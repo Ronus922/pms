@@ -33,7 +33,9 @@ interface UserWithPermissions extends StaffMember {
 
 /* ── Get Staff List ─────────────────────────────────────────── */
 
-export async function getStaffList(tenantId: string): Promise<StaffMember[]> {
+export async function getStaffList(_tenantId: string): Promise<StaffMember[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT id, email, username, full_name, phone, role, is_active,
            allow_google_auth, can_assign_maintenance,
@@ -51,8 +53,10 @@ export async function getStaffList(tenantId: string): Promise<StaffMember[]> {
 
 export async function getUserWithPermissions(
   userId: string,
-  tenantId: string
+  _tenantId: string
 ): Promise<UserWithPermissions | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [user] = await db`
     SELECT id, email, username, full_name, phone, role, is_active,
            allow_google_auth, can_assign_maintenance,
@@ -82,9 +86,12 @@ export async function getUserWithPermissions(
 /* ── Get Permissions for Current User ───────────────────────── */
 
 export async function getMyPermissions(
-  userId: string,
-  tenantId: string
+  _userId: string,
+  _tenantId: string
 ): Promise<{ role: Role; permissions: ModulePermission[] }> {
+  const actor = await requireActor()
+  const userId = actor.userId
+  const tenantId = actor.tenantId
   const [user] = await db`
     SELECT role FROM users WHERE id = ${userId} AND tenant_id = ${tenantId}
   `

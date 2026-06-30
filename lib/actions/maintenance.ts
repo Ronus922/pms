@@ -1,9 +1,10 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { requirePermission } from "@/lib/auth/actor"
+import { requireActor, requirePermission } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 import { createAdminSupabase } from "@/lib/supabase/server"
+import { getNextSortOrder, getNextTaskNumber } from "@/lib/services/maintenance-core"
 import { MAINTENANCE_STATUS_TRANSITIONS } from "@/lib/constants/maintenance"
 import type {
   MaintenanceTask,
@@ -11,7 +12,6 @@ import type {
   MaintenanceAuditEntry,
   MaintenanceBoard,
   MaintenanceWorkerSummary,
-  MaintenanceRecurrenceRule,
   MaintenanceStats,
   MaintenanceFilters,
   MaintenanceStatus,
@@ -21,39 +21,6 @@ import type {
 } from "@/lib/types/maintenance"
 
 /* ── Helpers ───────────────────────────────────────────────── */
-
-async function getNextSortOrder(
-  tenantId: string,
-  assignedTo: string | null,
-): Promise<number> {
-  const [row] = assignedTo
-    ? await db`
-        SELECT COALESCE(MAX(sort_order), 0) + 1 AS next
-        FROM maintenance_tasks
-        WHERE tenant_id = ${tenantId}
-          AND assigned_to = ${assignedTo}
-          AND deleted_at IS NULL
-          AND status NOT IN ('resolved','cancelled')
-      `
-    : await db`
-        SELECT COALESCE(MAX(sort_order), 0) + 1 AS next
-        FROM maintenance_tasks
-        WHERE tenant_id = ${tenantId}
-          AND assigned_to IS NULL
-          AND deleted_at IS NULL
-          AND status NOT IN ('resolved','cancelled')
-      `
-  return Number(row.next)
-}
-
-async function getNextTaskNumber(tenantId: string): Promise<number> {
-  const [row] = await db`
-    SELECT COALESCE(MAX(task_number), 0) + 1 AS next
-    FROM maintenance_tasks
-    WHERE tenant_id = ${tenantId}
-  `
-  return Number(row.next)
-}
 
 async function insertAudit(
   tenantId: string,
@@ -98,10 +65,13 @@ function toDateString(value: unknown): string | null {
 /* ── Read: Board ───────────────────────────────────────────── */
 
 export async function getMaintenanceBoard(
-  tenantId: string,
+  _tenantId: string,
   date: string,
   filters?: MaintenanceFilters,
 ): Promise<MaintenanceBoard> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
+
   // 1. All active staff members
   const workerRows = await db`
     SELECT u.id, u.full_name, u.avatar_url
@@ -164,10 +134,14 @@ export async function getMaintenanceBoard(
 /* ── Read: Worker Queue ────────────────────────────────────── */
 
 export async function getMyMaintenanceTasks(
-  tenantId: string,
-  userId: string,
+  _tenantId: string,
+  _userId: string,
   date?: string,
 ): Promise<MaintenanceTask[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
+  const userId = actor.userId
+
   const targetDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date)
     ? date
     : new Date().toISOString().slice(0, 10)
@@ -199,13 +173,16 @@ export async function getMyMaintenanceTasks(
 /* ── Read: Table List ──────────────────────────────────────── */
 
 export async function getMaintenanceList(
-  tenantId: string,
+  _tenantId: string,
   filters?: MaintenanceFilters,
   sortField?: string,
   sortDir?: "asc" | "desc",
   page?: number,
   pageSize?: number,
 ): Promise<{ tasks: MaintenanceTask[]; total: number }> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
+
   const limit = pageSize ?? 50
   const offset = ((page ?? 1) - 1) * limit
 
@@ -288,8 +265,10 @@ export async function getMaintenanceList(
 /* ── Read: Stats ───────────────────────────────────────────── */
 
 export async function getMaintenanceStats(
-  tenantId: string,
+  _tenantId: string,
 ): Promise<MaintenanceStats> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT
       COUNT(*) FILTER (WHERE status = 'open') AS open,
@@ -315,9 +294,11 @@ export async function getMaintenanceStats(
 /* ── Read: Single Task ─────────────────────────────────────── */
 
 export async function getMaintenanceTask(
-  tenantId: string,
+  _tenantId: string,
   taskId: string,
 ): Promise<MaintenanceTask | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT
       mt.*,
@@ -333,9 +314,11 @@ export async function getMaintenanceTask(
 /* ── Read: Audit Log ───────────────────────────────────────── */
 
 export async function getMaintenanceAuditLog(
-  tenantId: string,
+  _tenantId: string,
   taskId: string,
 ): Promise<MaintenanceAuditEntry[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT *
     FROM maintenance_task_audit_log
@@ -349,9 +332,11 @@ export async function getMaintenanceAuditLog(
 /* ── Read: Media ───────────────────────────────────────────── */
 
 export async function getMaintenanceTaskMedia(
-  tenantId: string,
+  _tenantId: string,
   taskId: string,
 ): Promise<MaintenanceTaskMedia[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT *
     FROM maintenance_task_media
@@ -379,8 +364,10 @@ export async function getMaintenanceTaskMedia(
 /* ── Read: Workers ─────────────────────────────────────────── */
 
 export async function getMaintenanceWorkers(
-  tenantId: string,
+  _tenantId: string,
 ): Promise<MaintenanceWorkerSummary[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT u.id, u.full_name, u.avatar_url
     FROM users u
@@ -394,8 +381,10 @@ export async function getMaintenanceWorkers(
 /* ── Read: Rooms list (for target picker) ──────────────────── */
 
 export async function getRoomsForPicker(
-  tenantId: string,
+  _tenantId: string,
 ): Promise<Array<{ id: string; room_number: string; room_type_name: string; max_occupancy: number | null }>> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT
       r.id,
@@ -960,9 +949,11 @@ export async function removeMaintenanceMedia(
 /* ── Read: User Name ───────────────────────────────────────── */
 
 export async function getUserFullName(
-  tenantId: string,
+  _tenantId: string,
   userId: string,
 ): Promise<string> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT full_name FROM users WHERE id = ${userId} AND tenant_id = ${tenantId}
   `
@@ -1012,116 +1003,6 @@ export async function deleteMaintenanceTask(
     if (err instanceof AuthorizationError) return { success: false, error: err.message }
     return { success: false, error: err instanceof Error ? err.message : "שגיאה במחיקה" }
   }
-}
-
-/* ── Recurring: Generate Instances (Cron) ─────────────────── */
-
-export async function generateRecurringMaintenanceInstances(): Promise<{ created: number; errors: number }> {
-  let created = 0
-  let errors = 0
-
-  const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
-  const todayDay = today.getDay() // 0=Sun..6=Sat
-
-  // Find active rules that need generation
-  const rules = await db`
-    SELECT *
-    FROM maintenance_recurrence_rules
-    WHERE is_active = true
-      AND start_date <= ${todayStr}::date
-      AND (end_date IS NULL OR end_date >= ${todayStr}::date)
-      AND (last_generated_date IS NULL OR last_generated_date < ${todayStr}::date)
-  `
-
-  for (const rule of rules) {
-    try {
-      const freq = rule.frequency as string
-      const startDate = new Date(rule.start_date as string)
-      const daysDiff = Math.floor((today.getTime() - startDate.getTime()) / 86400000)
-
-      // Check if today matches the frequency
-      let shouldGenerate = false
-      if (freq === "daily") {
-        shouldGenerate = true
-      } else if (freq === "specific_days") {
-        const days = (rule.days_of_week as number[]) ?? []
-        shouldGenerate = days.includes(todayDay)
-      } else if (freq === "weekly") {
-        shouldGenerate = daysDiff % 7 === 0
-      } else if (freq === "biweekly") {
-        shouldGenerate = daysDiff % 14 === 0
-      } else if (freq === "monthly") {
-        const startDay = startDate.getDate()
-        const todayDate = today.getDate()
-        const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-        // Match day-of-month, or last day if start was on 29/30/31
-        shouldGenerate = todayDate === startDay || (startDay > lastDayOfMonth && todayDate === lastDayOfMonth)
-      }
-
-      if (!shouldGenerate) {
-        // Still update last_generated_date so we don't re-check
-        await db`
-          UPDATE maintenance_recurrence_rules SET last_generated_date = ${todayStr}::date WHERE id = ${rule.id}
-        `
-        continue
-      }
-
-      // Check no duplicate for today
-      const [dup] = await db`
-        SELECT 1 FROM maintenance_tasks
-        WHERE recurrence_rule_id = ${rule.id}
-          AND scheduled_date = ${todayStr}::date
-          AND deleted_at IS NULL
-      `
-      if (dup) {
-        await db`
-          UPDATE maintenance_recurrence_rules SET last_generated_date = ${todayStr}::date WHERE id = ${rule.id}
-        `
-        continue
-      }
-
-      // Create instance
-      const tenantId = rule.tenant_id as string
-      const taskNumber = await getNextTaskNumber(tenantId)
-      const assignedTo = rule.assigned_to as string | null
-      const initialStatus: MaintenanceStatus = assignedTo ? "assigned" : "open"
-      const sortOrder = await getNextSortOrder(tenantId, assignedTo)
-
-      await db`
-        INSERT INTO maintenance_tasks (
-          tenant_id, task_number, source_type, target_type, target_id, target_label,
-          room_number, issue_category, title, description, priority, urgency_level,
-          status, assigned_to, assigned_to_name, reported_by, reported_by_name,
-          scheduled_date, scheduled_time_from, scheduled_time_to,
-          sort_order, estimated_duration_minutes,
-          requires_guest_coordination, can_enter_room, access_notes,
-          recurrence_rule_id, is_recurring
-        ) VALUES (
-          ${tenantId}, ${taskNumber}, ${rule.source_type},
-          ${rule.target_type}, ${rule.target_id}, ${rule.target_label},
-          ${rule.room_number}, ${rule.issue_category}, ${rule.title},
-          ${rule.description}, ${rule.priority}, ${rule.urgency_level},
-          ${initialStatus}, ${assignedTo}, ${rule.assigned_to_name},
-          ${rule.created_by}, ${rule.created_by_name},
-          ${todayStr}, ${rule.scheduled_time_from}, ${rule.scheduled_time_to},
-          ${sortOrder}, ${rule.estimated_duration_minutes},
-          ${rule.requires_guest_coordination}, ${rule.can_enter_room}, ${rule.access_notes},
-          ${rule.id}, true
-        )
-      `
-
-      await db`
-        UPDATE maintenance_recurrence_rules SET last_generated_date = ${todayStr}::date, updated_at = NOW() WHERE id = ${rule.id}
-      `
-
-      created++
-    } catch {
-      errors++
-    }
-  }
-
-  return { created, errors }
 }
 
 /* ── Recurring: Deactivate Rule ───────────────────────────── */

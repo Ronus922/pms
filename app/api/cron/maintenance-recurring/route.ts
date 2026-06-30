@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { generateRecurringMaintenanceInstances } from "@/lib/actions/maintenance"
+import { generateRecurringMaintenanceInstances } from "@/lib/services/maintenance-core"
 
 /**
  * Called by system cron at 06:00 daily:

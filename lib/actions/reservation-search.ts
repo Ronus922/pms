@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -65,9 +66,11 @@ function joinAnd(fragments: Sql[]): Sql {
 /* ── Main search ───────────────────────────────────────────── */
 
 export async function searchReservations(
-  tenantId: string,
+  _tenantId: string,
   filters: ReservationSearchFilters
 ): Promise<ReservationSearchResult> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const conds: Sql[] = [db`r.tenant_id = ${tenantId}`]
 
   // ── Date type + range ──
@@ -195,7 +198,9 @@ export async function searchReservations(
 
 /* ── Agent options ─────────────────────────────────────────── */
 
-export async function getAgentOptions(tenantId: string): Promise<string[]> {
+export async function getAgentOptions(_tenantId: string): Promise<string[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const result = await db`
     SELECT DISTINCT agent
     FROM reservations

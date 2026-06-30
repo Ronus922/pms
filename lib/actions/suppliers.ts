@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { requirePermission } from "@/lib/auth/actor"
+import { requireActor, requirePermission } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 import { PHONE_REGEX, EMAIL_REGEX, SUPPLIER_TYPE_OPTIONS } from "@/lib/constants/suppliers"
 import type {
@@ -47,9 +47,12 @@ function validateSupplierInput(data: SupplierCreateInput): string | null {
 /* ── Read: List ────────────────────────────────────────────── */
 
 export async function getSupplierList(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   filters?: SupplierFilters,
 ): Promise<Supplier[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const search = filters?.search?.trim() ?? ""
   const status = filters?.status === "all" ? "" : (filters?.status ?? "")
   const type = filters?.type === "all" ? "" : (filters?.type ?? "")
@@ -82,9 +85,12 @@ export async function getSupplierList(
 /* ── Read: Single ──────────────────────────────────────────── */
 
 export async function getSupplier(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   supplierId: string,
 ): Promise<Supplier | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT
       s.*,
@@ -101,9 +107,12 @@ export async function getSupplier(
 /* ── Read: Activity Log ────────────────────────────────────── */
 
 export async function getSupplierActivityLog(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   supplierId: string,
 ): Promise<SupplierActivity[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT * FROM supplier_activity_log
     WHERE supplier_id = ${supplierId} AND tenant_id = ${tenantId}
@@ -115,9 +124,12 @@ export async function getSupplierActivityLog(
 /* ── Read: Documents ───────────────────────────────────────── */
 
 export async function getSupplierDocuments(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   supplierId: string,
 ): Promise<SupplierDocument[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT * FROM supplier_documents
     WHERE supplier_id = ${supplierId} AND tenant_id = ${tenantId}
@@ -129,9 +141,12 @@ export async function getSupplierDocuments(
 /* ── Read: Links ───────────────────────────────────────────── */
 
 export async function getSupplierLinks(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   supplierId: string,
 ): Promise<SupplierLink[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT * FROM supplier_links
     WHERE supplier_id = ${supplierId} AND tenant_id = ${tenantId}
@@ -387,9 +402,12 @@ export async function deleteSupplierDocument(
 /* ── Read: User Name ───────────────────────────────────────── */
 
 export async function getUserFullNameForSuppliers(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   userId: string,
 ): Promise<string> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT full_name FROM users WHERE id = ${userId} AND tenant_id = ${tenantId}
   `
@@ -409,8 +427,11 @@ interface SupplierTypeItem {
 }
 
 export async function getSupplierTypes(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
 ): Promise<SupplierTypeItem[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT
       li.id,

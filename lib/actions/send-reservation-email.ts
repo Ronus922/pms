@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 
 interface EmailPayload {
   tenantId: string
@@ -50,9 +51,14 @@ function buildConfirmationHtml(payload: EmailPayload, businessName: string): str
  */
 export async function sendReservationConfirmationEmail(payload: EmailPayload): Promise<void> {
   try {
+    // Tenant derived from the session — never trust payload.tenantId. (Caller is
+    // createReservation, which is requireActor-guarded; a direct cross-tenant
+    // client call now resolves to the caller's own tenant.)
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
     // Get tenant info
     const [tenant] = await db`
-      SELECT name, notification_email FROM tenants WHERE id = ${payload.tenantId}
+      SELECT name, notification_email FROM tenants WHERE id = ${tenantId}
     `
     const businessName = tenant?.name || "GuestHub"
     const html = buildConfirmationHtml(payload, businessName)
