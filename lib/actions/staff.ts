@@ -9,9 +9,12 @@ import type { Role, ModulePermission } from "@/lib/permissions/constants"
 /* ── Get Employee List (with filters + stats) ──────────────── */
 
 export async function getEmployeeList(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   filters?: Partial<StaffFilter>
 ): Promise<EmployeeWithStats[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const search = filters?.search?.trim() || ""
   const roleFilter = filters?.role && filters.role !== "all" ? filters.role : null
   const statusFilter = filters?.status || "all"
@@ -66,8 +69,11 @@ export async function getEmployeeList(
 
 export async function getEmployeeProfile(
   userId: string,
-  tenantId: string
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string
 ): Promise<EmployeeWithPermissions | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [user] = await db`
     SELECT
       u.id, u.tenant_id, u.email, u.username, u.full_name, u.phone,
@@ -163,9 +169,12 @@ export async function updateEmployeeProfile(
 
 export async function getEmployeeActivity(
   userId: string,
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   limit = 20
 ): Promise<EmployeeActivity[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   // Cleaning tasks completed as activity
   const tasks = await db`
     SELECT
@@ -191,8 +200,11 @@ export async function getEmployeeActivity(
 
 export async function getEmployeeTaskSummary(
   userId: string,
-  tenantId: string
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string
 ): Promise<EmployeeTaskSummary> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT
       COALESCE(SUM(CASE WHEN status = 'done' AND completed_at::date = CURRENT_DATE THEN 1 ELSE 0 END), 0)::int AS today,

@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { requireAdmin } from "@/lib/auth/actor"
+import { requireActor, requireAdmin } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 import type { LookupCategory, LookupItem, LookupCategoryId, LookupItemInput } from "@/lib/types/lookup"
 
@@ -17,10 +17,13 @@ export async function getCategories(): Promise<LookupCategory[]> {
 }
 
 export async function getLookupItems(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   category: LookupCategoryId,
   activeOnly = false
 ): Promise<LookupItem[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   if (activeOnly) {
     const rows = await db`
       SELECT * FROM lookup_items
@@ -38,9 +41,12 @@ export async function getLookupItems(
 }
 
 export async function getAllLookups(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   categories: LookupCategoryId[]
 ): Promise<Record<string, LookupItem[]>> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT * FROM lookup_items
     WHERE tenant_id = ${tenantId} AND category = ANY(${categories}) AND is_active = TRUE
@@ -177,7 +183,9 @@ function timeToHHMM(v: unknown): string {
   return String(v).slice(0, 5)
 }
 
-export async function getTenantSettings(tenantId: string) {
+export async function getTenantSettings(_tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT notification_email,
            default_checkin_time, default_checkout_time,

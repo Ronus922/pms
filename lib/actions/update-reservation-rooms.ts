@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
 import type { ReservationRoom } from "@/lib/stores/reservation-form-store"
@@ -56,10 +57,12 @@ export interface UpdateReservationRoomsResult {
  *  All work happens inside a single transaction — partial writes are rolled
  *  back on any failure (e.g. one room fails availability). */
 export async function updateReservationRooms(
-  tenantId: string,
+  _tenantId: string,
   reservationId: string,
   rooms: ReservationRoom[],
 ): Promise<UpdateReservationRoomsResult> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   try {
     if (!reservationId || !tenantId) {
       return { success: false, error: "חסר מזהה הזמנה" }

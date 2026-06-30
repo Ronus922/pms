@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 import type { ReservationFormData } from "@/lib/stores/reservation-form-store"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
@@ -17,7 +18,9 @@ const BLOCK_TYPE_LABEL_HE: Record<string, string> = {
   other: "אחר",
 }
 
-export async function getFormOptions(tenantId: string) {
+export async function getFormOptions(_tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const roomTypes = await db`
     SELECT id, name, max_occupancy, default_occupancy, base_price, extra_person_price,
            max_adults, max_children, max_infants
@@ -42,11 +45,14 @@ export async function getFormOptions(tenantId: string) {
  * Excludes: blocked, maintenance, unavailable rooms + rooms with overlapping reservations.
  */
 export async function getAvailableRooms(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   checkIn: string,
   checkOut: string,
   excludeReservationId?: string
 ) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   if (!checkIn || !checkOut || checkOut <= checkIn) return []
 
   // Merge per-room overrides with room_types defaults.
@@ -121,7 +127,9 @@ export async function getAvailableRooms(
   return rooms
 }
 
-export async function searchGuests(tenantId: string, query: string) {
+export async function searchGuests(_tenantId: string, query: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   if (!query || query.length < 2) return []
 
   const results = await db`
@@ -148,10 +156,13 @@ interface CreateResult {
 }
 
 export async function createReservation(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   propertyId: string,
   form: Partial<ReservationFormData> & Pick<ReservationFormData, "firstName" | "lastName" | "phone" | "checkIn" | "checkOut" | "source">
 ): Promise<CreateResult> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   // Apply defaults for optional new fields
   const rooms = form.rooms || []
   const pricePerNight = form.pricePerNight || 0

@@ -1,8 +1,10 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 
 export async function getGuestProfile(guestId: string) {
+  const actor = await requireActor()
   const [guest] = await db`
     SELECT id, first_name, last_name, full_name, email, phone, id_number,
       date_of_birth, preferred_language, country, zip_code,
@@ -11,7 +13,7 @@ export async function getGuestProfile(guestId: string) {
       tags, custom_fields, total_reservations, total_revenue, total_cancellations, total_no_shows,
       preferred_room_type_id, preferred_payment_method,
       created_at
-    FROM guests WHERE id = ${guestId}
+    FROM guests WHERE id = ${guestId} AND tenant_id = ${actor.tenantId}
   `
   if (!guest) return null
 

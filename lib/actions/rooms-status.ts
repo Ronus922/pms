@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 import type { RoomDisplayState } from "@/lib/constants/room-display"
 
 /**
@@ -60,9 +61,11 @@ export interface RoomWithDerivedStatus {
  * "Active" = reservation.status IN ('confirmed','checked_in') AND date range covers target.
  */
 export async function getRoomsWithDerivedStatus(
-  tenantId: string,
+  _tenantId: string,
   atDate?: string
 ): Promise<RoomWithDerivedStatus[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const dateStr = atDate ?? new Date().toISOString().slice(0, 10)
 
   const rows = await db.unsafe(
@@ -170,10 +173,12 @@ export async function getRoomsWithDerivedStatus(
  * to check if a room is blockable before booking.
  */
 export async function getRoomDerivedState(
-  tenantId: string,
+  _tenantId: string,
   roomId: string,
   atDate?: string
 ): Promise<RoomDisplayState | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const dateStr = atDate ?? new Date().toISOString().slice(0, 10)
 
   const [row] = await db`
@@ -223,11 +228,13 @@ export async function getRoomDerivedState(
  * exposed here for administrative overrides too.
  */
 export async function setRoomCleaningState(
-  tenantId: string,
+  _tenantId: string,
   roomId: string,
   state: "clean" | "dirty" | "in_progress"
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const actor = await requireActor()
+    const tenantId = actor.tenantId
     await db`
       UPDATE rooms
       SET cleaning_state = ${state}, updated_at = NOW()

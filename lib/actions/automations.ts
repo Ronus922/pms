@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { requireSuperAdmin } from "@/lib/auth/actor"
+import { requireActor, requireSuperAdmin } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 import type {
   AutomationTemplate,
@@ -21,7 +21,9 @@ import type {
    STATS
    ══════════════════════════════════════════════════════════════ */
 
-export async function getAutomationStats(tenantId: string): Promise<AutomationStats> {
+export async function getAutomationStats(_tenantId: string): Promise<AutomationStats> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const today = new Date().toISOString().slice(0, 10)
 
   const [row] = await db`
@@ -48,9 +50,11 @@ export async function getAutomationStats(tenantId: string): Promise<AutomationSt
    ══════════════════════════════════════════════════════════════ */
 
 export async function getTemplates(
-  tenantId: string,
+  _tenantId: string,
   filters?: TemplateFilters,
 ): Promise<AutomationTemplate[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const search = filters?.search?.trim() || null
   const category = filters?.category === "all" ? null : (filters?.category || null)
   const channel = filters?.channel === "all" ? null : (filters?.channel || null)
@@ -68,7 +72,9 @@ export async function getTemplates(
   return rows as unknown as AutomationTemplate[]
 }
 
-export async function getTemplate(tenantId: string, templateId: string): Promise<AutomationTemplate | null> {
+export async function getTemplate(_tenantId: string, templateId: string): Promise<AutomationTemplate | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT * FROM automation_templates WHERE id = ${templateId} AND tenant_id = ${tenantId}
   `
@@ -215,9 +221,11 @@ export async function duplicateTemplate(
    ══════════════════════════════════════════════════════════════ */
 
 export async function getRules(
-  tenantId: string,
+  _tenantId: string,
   filters?: RuleFilters,
 ): Promise<AutomationRule[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const search = filters?.search?.trim() || null
   const triggerType = filters?.trigger_type === "all" ? null : (filters?.trigger_type || null)
   const activeFilter = filters?.active
@@ -274,7 +282,9 @@ export async function createRule(
   }
 }
 
-export async function getRule(tenantId: string, ruleId: string): Promise<AutomationRule | null> {
+export async function getRule(_tenantId: string, ruleId: string): Promise<AutomationRule | null> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [row] = await db`
     SELECT ar.*, at.name AS template_name
     FROM automation_rules ar
@@ -349,9 +359,11 @@ export async function toggleRule(
    ══════════════════════════════════════════════════════════════ */
 
 export async function getQueueItems(
-  tenantId: string,
+  _tenantId: string,
   status?: string,
 ): Promise<MessageQueueItem[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const statusFilter = status === "all" ? null : (status || null)
 
   const rows = await db`
@@ -391,9 +403,11 @@ export async function cancelQueueItem(
    ══════════════════════════════════════════════════════════════ */
 
 export async function getMessageLogs(
-  tenantId: string,
+  _tenantId: string,
   filters?: LogFilters,
 ): Promise<MessageLogEntry[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const search = filters?.search?.trim() || null
   const channel = filters?.channel === "all" ? null : (filters?.channel || null)
   const status = filters?.status === "all" ? null : (filters?.status || null)
@@ -422,7 +436,9 @@ export async function getMessageLogs(
    VARIABLES
    ══════════════════════════════════════════════════════════════ */
 
-export async function getVariables(tenantId: string): Promise<DynamicVariable[]> {
+export async function getVariables(_tenantId: string): Promise<DynamicVariable[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT * FROM automation_variables
     WHERE tenant_id = ${tenantId}

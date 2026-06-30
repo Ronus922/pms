@@ -1,10 +1,12 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { requirePermission } from "@/lib/auth/actor"
+import { requireActor, requirePermission } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 
-export async function getRoomTypesList(tenantId: string) {
+export async function getRoomTypesList(_tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   return db`
     SELECT rt.*,
       (SELECT COUNT(*)::int FROM rooms r WHERE r.room_type_id = rt.id AND r.is_active = true) as room_count

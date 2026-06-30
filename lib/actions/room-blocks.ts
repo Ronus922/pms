@@ -24,7 +24,7 @@
  */
 
 import { db } from "@/lib/db"
-import { requireAdmin } from "@/lib/auth/actor"
+import { requireActor, requireAdmin } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 
 /* ── Types ──────────────────────────────────────────────────── */
@@ -94,9 +94,12 @@ function isValidDate(v: unknown): v is string {
 /* ── List ───────────────────────────────────────────────────── */
 
 export async function listRoomBlocks(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   opts?: { roomId?: string; includeExpired?: boolean },
 ): Promise<RoomBlockRow[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const roomId = opts?.roomId ?? null
   const includeExpired = opts?.includeExpired ?? true
 
@@ -208,7 +211,8 @@ export interface CreateRoomBlockResult {
 }
 
 export async function createRoomBlock(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   input: CreateRoomBlockInput,
   /** Admin has explicitly acknowledged the overlapping reservation(s) and
    *  wants to create the block anyway. Default FALSE — safety first. */
@@ -216,6 +220,7 @@ export async function createRoomBlock(
 ): Promise<CreateRoomBlockResult> {
   try {
     const actor = await requireAdmin()
+    const tenantId = actor.tenantId
 
     if (!input.roomId) return { success: false, error: "חובה לבחור חדר" }
     if (!isValidDate(input.startDate)) return { success: false, error: "תאריך התחלה לא תקין" }
@@ -318,7 +323,8 @@ export interface UpdateRoomBlockResult {
 }
 
 export async function updateRoomBlock(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   blockId: string,
   updates: UpdateRoomBlockInput,
   /** Admin has explicitly accepted overlapping reservations for the new
@@ -328,6 +334,7 @@ export async function updateRoomBlock(
 ): Promise<UpdateRoomBlockResult> {
   try {
     const actor = await requireAdmin()
+    const tenantId = actor.tenantId
 
     const [current] = await db<
       {
@@ -427,11 +434,13 @@ export async function updateRoomBlock(
 /* ── Cancel (soft) ──────────────────────────────────────────── */
 
 export async function cancelRoomBlock(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   blockId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const actor = await requireAdmin()
+    const tenantId = actor.tenantId
     const result = await db`
       UPDATE room_blocks
       SET is_active = FALSE,
@@ -451,11 +460,13 @@ export async function cancelRoomBlock(
 /* ── Delete (hard) ──────────────────────────────────────────── */
 
 export async function deleteRoomBlock(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   blockId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdmin()
+    const actor = await requireAdmin()
+    const tenantId = actor.tenantId
     const result = await db`
       DELETE FROM room_blocks
       WHERE id = ${blockId}::uuid AND tenant_id = ${tenantId}
@@ -476,12 +487,14 @@ export type RoomStatus = "available" | "inactive" | "out_of_order"
 const VALID_ROOM_STATUSES: RoomStatus[] = ["available", "inactive", "out_of_order"]
 
 export async function setRoomStatus(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
   roomId: string,
   status: RoomStatus,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await requireAdmin()
+    const actor = await requireAdmin()
+    const tenantId = actor.tenantId
     if (!VALID_ROOM_STATUSES.includes(status)) {
       return { success: false, error: "סטטוס לא תקין" }
     }
@@ -510,8 +523,11 @@ export interface RoomForBlockSelect {
 }
 
 export async function listRoomsForBlockSelect(
-  tenantId: string,
+  // tenantId IGNORED — derived from server session.
+  _tenantId: string,
 ): Promise<RoomForBlockSelect[]> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db<RoomForBlockSelect[]>`
     SELECT r.id, r.room_number, rt.name AS room_type_name, r.status
     FROM rooms r

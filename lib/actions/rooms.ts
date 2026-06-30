@@ -1,8 +1,11 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 
-export async function getRoomsList(tenantId: string) {
+export async function getRoomsList(_tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   return db`
     SELECT r.id, r.room_number, r.status,
       rt.name AS room_type_name,

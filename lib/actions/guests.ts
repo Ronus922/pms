@@ -1,8 +1,11 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 
-export async function getGuestsList(tenantId: string) {
+export async function getGuestsList(_tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const guests = await db`
     SELECT g.id, g.first_name, g.last_name, g.full_name, g.phone, g.email,
       g.is_vip, g.is_blocked, g.source, g.company, g.country,
@@ -16,7 +19,9 @@ export async function getGuestsList(tenantId: string) {
   return guests
 }
 
-export async function getReservationsList(tenantId: string) {
+export async function getReservationsList(_tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const reservations = await db`
     SELECT r.id, r.reservation_number, r.status, r.check_in, r.check_out,
       r.adults, r.children, r.source, r.is_vip,

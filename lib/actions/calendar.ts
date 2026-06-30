@@ -1,9 +1,12 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 import { getEffectiveRoomDailyPricingBatch } from "@/lib/utils/effective-pricing"
 
-export async function getCalendarData(tenantId: string, startDate: string, endDate: string) {
+export async function getCalendarData(_tenantId: string, startDate: string, endDate: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   // Get rooms with type info + base price + live cleaning_state (drives the
   // "dirty" / "in_progress" / "clean" portion of the room's derived status).
   const rooms = await db`
@@ -125,12 +128,14 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
 }
 
 export async function moveReservation(
-  tenantId: string,
+  _tenantId: string,
   reservationId: string,
   roomId: string,
   newCheckIn: string,
   newCheckOut: string
 ) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   // Check availability
   const [available] = await db`
     SELECT check_room_availability(

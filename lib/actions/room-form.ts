@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { requirePermission } from "@/lib/auth/actor"
+import { requireActor, requirePermission } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 
 // ── Type exports ──────────────────────────────────────────────
@@ -84,7 +84,9 @@ interface ImageInput {
 
 // ── Form Options ──────────────────────────────────────────────
 
-export async function getRoomFormOptions(tenantId: string) {
+export async function getRoomFormOptions(_tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [roomTypes, buildings, floors] = await Promise.all([
     db`SELECT id, name, max_occupancy, max_adults, max_children, max_infants, base_price, amenities
        FROM room_types WHERE tenant_id = ${tenantId} AND is_active = true ORDER BY sort_order, name`,
@@ -101,7 +103,9 @@ export async function getRoomFormOptions(tenantId: string) {
 
 // ── Equipment List ────────────────────────────────────────────
 
-export async function getEquipmentList(tenantId: string) {
+export async function getEquipmentList(_tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const rows = await db`
     SELECT id, name, category, icon
     FROM equipment
@@ -157,7 +161,9 @@ interface RoomImageRow {
   is_primary: boolean
 }
 
-export async function getRoomById(roomId: string, tenantId: string) {
+export async function getRoomById(roomId: string, _tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   const [rooms, translations, equipment, images] = await Promise.all([
     // Merge per-room overrides with room_types. Per-room NULL → inherit type.
     // Reservation-form + Room-Management UI now read the same effective values.

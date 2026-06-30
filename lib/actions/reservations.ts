@@ -1,9 +1,11 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireActor } from "@/lib/auth/actor"
 import { createCleaningTasksForCheckout, cancelCleaningTasksForReservation } from "@/lib/actions/cleaning"
 
 export async function getReservationDetails(reservationId: string) {
+  const actor = await requireActor()
   const [res] = await db`
     SELECT
       r.id, r.reservation_number, r.status, r.check_in, r.check_out,
@@ -18,7 +20,7 @@ export async function getReservationDetails(reservationId: string) {
       g.country as guest_country
     FROM reservations r
     JOIN guests g ON g.id = r.guest_id
-    WHERE r.id = ${reservationId}
+    WHERE r.id = ${reservationId} AND r.tenant_id = ${actor.tenantId}
   `
 
   if (!res) return null
@@ -36,7 +38,9 @@ export async function getReservationDetails(reservationId: string) {
   return { ...res, rooms }
 }
 
-export async function updateReservationStatus(reservationId: string, tenantId: string, status: string) {
+export async function updateReservationStatus(reservationId: string, _tenantId: string, status: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   await db`
     UPDATE reservations SET status = ${status}, updated_at = NOW()
     WHERE id = ${reservationId} AND tenant_id = ${tenantId}
@@ -53,7 +57,9 @@ export async function updateReservationStatus(reservationId: string, tenantId: s
   return { success: true }
 }
 
-export async function toggleVip(reservationId: string, tenantId: string) {
+export async function toggleVip(reservationId: string, _tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   await db`
     UPDATE reservations SET is_vip = NOT is_vip, updated_at = NOW()
     WHERE id = ${reservationId} AND tenant_id = ${tenantId}
@@ -61,7 +67,9 @@ export async function toggleVip(reservationId: string, tenantId: string) {
   return { success: true }
 }
 
-export async function cancelReservation(reservationId: string, tenantId: string) {
+export async function cancelReservation(reservationId: string, _tenantId: string) {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
   await db`
     UPDATE reservations SET status = 'cancelled', updated_at = NOW()
     WHERE id = ${reservationId} AND tenant_id = ${tenantId}
