@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db"
 import { requireActor } from "@/lib/auth/actor"
-import { createCleaningTasksForCheckout, cancelCleaningTasksForReservation } from "@/lib/actions/cleaning"
+import { createCleaningTasksForCheckout, cancelCleaningTasksForReservation } from "@/lib/services/cleaning-tasks"
 
 export async function getReservationDetails(reservationId: string) {
   const actor = await requireActor()

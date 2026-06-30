@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/db"
-import { createCleaningTasksForCheckout } from "@/lib/actions/cleaning"
+import { runMorningCheckoutCleaningForAllTenants } from "@/lib/services/cleaning-tasks"
 
 /**
  * Called by system cron at 08:00 daily:
@@ -9,8 +8,9 @@ import { createCleaningTasksForCheckout } from "@/lib/actions/cleaning"
  *     https://pms.bios.co.il/api/cron/cleaning-morning \
  *     > /var/log/pms-cleaning-cron.log 2>&1
  *
- * Finds every reservation with today's check_out and an active status, then
- * calls createCleaningTasksForCheckout for each. Idempotent by design.
+ * Service-role entry point. The per-tenant iteration + tenant-scoped task
+ * creation lives in runMorningCheckoutCleaningForAllTenants (lib/services),
+ * which is NOT a client-callable Server Action. Idempotent by design.
  */
 export async function GET(request: Request) {
   const secret = request.headers.get("x-cron-secret")
@@ -27,40 +27,7 @@ export async function GET(request: Request) {
   }
 
   const today = new Date().toISOString().slice(0, 10)
+  const result = await runMorningCheckoutCleaningForAllTenants(today)
 
-  // Every reservation checking out today, across all tenants
-  const rows = await db`
-    SELECT DISTINCT res.id AS reservation_id, res.tenant_id
-    FROM reservations res
-    JOIN reservation_rooms rr ON rr.reservation_id = res.id
-    WHERE rr.check_out = ${today}::date
-      AND res.status IN ('checked_in','confirmed')
-  `
-
-  const results: Array<{
-    reservation_id: string
-    tenant_id: string
-    created: number
-    skipped: number
-  }> = []
-
-  for (const row of rows as unknown as { reservation_id: string; tenant_id: string }[]) {
-    const result = await createCleaningTasksForCheckout(
-      row.tenant_id,
-      row.reservation_id,
-      "scheduled_checkout_day"
-    )
-    results.push({ ...row, ...result })
-  }
-
-  const totalCreated = results.reduce((acc, r) => acc + r.created, 0)
-  const totalSkipped = results.reduce((acc, r) => acc + r.skipped, 0)
-
-  return NextResponse.json({
-    date: today,
-    reservations_processed: results.length,
-    tasks_created: totalCreated,
-    tasks_skipped: totalSkipped,
-    details: results,
-  })
+  return NextResponse.json({ date: today, ...result })
 }

@@ -5,7 +5,7 @@ import { requireActor } from "@/lib/auth/actor"
 import type { ReservationEditData } from "@/lib/stores/reservation-edit-store"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
-import { createCleaningTasksForCheckout, syncTaskTimesForReservation } from "@/lib/actions/cleaning"
+import { createCleaningTasksForCheckout, syncTaskTimesForReservation } from "@/lib/services/cleaning-tasks"
 
 /**
  * Replace a room in an existing reservation.
