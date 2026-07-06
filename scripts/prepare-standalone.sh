@@ -1,16 +1,14 @@
-#!/bin/bash
-# Deploy PMS — use pnpm start (not standalone server.js)
-set -e
-
-echo "Deploying PMS..."
-
-# Kill existing
-lsof -ti:3004 2>/dev/null | xargs kill -9 2>/dev/null || true
-sleep 1
-
-# Start with pnpm start
-cd /var/www/pms
-PORT=3004 nohup pnpm start > /tmp/pms.log 2>&1 &
-
-echo "PMS running on port 3004"
-echo "  URL: https://pms.bios.co.il"
+#!/usr/bin/env bash
+# DEPRECATED / NEUTRALISED — 2026-07-06.
+#
+# This script used to run:  lsof -ti:3004 | xargs kill -9  +  nohup pnpm start &
+# That started PMS OUTSIDE PM2 and blind-killed whatever held :3004 (including the
+# PM2-managed process). It was the root cause of the 8,268-restart EADDRINUSE loop.
+#
+# It no longer starts or kills anything. It only forwards to the one canonical,
+# PM2-safe deploy. Direct pnpm/next start, nohup, and manual port-killing are
+# FORBIDDEN in production (see DEPLOYMENT.md).
+set -euo pipefail
+echo "⚠  prepare-standalone.sh is deprecated and does NOT start/kill processes."
+echo "   Delegating to the canonical, PM2-safe deploy → scripts/deploy.sh"
+exec "$(cd "$(dirname "$0")" && pwd)/deploy.sh" "$@"
