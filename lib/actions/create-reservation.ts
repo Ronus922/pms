@@ -5,7 +5,7 @@ import { requireActor } from "@/lib/auth/actor"
 import type { ReservationFormData } from "@/lib/stores/reservation-form-store"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
-import { sendReservationConfirmationEmail } from "./send-reservation-email"
+import { sendReservationNotifications } from "@/lib/services/reservation-emails"
 
 /** Map internal block_type enum → Hebrew label so conflict error messages
  *  read naturally in the admin UI (never show raw enum strings). */
@@ -486,18 +486,10 @@ export async function createReservation(
       `
     }
 
-    // Fire-and-forget email — don't await, don't block
-    sendReservationConfirmationEmail({
-      tenantId,
-      reservationId: reservation.id,
-      reservationNumber: reservation.reservation_number,
-      guestEmail: form.email || "",
-      guestName: `${form.firstName} ${form.lastName}`,
-      checkIn: form.checkIn,
-      checkOut: form.checkOut,
-      totalPrice: grandTotal,
-      currency: form.currency || "ILS",
-    }).catch(() => {})
+    // Fire-and-forget notifications — don't await, don't block. The shared
+    // service re-loads everything by id, decides internal vs guest email
+    // server-side, and never throws.
+    sendReservationNotifications(tenantId, reservation.id).catch(() => {})
 
     return {
       success: true,

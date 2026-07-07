@@ -829,7 +829,13 @@ async function importRevision(
   //
   // The Bookings Inbox UI lets the operator manually push the revision
   // into the reservations module via the existing create-reservation
-  // flow, pre-filled.
+  // flow, pre-filled — which already fires reservation notifications.
+  //
+  // CORE RULE — if this function is later extended to materialise revisions
+  // directly into `reservations`, the new INSERT path MUST fire-and-forget
+  // `sendReservationNotifications(tenantId, reservationId)` (from
+  // lib/services/reservation-emails.ts) so channel bookings send the internal
+  // email. External sources are auto-detected there → guest email is suppressed.
   return { status: "imported", reservationId: existing?.id }
 }
 
