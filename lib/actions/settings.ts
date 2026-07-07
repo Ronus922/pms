@@ -190,7 +190,9 @@ export async function getTenantSettings(_tenantId: string) {
     SELECT notification_email,
            default_checkin_time, default_checkout_time,
            sabbath_checkin_time, sabbath_checkout_time,
-           vat_rate
+           vat_rate,
+           reservation_notify_emails, guest_email_enabled, terms_text,
+           name, address, phone, website, email, logo_url
     FROM tenants WHERE id = ${tenantId}
   `
   return {
@@ -200,6 +202,17 @@ export async function getTenantSettings(_tenantId: string) {
     sabbathCheckinTime: timeToHHMM(row?.sabbath_checkin_time),
     sabbathCheckoutTime: timeToHHMM(row?.sabbath_checkout_time),
     vatRate: row?.vat_rate != null ? Number(row.vat_rate) : 17,
+    // Reservation email notifications
+    reservationNotifyEmails: row?.reservation_notify_emails || "",
+    guestEmailEnabled: row?.guest_email_enabled ?? true,
+    termsText: row?.terms_text || "",
+    // Business details (reused across the guest confirmation email)
+    businessName: row?.name || "",
+    address: row?.address || "",
+    businessPhone: row?.phone || "",
+    website: row?.website || "",
+    businessEmail: row?.email || "",
+    logoUrl: row?.logo_url || "",
   }
 }
 
@@ -212,6 +225,15 @@ export async function updateTenantSettings(
     sabbathCheckinTime?: string | null
     sabbathCheckoutTime?: string | null
     vatRate?: number
+    reservationNotifyEmails?: string
+    guestEmailEnabled?: boolean
+    termsText?: string
+    businessName?: string
+    address?: string
+    businessPhone?: string
+    website?: string
+    businessEmail?: string
+    logoUrl?: string
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -223,6 +245,46 @@ export async function updateTenantSettings(
         UPDATE tenants SET notification_email = ${settings.notificationEmail || null}
         WHERE id = ${tenantId}
       `
+    }
+
+    // Reservation email notifications
+    if (settings.reservationNotifyEmails !== undefined) {
+      await db`
+        UPDATE tenants SET reservation_notify_emails = ${settings.reservationNotifyEmails || null}
+        WHERE id = ${tenantId}
+      `
+    }
+    if (settings.guestEmailEnabled !== undefined) {
+      await db`
+        UPDATE tenants SET guest_email_enabled = ${settings.guestEmailEnabled}
+        WHERE id = ${tenantId}
+      `
+    }
+    if (settings.termsText !== undefined) {
+      await db`
+        UPDATE tenants SET terms_text = ${settings.termsText || null}
+        WHERE id = ${tenantId}
+      `
+    }
+
+    // Business details
+    if (settings.businessName !== undefined && settings.businessName.trim()) {
+      await db`UPDATE tenants SET name = ${settings.businessName.trim()} WHERE id = ${tenantId}`
+    }
+    if (settings.address !== undefined) {
+      await db`UPDATE tenants SET address = ${settings.address || null} WHERE id = ${tenantId}`
+    }
+    if (settings.businessPhone !== undefined) {
+      await db`UPDATE tenants SET phone = ${settings.businessPhone || null} WHERE id = ${tenantId}`
+    }
+    if (settings.website !== undefined) {
+      await db`UPDATE tenants SET website = ${settings.website || null} WHERE id = ${tenantId}`
+    }
+    if (settings.businessEmail !== undefined) {
+      await db`UPDATE tenants SET email = ${settings.businessEmail || null} WHERE id = ${tenantId}`
+    }
+    if (settings.logoUrl !== undefined) {
+      await db`UPDATE tenants SET logo_url = ${settings.logoUrl || null} WHERE id = ${tenantId}`
     }
 
     if (settings.defaultCheckinTime !== undefined && settings.defaultCheckinTime) {

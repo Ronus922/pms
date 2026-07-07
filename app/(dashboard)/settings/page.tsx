@@ -62,9 +62,19 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<string>("reservation_source")
   const [items, setItems] = useState<LookupItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [notificationEmail, setNotificationEmail] = useState("")
+  // Reservation email notifications + business details
+  const [reservationNotifyEmails, setReservationNotifyEmails] = useState("")
+  const [guestEmailEnabled, setGuestEmailEnabled] = useState(true)
+  const [termsText, setTermsText] = useState("")
+  const [businessName, setBusinessName] = useState("")
+  const [address, setAddress] = useState("")
+  const [businessPhone, setBusinessPhone] = useState("")
+  const [website, setWebsite] = useState("")
+  const [businessEmail, setBusinessEmail] = useState("")
+  const [logoUrl, setLogoUrl] = useState("")
   const [emailSaving, setEmailSaving] = useState(false)
   const [emailSaved, setEmailSaved] = useState(false)
+  const [emailError, setEmailError] = useState("")
 
   // Operational times
   const [defaultCheckinTime, setDefaultCheckinTime] = useState("15:00")
@@ -93,7 +103,15 @@ export default function SettingsPage() {
 
   useEffect(() => {
     getTenantSettings(tenantId).then((s) => {
-      setNotificationEmail(s.notificationEmail)
+      setReservationNotifyEmails(s.reservationNotifyEmails)
+      setGuestEmailEnabled(s.guestEmailEnabled)
+      setTermsText(s.termsText)
+      setBusinessName(s.businessName)
+      setAddress(s.address)
+      setBusinessPhone(s.businessPhone)
+      setWebsite(s.website)
+      setBusinessEmail(s.businessEmail)
+      setLogoUrl(s.logoUrl)
       setDefaultCheckinTime(s.defaultCheckinTime)
       setDefaultCheckoutTime(s.defaultCheckoutTime)
       setSabbathCheckinTime(s.sabbathCheckinTime)
@@ -110,9 +128,30 @@ export default function SettingsPage() {
     setTimeout(() => setVatSaved(false), 2000)
   }
 
-  async function saveNotificationEmail() {
+  async function saveReservationEmailSettings() {
+    // Validate every internal recipient before saving.
+    const emails = reservationNotifyEmails
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean)
+    const bad = emails.filter((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+    if (bad.length > 0) {
+      setEmailError(`כתובת מייל לא תקינה: ${bad.join(", ")}`)
+      return
+    }
+    setEmailError("")
     setEmailSaving(true)
-    await updateTenantSettings(tenantId, { notificationEmail: notificationEmail })
+    await updateTenantSettings(tenantId, {
+      reservationNotifyEmails: emails.join(", "),
+      guestEmailEnabled,
+      termsText,
+      businessName,
+      address,
+      businessPhone,
+      website,
+      businessEmail,
+      logoUrl,
+    })
     setEmailSaving(false)
     setEmailSaved(true)
     setTimeout(() => setEmailSaved(false), 2000)
@@ -205,7 +244,7 @@ export default function SettingsPage() {
                 }`}
               >
                 <Icon name="mail" size="sm" className={activeSection === "tenant_settings" ? "text-primary" : "opacity-50"} />
-                התראות ומיילים
+                מייל להזמנות
               </button>
               <button
                 type="button"
@@ -344,35 +383,107 @@ export default function SettingsPage() {
                   <Icon name="mail" size="md" className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold font-headline text-foreground">התראות ומיילים</h2>
-                  <p className="text-sm text-muted-foreground">הגדרות מייל עסקי לקבלת הזמנות והתראות</p>
+                  <h2 className="text-lg font-bold font-headline text-foreground">מייל להזמנות</h2>
+                  <p className="text-sm text-muted-foreground">נמעני מייל פנימי, אישור לאורח ופרטי העסק למייל</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-card rounded-[20px] border border-border/15 p-6 shadow-sm space-y-5">
+            {/* Internal recipients + guest confirmation toggle */}
+            <div className="bg-card rounded-[20px] border border-border/15 p-6 shadow-sm space-y-6">
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-muted-foreground">מייל בית העסק לקבלת הזמנות</label>
-                <p className="text-xs text-muted-foreground">כתובת המייל שתקבל עותק מכל הזמנה חדשה</p>
-                <div className="flex gap-3 max-sm:flex-col">
-                  <input
-                    type="email"
-                    value={notificationEmail}
-                    onChange={(e) => setNotificationEmail(e.target.value)}
-                    placeholder="bookings@hotel.com"
-                    dir="ltr"
-                    className="flex-1 bg-accent border border-border/40 rounded-xl px-5 py-3.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all outline-none min-h-[48px] text-start"
-                  />
-                  <button
-                    type="button"
-                    onClick={saveNotificationEmail}
-                    disabled={emailSaving}
-                    className="btn btn-primary"
-                  >
-                    <Icon name={emailSaved ? "check" : "save"} size="sm" />
-                    {emailSaving ? "שומר..." : emailSaved ? "נשמר" : "שמור"}
-                  </button>
+                <label className="block text-sm font-bold text-muted-foreground">נמעני מייל פנימי (הזמנה חדשה)</label>
+                <p className="text-xs text-muted-foreground">
+                  כתובות שיקבלו סיכום של כל הזמנה חדשה — מכל מקור. הפרד בפסיקים לכמה נמענים.
+                </p>
+                <textarea
+                  value={reservationNotifyEmails}
+                  onChange={(e) => setReservationNotifyEmails(e.target.value)}
+                  placeholder="bookings@hotel.com, manager@hotel.com"
+                  dir="ltr"
+                  rows={2}
+                  className={`w-full bg-accent border rounded-xl px-5 py-3.5 text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none text-start resize-y ${
+                    emailError ? "border-red-400 bg-red-50" : "border-border/40 focus:border-primary/40"
+                  }`}
+                />
+                {emailError && <p className="text-xs text-red-500 font-bold">{emailError}</p>}
+              </div>
+
+              {/* Guest confirmation toggle */}
+              <div className="flex items-center justify-between gap-4 pt-4 border-t border-border/30">
+                <div className="space-y-1">
+                  <div className="text-sm font-bold text-foreground">שליחת אישור הזמנה לאורח</div>
+                  <p className="text-xs text-muted-foreground">
+                    נשלח רק להזמנות ישירות (טלפון / אתר / Walk-in) כשלאורח יש מייל. הזמנות מערוצים חיצוניים (Booking, Airbnb וכו&apos;) לא מקבלות מייל מאיתנו.
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={guestEmailEnabled}
+                  onClick={() => setGuestEmailEnabled((v) => !v)}
+                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors min-h-[28px] ${
+                    guestEmailEnabled ? "bg-primary" : "bg-border"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                      guestEmailEnabled ? "start-1" : "start-6"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Business details (used in the guest confirmation email) */}
+            <div className="bg-card rounded-[20px] border border-border/15 p-6 shadow-sm space-y-5">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">פרטי העסק</h3>
+                <p className="text-xs text-muted-foreground">מופיעים במייל האישור לאורח. שדות ריקים פשוט לא יוצגו.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-muted-foreground">שם העסק</label>
+                  <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="מלון לדוגמה" className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all outline-none min-h-[44px] text-start" />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-muted-foreground">מייל ליצירת קשר</label>
+                  <input type="email" value={businessEmail} onChange={(e) => setBusinessEmail(e.target.value)} placeholder="info@hotel.com" dir="ltr" className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all outline-none min-h-[44px] text-start" />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-muted-foreground">טלפון</label>
+                  <input value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} placeholder="03-1234567" dir="ltr" className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all outline-none min-h-[44px] text-start" />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-muted-foreground">אתר</label>
+                  <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://hotel.com" dir="ltr" className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all outline-none min-h-[44px] text-start" />
+                </div>
+                <div className="space-y-2 col-span-2 max-sm:col-span-1">
+                  <label className="block text-xs font-bold text-muted-foreground">כתובת</label>
+                  <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="רחוב, עיר" className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all outline-none min-h-[44px] text-start" />
+                </div>
+                <div className="space-y-2 col-span-2 max-sm:col-span-1">
+                  <label className="block text-xs font-bold text-muted-foreground">כתובת לוגו (URL)</label>
+                  <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://hotel.com/logo.png" dir="ltr" className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all outline-none min-h-[44px] text-start" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-muted-foreground">תנאים והערות (בתחתית מייל האורח)</label>
+                <textarea value={termsText} onChange={(e) => setTermsText(e.target.value)} rows={4} placeholder="מדיניות ביטול, שעות קבלה, הערות כלליות..." className="w-full bg-accent border border-border/40 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all outline-none text-start resize-y" />
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={saveReservationEmailSettings}
+                  disabled={emailSaving}
+                  className="btn btn-primary"
+                >
+                  <Icon name={emailSaved ? "check" : "save"} size="sm" />
+                  {emailSaving ? "שומר..." : emailSaved ? "נשמר" : "שמור"}
+                </button>
               </div>
             </div>
           </div>
