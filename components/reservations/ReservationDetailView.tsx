@@ -115,7 +115,7 @@ export function ReservationDetailView({ reservationId, tenantId, onUpdate }: Pro
         <div className="flex gap-3">
           {data.status === "confirmed" && (
             <button onClick={() => handleAction("check_in")} disabled={!!actionLoading}
-              className="bg-primary text-white px-6 py-2.5 rounded-xl min-h-[44px] font-bold text-sm shadow-md hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50">
+              className="bg-primary text-primary-foreground px-6 py-2.5 rounded-xl min-h-[44px] font-bold text-sm shadow-md hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50">
               <Icon name="login" size="sm" />
               {actionLoading === "check_in" ? "מבצע..." : "הגעה"}
             </button>
@@ -276,7 +276,7 @@ export function ReservationDetailView({ reservationId, tenantId, onUpdate }: Pro
         {/* Summary sidebar */}
         <div className="col-span-4 max-lg:col-span-12 sticky top-4">
           <div className="bg-card rounded-[20px] overflow-hidden shadow-sm border border-border/20">
-            <div className="p-6 bg-gradient-to-br from-primary to-primary-container text-white">
+            <div className="p-6 bg-gradient-to-br from-primary to-primary-container text-primary-foreground">
               <h2 className="text-xl font-bold mb-1 font-headline">סיכום כספי</h2>
               <p className="text-xs opacity-80">פירוט תשלומים ויתרות</p>
             </div>

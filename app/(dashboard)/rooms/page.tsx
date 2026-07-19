@@ -161,7 +161,7 @@ export default function RoomsPage() {
             onClick={() => setTargetFilter(key)}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 ${
               targetFilter === key
-                ? "bg-primary text-white"
+                ? "bg-primary text-primary-foreground"
                 : "bg-card border border-border/20 text-muted-foreground hover:bg-accent"
             }`}
           >
@@ -178,7 +178,7 @@ export default function RoomsPage() {
             onClick={() => setStatusFilter("all")}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors ${
               statusFilter === "all"
-                ? "bg-primary text-white"
+                ? "bg-primary text-primary-foreground"
                 : "bg-card border border-border/20 text-muted-foreground hover:bg-accent"
             }`}
           >
@@ -191,7 +191,7 @@ export default function RoomsPage() {
                 onClick={() => setStatusFilter(key)}
                 className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 ${
                   statusFilter === key
-                    ? "bg-primary text-white"
+                    ? "bg-primary text-primary-foreground"
                     : "bg-card border border-border/20 text-muted-foreground hover:bg-accent"
                 }`}
               >

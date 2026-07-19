@@ -254,7 +254,7 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
     >
       <div className="flex flex-col -m-6" style={{ minHeight: "calc(100vh - 80px)" }}>
         {/* ── Action Icons + Step Progress ───────────────────── */}
-        <div className="shrink-0 bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 border-b border-border/15">
+        <div className="shrink-0 bg-gradient-to-l from-primary/10 to-secondary/10 border-b border-border/15">
           {/* Action icons */}
           <div className="flex items-center gap-2 px-6 pt-4 pb-3">
             {ACTION_ICONS.map((action) => (
@@ -304,7 +304,7 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
                         i === activeTab
-                          ? "bg-primary text-white shadow-md"
+                          ? "bg-primary text-primary-foreground shadow-md"
                           : i < activeTab
                             ? "bg-primary/20 text-primary"
                             : "bg-accent text-muted-foreground group-hover:bg-border/40"
@@ -353,7 +353,7 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
                   <span
                     className={`w-6 h-6 rounded-lg flex items-center justify-center text-[12px] font-bold shrink-0 ${
                       i === activeTab
-                        ? "bg-primary text-white"
+                        ? "bg-primary text-primary-foreground"
                         : i < activeTab
                           ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30"
                           : "bg-accent text-muted-foreground"

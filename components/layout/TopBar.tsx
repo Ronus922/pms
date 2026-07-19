@@ -47,7 +47,7 @@ export function TopBar({ title }: TopBarProps) {
         </button>
 
         {/* User avatar */}
-        <div className="w-10 h-10 rounded-full bg-[#1e40af] flex items-center justify-center text-white text-sm font-bold">
+        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
           מ
         </div>
       </div>

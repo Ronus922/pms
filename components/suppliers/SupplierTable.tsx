@@ -38,7 +38,7 @@ export function SupplierTable({ suppliers, onSupplierClick }: SupplierTableProps
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-[#e1e7fa]">
+            <tr className="bg-primary/10">
               <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">שם חברה</th>
               <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">תחום פעילות</th>
               <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">איש קשר</th>

@@ -100,7 +100,7 @@ export function DatesSection({
                   aria-pressed={active}
                   className={`h-11 w-11 min-h-[44px] min-w-[44px] text-xs font-bold rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                     active
-                      ? "bg-primary text-white shadow-sm"
+                      ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-accent text-muted-foreground hover:bg-accent/70"
                   }`}
                 >

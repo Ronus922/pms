@@ -160,7 +160,7 @@ export function RoomsSection({
                 <span
                   className={`h-5 w-5 rounded-md flex items-center justify-center border-2 shrink-0 ${
                     selected
-                      ? "bg-primary border-primary text-white"
+                      ? "bg-primary border-primary text-primary-foreground"
                       : "border-border/40"
                   }`}
                 >

@@ -50,7 +50,7 @@ export default function GuestProfilePage() {
       <div className="flex items-start justify-between flex-wrap gap-6">
         <div className="flex items-center gap-6">
           <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-primary-container flex items-center justify-center text-white text-3xl font-bold shadow-md">
+            <div className="w-24 h-24 rounded-full bg-primary-container flex items-center justify-center text-primary-foreground text-3xl font-bold shadow-md">
               {data.full_name?.charAt(0)}
             </div>
             {data.is_vip && (
@@ -141,7 +141,7 @@ export default function GuestProfilePage() {
         {/* Stats sidebar */}
         <div className="col-span-4 max-lg:col-span-12 sticky top-4 space-y-6">
           <div className="bg-card rounded-[20px] overflow-hidden shadow-sm border border-border/20">
-            <div className="p-6 bg-gradient-to-br from-primary to-primary-container text-white">
+            <div className="p-6 bg-gradient-to-br from-primary to-primary-container text-primary-foreground">
               <h2 className="text-xl font-bold font-headline">סטטיסטיקות</h2>
             </div>
             <div className="p-6 space-y-4">

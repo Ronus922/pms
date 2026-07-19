@@ -324,7 +324,7 @@ export function Step3Pricing() {
             value={formatCurrency(store.grandTotal, store.currency)}
             large
             bold
-            color="text-[#003aa0] dark:text-blue-400"
+            color="text-primary dark:text-blue-400"
           />
           <SummaryRow
             label="שולם"
@@ -499,7 +499,7 @@ export function Step3Pricing() {
               onClick={() => store.setField("paymentResult", "approved")}
               className="btn btn-primary"
             >
-              <Icon name="credit_card" size="md" className="text-white" />
+              <Icon name="credit_card" size="md" className="text-primary-foreground" />
               חייב עכשיו
             </button>
 

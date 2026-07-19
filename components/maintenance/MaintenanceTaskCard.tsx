@@ -47,14 +47,14 @@ export function MaintenanceTaskCard({ task, onClick, isUnassigned, orderIndex }:
         if (!isDragging) onClick()
         e.stopPropagation()
       }}
-      className={`bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-[#1e40af]/40 transition-all select-none ${
+      className={`bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-primary/40 transition-all select-none ${
         isUnassigned
           ? "border-amber-300 dark:border-amber-800"
           : isCritical
             ? "border-red-300 dark:border-red-800"
             : isUrgent
               ? "border-orange-300 dark:border-orange-800"
-              : "border-[#dad9e3]"
+              : "border-border"
       }`}
     >
       {/* Top row: order + category icon + title */}

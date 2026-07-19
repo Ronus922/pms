@@ -55,7 +55,7 @@ export function AttendanceAreasList({
           onClick={onCreate}
           className="btn btn-primary"
         >
-          <Icon name="add" size="sm" className="text-white" />
+          <Icon name="add" size="sm" className="text-primary-foreground" />
           אזור חדש
         </button>
       </div>
@@ -70,8 +70,8 @@ export function AttendanceAreasList({
           <p className="text-sm">טוען אזורים...</p>
         </div>
       ) : areas.length === 0 ? (
-        <div className="rounded-[20px] border border-dashed border-[#dad9e3] bg-[#f4f2fc]/40 p-8 flex flex-col items-center gap-3 text-center">
-          <Icon name="map" size="xl" className="text-[#9ca3af]" />
+        <div className="rounded-[20px] border border-dashed border-border bg-accent/40 p-8 flex flex-col items-center gap-3 text-center">
+          <Icon name="map" size="xl" className="text-muted-foreground" />
           <p className="text-sm font-medium text-foreground">
             אין אזורים מוגדרים
           </p>
@@ -94,7 +94,7 @@ export function AttendanceAreasList({
                     onEdit(area)
                   }
                 }}
-                className="rounded-xl border border-[#dad9e3] bg-white p-4 flex items-center gap-3 transition-colors hover:bg-[#f4f2fc] hover:border-[#1e40af]/30 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/30"
+                className="rounded-xl border border-border bg-white p-4 flex items-center gap-3 transition-colors hover:bg-accent hover:border-primary/30 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 style={{ borderRightWidth: 4, borderRightColor: area.color }}
               >
                 {/* Identity */}
@@ -111,7 +111,7 @@ export function AttendanceAreasList({
                     {formatShapeSummary(area)}
                   </p>
                   {area.notes && (
-                    <p className="text-xs text-[#9ca3af] mt-1 truncate">
+                    <p className="text-xs text-muted-foreground mt-1 truncate">
                       {area.notes}
                     </p>
                   )}
@@ -127,7 +127,7 @@ export function AttendanceAreasList({
                     }}
                     aria-label={`ערוך ${area.name}`}
                     title="ערוך אזור"
-                    className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#474747] hover:text-[#1e40af] hover:bg-white transition-colors"
+                    className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-white transition-colors"
                   >
                     <Icon name="edit" size="sm" />
                   </button>
@@ -150,7 +150,7 @@ export function AttendanceAreasList({
                             : `מחק ${area.name}`
                         }
                         title={deleteTitle}
-                        className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-[#b91c1c] hover:bg-red-50 transition-colors"
+                        className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-destructive hover:bg-red-50 transition-colors"
                       >
                         <Icon name="delete" size="sm" />
                       </button>

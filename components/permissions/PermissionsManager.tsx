@@ -713,7 +713,7 @@ export function PermissionsManager({
                         type="button"
                         onClick={handleResetPassword}
                         disabled={saving || newPassword.length < 6}
-                        className="flex-1 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 min-h-[44px]"
+                        className="flex-1 bg-gradient-to-l from-primary to-secondary text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 min-h-[44px]"
                       >
                         {saving ? "שומר..." : "אפס סיסמה"}
                       </button>
@@ -847,7 +847,7 @@ export function PermissionsManager({
                   <Icon
                     name="hourglass_empty"
                     size="sm"
-                    className="text-white animate-spin"
+                    className="text-primary-foreground animate-spin"
                   />
                 ) : (
                   <Icon name="send" size="sm" className="text-white" />
@@ -875,7 +875,7 @@ export function PermissionsManager({
                     <Icon
                       name="hourglass_empty"
                       size="sm"
-                      className="text-white animate-spin"
+                      className="text-primary-foreground animate-spin"
                     />
                   ) : (
                     <Icon name="check_circle" size="sm" className="text-white" />

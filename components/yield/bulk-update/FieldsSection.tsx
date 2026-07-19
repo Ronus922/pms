@@ -135,7 +135,7 @@ function Stepper({
         <button
           type="button"
           onClick={() => onChange("")}
-          className="absolute -top-2 -left-2 h-5 w-5 rounded-full bg-muted hover:bg-destructive hover:text-white text-muted-foreground text-[10px] font-bold flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+          className="absolute -top-2 -left-2 h-5 w-5 rounded-full bg-muted hover:bg-destructive hover:text-destructive-foreground text-muted-foreground text-[10px] font-bold flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
           aria-label="נקה"
           title="נקה — לא לעדכן שדה זה"
         >

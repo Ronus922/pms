@@ -266,7 +266,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
     >
       <div className="flex flex-col -m-6" style={{ minHeight: "calc(100vh - 80px)" }}>
         {/* ── Step Progress Bar ───────────────────────────── */}
-        <div className="shrink-0 bg-[#1e40af]/10 px-6 py-4 border-b border-[#dad9e3]">
+        <div className="shrink-0 bg-primary/10 px-6 py-4 border-b border-border">
           <div className="flex items-center justify-center gap-0">
             {STEPS.map((step, i) => (
               <div key={step.key} className="flex items-center">
@@ -277,7 +277,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
                   <div
                     className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
                       currentStep === i
-                        ? "bg-primary text-white shadow-md"
+                        ? "bg-primary text-primary-foreground shadow-md"
                         : stepCompletion[i]
                         ? "bg-primary/20 text-primary"
                         : "bg-accent text-muted-foreground group-hover:bg-border/40"
@@ -328,7 +328,7 @@ export function RoomFormDialog({ onSaved }: RoomFormDialogProps) {
                   <span
                     className={`w-6 h-6 rounded-lg flex items-center justify-center text-[12px] font-bold shrink-0 ${
                       currentStep === i
-                        ? "bg-primary text-white"
+                        ? "bg-primary text-primary-foreground"
                         : stepCompletion[i]
                         ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30"
                         : "bg-accent text-muted-foreground"
@@ -470,7 +470,7 @@ function Step1General({
               onClick={() => store.setCurrentLanguage(l.code)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all min-h-[44px] ${
                 lang === l.code
-                  ? "bg-primary text-white shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-accent text-muted-foreground hover:bg-border/30 border border-border/20"
               }`}
             >
@@ -780,7 +780,7 @@ function RoomStatusCard({
             type="button"
             onClick={handleNormalize}
             disabled={normalizing || !editingRoomId}
-            className="bg-primary text-white px-5 py-3 rounded-xl font-bold text-sm min-h-[44px] hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-primary text-primary-foreground px-5 py-3 rounded-xl font-bold text-sm min-h-[44px] hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
           >
             <Icon name="check_circle" size="sm" />
             {normalizing ? "מנרמל…" : "נרמל לסטטוס זמין"}
@@ -954,7 +954,7 @@ function Step2Amenities({
                         onClick={() => store.toggleEquipment(eq.id)}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] ${
                           isSelected
-                            ? "bg-primary text-white shadow-sm"
+                            ? "bg-primary text-primary-foreground shadow-sm"
                             : "bg-accent text-muted-foreground hover:bg-border/30 border border-border/10"
                         }`}
                       >
@@ -980,7 +980,7 @@ function Step2Amenities({
                   onClick={() => store.toggleEquipment(amenity)}
                   className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] ${
                     isSelected
-                      ? "bg-primary text-white shadow-sm"
+                      ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-accent text-muted-foreground hover:bg-border/30 border border-border/10"
                   }`}
                 >
@@ -1005,7 +1005,7 @@ function Step2Amenities({
             type="button"
             onClick={handleAddAmenity}
             disabled={!newAmenityName.trim()}
-            className="bg-primary text-white px-5 py-3 rounded-xl font-bold text-sm min-h-[48px] hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-primary text-primary-foreground px-5 py-3 rounded-xl font-bold text-sm min-h-[48px] hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
           >
             <Icon name="add" size="sm" />
             הוסף
@@ -1085,7 +1085,7 @@ function Step2Amenities({
                 {/* Badges */}
                 <div className="absolute top-2 right-2 flex flex-col gap-1">
                   {img.is_primary && (
-                    <span className="bg-primary text-white text-[12px] font-bold px-2 py-0.5 rounded-full">
+                    <span className="bg-primary text-primary-foreground text-[12px] font-bold px-2 py-0.5 rounded-full">
                       ראשית
                     </span>
                   )}

@@ -127,7 +127,7 @@ export function StaffPageClient() {
               onClick={openInvite}
               className="btn btn-primary"
             >
-              <Icon name="person_add" size="sm" className="text-white" />
+              <Icon name="person_add" size="sm" className="text-primary-foreground" />
               הוסף עובד
             </button>
           )}

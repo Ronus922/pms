@@ -151,7 +151,7 @@ export function MaintenancePage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Segmented bar: date + view switcher in one rounded container */}
-          <div className="inline-flex items-center gap-1 bg-white border-[1.5px] border-[#e6e2f0] rounded-full px-2 py-1 min-h-[48px]">
+          <div className="inline-flex items-center gap-1 bg-white border-[1.5px] border-border rounded-full px-2 py-1 min-h-[48px]">
             <DateInput
               value={selectedDate}
               onChange={setSelectedDate}
@@ -164,8 +164,8 @@ export function MaintenancePage() {
                 onClick={() => setView(v.key)}
                 className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm transition-colors min-h-[40px] ${
                   view === v.key
-                    ? "bg-[#d8d0f0] text-[#4a2fa0] font-bold"
-                    : "text-[#6b6280] hover:text-[#4a2fa0] font-semibold"
+                    ? "bg-secondary/20 text-violet-700 dark:text-violet-400 font-bold"
+                    : "text-muted-foreground hover:text-violet-700 dark:text-violet-400 font-semibold"
                 }`}
               >
                 <Icon name={v.icon} size="sm" />

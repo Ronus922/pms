@@ -17,16 +17,16 @@ const KPI_CARDS: KpiCardData[] = [
     label: "יציאות להיום",
     value: "24",
     subtext: "15 צ'ק-אאוט הושלמו",
-    iconBg: "bg-[#eff6ff]",
-    iconColor: "text-[#1e40af]",
+    iconBg: "bg-primary/10",
+    iconColor: "text-primary",
   },
   {
     icon: "login",
     label: "כניסות להיום",
     value: "12",
     subtext: "4 חדרים כבר נמסרו",
-    iconBg: "bg-[#1e40af]",
-    iconColor: "text-white",
+    iconBg: "bg-primary",
+    iconColor: "text-primary-foreground",
   },
   {
     icon: "build",
@@ -34,8 +34,8 @@ const KPI_CARDS: KpiCardData[] = [
     value: "3",
     subtext: "! חדרים בטיפול דחוף",
     subtextTone: "error",
-    iconBg: "bg-[#fee2e2]",
-    iconColor: "text-[#b91c1c]",
+    iconBg: "bg-destructive/10",
+    iconColor: "text-destructive",
   },
   {
     icon: "percent",
@@ -43,8 +43,8 @@ const KPI_CARDS: KpiCardData[] = [
     value: "84%",
     subtext: "+2.4% משבוע שעבר",
     subtextTone: "success",
-    iconBg: "bg-[#eff6ff]",
-    iconColor: "text-[#1e40af]",
+    iconBg: "bg-primary/10",
+    iconColor: "text-primary",
     progress: 84,
   },
 ]
@@ -79,19 +79,19 @@ export default function DashboardPage() {
         {KPI_CARDS.map((card) => (
           <div
             key={card.label}
-            className="bg-white rounded-xl p-6 border border-[#dad9e3] flex items-start justify-between min-h-[140px]"
+            className="bg-white rounded-xl p-6 border border-border flex items-start justify-between min-h-[140px]"
           >
             <div className="flex flex-col gap-1 text-right">
-              <p className="text-sm font-medium text-[#474747]">{card.label}</p>
-              <p className="text-[2.25rem] font-bold text-[#1c1b1f] leading-tight">{card.value}</p>
+              <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+              <p className="text-[2.25rem] font-bold text-foreground leading-tight">{card.value}</p>
               {card.subtext && (
                 <p
                   className={`text-xs ${
                     card.subtextTone === "error"
-                      ? "text-[#b91c1c] font-semibold"
+                      ? "text-destructive font-semibold"
                       : card.subtextTone === "success"
-                        ? "text-[#15803d] font-semibold"
-                        : "text-[#474747]"
+                        ? "text-emerald-700 dark:text-emerald-400 font-semibold"
+                        : "text-muted-foreground"
                   }`}
                 >
                   {card.subtext}

@@ -55,7 +55,7 @@ export function RoleSelector({ value, onChange, assignableRoles }: RoleSelectorP
               }`}
             >
               {isSelected && (
-                <Icon name="check_circle" size="sm" className="text-white" />
+                <Icon name="check_circle" size="sm" className="text-primary-foreground" />
               )}
             </div>
           </button>

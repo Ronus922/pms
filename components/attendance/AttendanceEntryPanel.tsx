@@ -251,12 +251,12 @@ export function AttendanceEntryPanel({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#1e40af] text-white font-bold text-sm hover:bg-[#1e3a8a] transition-colors min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving ? (
-              <Icon name="hourglass_empty" size="sm" className="text-white animate-spin" />
+              <Icon name="hourglass_empty" size="sm" className="text-primary-foreground animate-spin" />
             ) : (
-              <Icon name="check_circle" size="sm" className="text-white" />
+              <Icon name="check_circle" size="sm" className="text-primary-foreground" />
             )}
             {saving ? "שומר..." : isEdit ? "שמור שינויים" : "הוסף רישום"}
           </button>

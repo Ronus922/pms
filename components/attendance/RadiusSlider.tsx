@@ -99,7 +99,7 @@ export function RadiusSlider({
     <div className="flex flex-col gap-3">
       {/* Header: label + numeric input */}
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor={id} className="text-sm font-medium text-[#1c1b1f]">
+        <label htmlFor={id} className="text-sm font-medium text-foreground">
           רדיוס האזור:
         </label>
         <div className="flex items-center gap-2">
@@ -115,9 +115,9 @@ export function RadiusSlider({
             disabled={disabled}
             aria-invalid={error !== null}
             aria-describedby={error ? `${id}-error` : undefined}
-            className="min-h-[44px] w-24 rounded-xl border border-[#dad9e3] bg-white px-3 py-2 text-center text-sm font-semibold text-[#1c1b1f] focus:border-[#1e40af] focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 disabled:opacity-50"
+            className="min-h-[44px] w-24 rounded-xl border border-border bg-white px-3 py-2 text-center text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
           />
-          <span className="text-sm text-[#474747]">מ׳</span>
+          <span className="text-sm text-muted-foreground">מ׳</span>
         </div>
       </div>
 
@@ -144,7 +144,7 @@ export function RadiusSlider({
           onChange={handleSliderChange}
           disabled={disabled}
           aria-label="רדיוס האזור"
-          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[#dad9e3] outline-none accent-[#1e40af] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#1e40af] [&::-webkit-slider-thumb]:shadow-md hover:[&::-webkit-slider-thumb]:bg-[#1e3a8a] [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[#1e40af]"
+          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-border outline-none accent-primary disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-md hover:[&::-webkit-slider-thumb]:bg-primary/90 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-primary"
         />
       </div>
 
@@ -162,8 +162,8 @@ export function RadiusSlider({
                 "min-h-[44px] rounded-lg px-3 py-2 text-xs transition-colors",
                 "disabled:cursor-not-allowed disabled:opacity-50",
                 isActive
-                  ? "bg-[#1e40af] font-semibold text-white"
-                  : "bg-[#f4f2fc] font-medium text-[#474747] hover:text-[#1e40af]",
+                  ? "bg-primary font-semibold text-primary-foreground"
+                  : "bg-accent font-medium text-muted-foreground hover:text-primary",
               ].join(" ")}
             >
               {m >= 1000 ? `${m / 1000}km` : `${m}m`}
@@ -173,7 +173,7 @@ export function RadiusSlider({
       </div>
 
       {/* Default-value hint */}
-      <p className="text-xs text-[#9ca3af]">
+      <p className="text-xs text-muted-foreground">
         💡 ברירת מחדל: {ADDRESS_RADIUS_DEFAULT} מ׳. מתאים למקום עם דיוק GPS סביר.
       </p>
     </div>

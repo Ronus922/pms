@@ -164,7 +164,7 @@ export function EditStep3Pricing() {
           )}
           <SummaryRow label="מע״מ" value={`+${fmt(data.taxAmount)}`} />
           <div className="border-t border-border/30 my-2" />
-          <SummaryRow label="סה״כ לתשלום" value={fmt(data.totalPrice)} large bold color="text-[#003aa0] dark:text-blue-400" />
+          <SummaryRow label="סה״כ לתשלום" value={fmt(data.totalPrice)} large bold color="text-primary dark:text-blue-400" />
           <SummaryRow label="שולם" value={fmt(data.totalPaid)} />
           <SummaryRow label="מקדמה" value={fmt(data.deposit)} />
           <SummaryRow label="יתרה לתשלום" value={fmt(data.balanceDue)} bold color={data.balanceDue > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"} />
@@ -224,7 +224,7 @@ export function EditStep3Pricing() {
               type="button"
               className="btn btn-primary"
             >
-              <Icon name="credit_card" size="md" className="text-white" />
+              <Icon name="credit_card" size="md" className="text-primary-foreground" />
               חייב עכשיו
             </button>
           </div>

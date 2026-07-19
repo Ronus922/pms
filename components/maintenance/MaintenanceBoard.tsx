@@ -4,7 +4,9 @@ import { useState, useCallback, useRef } from "react"
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -18,6 +20,7 @@ import {
 import {
   SortableContext,
   arrayMove,
+  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   rectSortingStrategy,
 } from "@dnd-kit/sortable"
@@ -64,10 +67,32 @@ export function MaintenanceBoard({
     setBoard(boardProp)
   }
 
-  // 8px activation prevents accidental drags on tap/click
+  // Mouse: 8px activation prevents accidental drags on click.
+  // Touch: long-press (250ms) so vertical swipes scroll instead of dragging.
+  // Keyboard: full a11y drag via arrow keys.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+  // Screen-reader labels for drag announcements
+  const srTaskLabel = (id: string | number): string => {
+    const all = [...board.unassigned, ...Object.values(board.byWorker).flat()]
+    return all.find((t) => t.id === id)?.title ?? "משימה"
+  }
+  const srContainerLabel = (id: string | number | undefined): string => {
+    if (!id || id === UNASSIGNED_ID) return "ממתינים לשיבוץ"
+    const worker = board.workers.find((w) => w.id === id)
+    if (worker) return worker.full_name
+    const containerId = findContainer(id as string)
+    if (!containerId || containerId === UNASSIGNED_ID) return "ממתינים לשיבוץ"
+    return board.workers.find((w) => w.id === containerId)?.full_name ?? "עמודה"
+  }
 
   // Custom collision: pointerWithin first (precise), closestCenter fallback
   const stableCollision: CollisionDetection = useCallback((args) => {
@@ -225,6 +250,22 @@ export function MaintenanceBoard({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
+      accessibility={{
+        screenReaderInstructions: {
+          draggable:
+            "לחץ רווח או Enter כדי להרים משימה, חצים כדי להזיז בין עמודות, רווח שוב כדי לשחרר, Escape לביטול.",
+        },
+        announcements: {
+          onDragStart: ({ active }) => `הרמת את ${srTaskLabel(active.id)}`,
+          onDragOver: ({ active, over }) =>
+            over ? `${srTaskLabel(active.id)} מעל ${srContainerLabel(over.id)}` : undefined,
+          onDragEnd: ({ active, over }) =>
+            over
+              ? `${srTaskLabel(active.id)} שובץ אל ${srContainerLabel(over.id)}`
+              : `${srTaskLabel(active.id)} שוחרר`,
+          onDragCancel: ({ active }) => `הגרירה של ${srTaskLabel(active.id)} בוטלה`,
+        },
+      }}
     >
       <div className="space-y-4" dir="rtl">
         {/* ── Unassigned Banner (full-width, top) ────────── */}
@@ -257,9 +298,13 @@ export function MaintenanceBoard({
       </div>
 
       {/* Drag overlay */}
-      <DragOverlay dropAnimation={{ duration: 250, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+      <DragOverlay
+        dropAnimation={
+          prefersReducedMotion ? null : { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+        }
+      >
         {activeTask && (
-          <div className="opacity-90 rotate-2 scale-105">
+          <div className={prefersReducedMotion ? "opacity-90" : "opacity-90 rotate-2 scale-105"}>
             <MaintenanceTaskCard task={activeTask} onClick={() => {}} />
           </div>
         )}
@@ -378,7 +423,7 @@ function WorkerColumn({ id, worker, tasks, onTaskClick, stats }: WorkerColumnPro
   return (
     <div className="flex flex-col min-w-[280px] w-[280px] shrink-0">
       {/* Header */}
-      <div className="rounded-t-[18px] border-2 border-b-0 border-[#dad9e3] bg-[#1e40af]/5 px-4 py-3">
+      <div className="rounded-t-[18px] border-2 border-b-0 border-border bg-primary/5 px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-white/50 dark:bg-black/20 text-primary flex items-center justify-center shrink-0">
             <Icon name="engineering" size="sm" />
@@ -423,7 +468,7 @@ function WorkerColumn({ id, worker, tasks, onTaskClick, stats }: WorkerColumnPro
       {/* Body (droppable) */}
       <div
         ref={setNodeRef}
-        className={`flex-1 min-h-[140px] rounded-b-[18px] border-2 border-t-0 border-[#dad9e3] bg-accent/30 p-2.5 flex flex-col gap-2 transition-all ${
+        className={`flex-1 min-h-[140px] rounded-b-[18px] border-2 border-t-0 border-border bg-accent/30 p-2.5 flex flex-col gap-2 transition-all ${
           isOver ? "ring-2 ring-primary/40 bg-primary/5" : ""
         }`}
       >
@@ -432,7 +477,7 @@ function WorkerColumn({ id, worker, tasks, onTaskClick, stats }: WorkerColumnPro
             <div className={`flex-1 flex flex-col items-center justify-center py-6 text-[11px] rounded-lg border-2 border-dashed ${
               isOver
                 ? "border-primary text-primary bg-primary/5"
-                : "border-[#dad9e3] text-muted-foreground/50"
+                : "border-border text-muted-foreground/50"
             }`}>
               <Icon name="drag_indicator" size="md" className="mb-1 opacity-40" />
               {isOver ? "שחרר כאן" : "גרור משימה לכאן"}

@@ -27,41 +27,41 @@
 }
 
 .btn-primary {
-  background-color: #1e40af;
-  color: #ffffff;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #1e3a8a;
+  background-color: color-mix(in srgb, var(--primary) 90%, black);
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
 
 .btn-outline {
   background-color: transparent;
-  border-color: #1e40af;
-  color: #1e40af;
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .btn-outline:hover:not(:disabled) {
-  background-color: #eff6ff;
+  background-color: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .btn-filter {
-  background-color: #f4f2fc;
-  color: #1e40af;
+  background-color: var(--accent);
+  color: var(--primary);
   border: none;
   font-size: 0.8125rem;
   padding: 0.5rem 0.875rem;
 }
 
 .btn-filter:hover:not(:disabled) {
-  background-color: #dad9e3;
+  background-color: var(--border);
 }
 
 .btn-filter.active,
 .btn-filter--active {
-  background-color: #1e40af;
-  color: #ffffff;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
 }
 
 /* ── Select dropdown arrow ── */
@@ -97,19 +97,19 @@
   min-height: 40px;
   cursor: pointer;
   background: transparent;
-  color: #474747;
+  color: var(--muted-foreground);
 }
 .pill-tab:hover,
 .pill-filter:hover {
-  background: #f4f2fc;
-  color: #1e40af;
+  background: var(--accent);
+  color: var(--primary);
 }
 .pill-tab-active,
 .pill-filter-active,
 .pill-tab.pill-tab-active,
 .pill-filter.pill-filter-active {
-  background: #ffffff;
-  color: #1e40af;
+  background: var(--card);
+  color: var(--primary);
   border-color: transparent;
   font-weight: 700;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -339,4 +339,16 @@ button, a, [role="button"], select, input[type="checkbox"], input[type="radio"],
 [dir="rtl"] .room-sticky-col {
   right: 0;
   left: auto;
+}
+
+/* ── Reduced motion: honor user preference globally ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

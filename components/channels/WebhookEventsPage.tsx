@@ -154,7 +154,7 @@ export function WebhookEventsPage() {
                   <button
                     type="button"
                     onClick={() => handleReplay(r.id)}
-                    className="h-8 w-8 min-h-[36px] min-w-[36px] rounded-lg bg-accent hover:bg-primary hover:text-white text-muted-foreground flex items-center justify-center"
+                    className="h-8 w-8 min-h-[36px] min-w-[36px] rounded-lg bg-accent hover:bg-primary hover:text-primary-foreground text-muted-foreground flex items-center justify-center"
                     title="הרץ שוב"
                   >
                     <Icon name="replay" size="sm" />

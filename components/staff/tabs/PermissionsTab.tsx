@@ -161,7 +161,7 @@ export function PermissionsTab({ employee, onSaved }: PermissionsTabProps) {
             disabled={saving}
             className="btn btn-primary"
           >
-            <Icon name="check_circle" size="sm" className="text-white" />
+            <Icon name="check_circle" size="sm" className="text-primary-foreground" />
             {saving ? "שומר..." : "שמור שינויים"}
           </button>
           <button

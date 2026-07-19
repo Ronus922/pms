@@ -157,9 +157,9 @@ export default function AbsenceRequestsManagerPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <div className="bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 rounded-[20px] p-4 sm:p-6 border border-border/15 flex items-start justify-between flex-wrap gap-4">
+      <div className="bg-gradient-to-l from-primary/10 to-secondary/10 rounded-[20px] p-4 sm:p-6 border border-border/15 flex items-start justify-between flex-wrap gap-4">
         <div className="flex items-start gap-4 min-w-0">
-          <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-[#003aa0] to-[#3F51B5] text-white flex items-center justify-center shadow-md">
+          <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary text-primary-foreground flex items-center justify-center shadow-md">
             <Icon name="fact_check" size="lg" />
           </div>
           <div className="min-w-0">

@@ -35,7 +35,7 @@ export function ChannelsShell({
       </div>
 
       {/* Tabs — Azure Ethos Subtle Card */}
-      <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap">
+      <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap">
         {TABS.map((tab) => {
           const active =
             tab.href === "/channels"
@@ -47,8 +47,8 @@ export function ChannelsShell({
               href={tab.href}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium min-h-[44px] transition-all duration-200 ${
                 active
-                  ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                  : "text-[#474747] hover:text-[#1e40af]"
+                  ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                  : "text-muted-foreground hover:text-primary"
               }`}
             >
               <Icon name={tab.icon} size="sm" />

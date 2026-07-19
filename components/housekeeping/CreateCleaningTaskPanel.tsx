@@ -425,7 +425,7 @@ export function CreateCleaningTaskPanel({
                     onClick={() => setGuestCount(n)}
                     className={`flex-1 min-h-[48px] rounded-full text-base tabular-nums border transition-all ${
                       active
-                        ? "bg-primary text-white border-primary font-bold shadow-sm"
+                        ? "bg-primary text-primary-foreground border-primary font-bold shadow-sm"
                         : "bg-card text-foreground border-border/40 font-medium hover:border-primary/40"
                     }`}
                   >

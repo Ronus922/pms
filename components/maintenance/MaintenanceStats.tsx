@@ -22,48 +22,48 @@ const KPI_DEFS: KpiDef[] = [
     key: "open",
     label: "פתוחות",
     icon: "inbox",
-    iconBg: "bg-[#eff6ff]",
-    iconColor: "text-[#1e40af]",
+    iconBg: "bg-primary/10",
+    iconColor: "text-primary",
     filterPatch: { status: "open" },
   },
   {
     key: "unassigned",
     label: "לא משויכות",
     icon: "person_off",
-    iconBg: "bg-[#fef3c7]",
-    iconColor: "text-[#854d0e]",
+    iconBg: "bg-amber-500/15",
+    iconColor: "text-amber-800 dark:text-amber-300",
     filterPatch: { onlyUnassigned: true },
   },
   {
     key: "urgent",
     label: "דחופות",
     icon: "warning",
-    iconBg: "bg-[#fee2e2]",
-    iconColor: "text-[#b91c1c]",
+    iconBg: "bg-destructive/10",
+    iconColor: "text-destructive",
     filterPatch: { onlyUrgent: true },
   },
   {
     key: "inProgress",
     label: "בטיפול",
     icon: "build",
-    iconBg: "bg-[#dbeafe]",
-    iconColor: "text-[#1e40af]",
+    iconBg: "bg-primary/15",
+    iconColor: "text-primary",
     filterPatch: { status: "in_progress" },
   },
   {
     key: "waitingParts",
     label: "ממתינות",
     icon: "schedule",
-    iconBg: "bg-[#f4f2fc]",
-    iconColor: "text-[#7c3aed]",
+    iconBg: "bg-accent",
+    iconColor: "text-violet-600 dark:text-violet-400",
     filterPatch: { status: ["waiting_parts", "waiting_external_vendor"] },
   },
   {
     key: "completedToday",
     label: "הושלמו היום",
     icon: "task_alt",
-    iconBg: "bg-[#dcfce7]",
-    iconColor: "text-[#15803d]",
+    iconBg: "bg-emerald-500/10",
+    iconColor: "text-emerald-700 dark:text-emerald-400",
     filterPatch: { status: "resolved" },
   },
 ]
@@ -78,11 +78,11 @@ export function MaintenanceStatsBar({ stats, onFilter }: MaintenanceStatsProps) 
             key={kpi.key}
             type="button"
             onClick={() => onFilter(kpi.filterPatch)}
-            className="flex items-start justify-between gap-3 bg-white border border-[#dad9e3] rounded-xl p-5 min-h-[120px] text-right transition-all hover:border-[#1e40af] hover:shadow-sm active:scale-[0.98]"
+            className="flex items-start justify-between gap-3 bg-white border border-border rounded-xl p-5 min-h-[120px] text-right transition-all hover:border-primary hover:shadow-sm active:scale-[0.98]"
           >
             <div className="flex flex-col gap-0.5 min-w-0">
-              <div className="text-sm font-medium text-[#474747]">{kpi.label}</div>
-              <div className="text-[2rem] font-bold tabular-nums text-[#1c1b1f] leading-tight">{value}</div>
+              <div className="text-sm font-medium text-muted-foreground">{kpi.label}</div>
+              <div className="text-[2rem] font-bold tabular-nums text-foreground leading-tight">{value}</div>
             </div>
             <span className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${kpi.iconBg} ${kpi.iconColor}`}>
               <Icon name={kpi.icon} />

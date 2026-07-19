@@ -71,13 +71,13 @@ export function AddTargetDialog({ isOpen, onClose, onSelectRoom, onSelectArea }:
             aria-label="הוספת חדר / אזור"
           >
             {/* Header */}
-            <div className="bg-[#1e40af] px-6 py-4 relative">
+            <div className="bg-primary px-6 py-4 relative">
               <button
                 onClick={onClose}
                 className="absolute left-4 top-4 p-1.5 rounded-xl bg-white/20 hover:bg-white/40 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="סגור"
               >
-                <Icon name="close" size="sm" className="text-white" />
+                <Icon name="close" size="sm" className="text-primary-foreground" />
               </button>
               <h2 className="text-lg font-bold text-white font-headline">הוספת חדר / אזור</h2>
               <p className="text-sm text-blue-100 mt-1">יצירת יעד תפעולי חדש במערכת</p>

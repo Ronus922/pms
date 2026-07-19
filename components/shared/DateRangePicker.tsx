@@ -334,7 +334,7 @@ function MonthGrid({
           if (outside) {
             state = "text-muted-foreground/40 hover:bg-accent/50 rounded-lg"
           } else if (isRangeEdge) {
-            state = "bg-primary text-white font-bold rounded-lg shadow-sm"
+            state = "bg-primary text-primary-foreground font-bold rounded-lg shadow-sm"
           } else if (inRange) {
             state = "bg-primary/15 text-primary font-bold"
           } else if (isToday) {

@@ -188,7 +188,7 @@ export function EditStep4Summary() {
       {/* ── 4. Pricing Summary ───────────────────────────────── */}
       <SectionCard title="סיכום תמחור" icon="payments">
         <div className="flex flex-col gap-1">
-          <SummaryAmountRow label="סה״כ לתשלום" value={fmt(data.totalPrice)} large bold color="text-[#003aa0] dark:text-blue-400" />
+          <SummaryAmountRow label="סה״כ לתשלום" value={fmt(data.totalPrice)} large bold color="text-primary dark:text-blue-400" />
           <SummaryAmountRow label="שולם" value={fmt(data.totalPaid)} />
           <SummaryAmountRow label="מקדמה" value={fmt(data.deposit)} />
           <div className="border-t border-border/30 my-2" />

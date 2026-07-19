@@ -127,9 +127,9 @@ export function CreateSupplierPanel({ isOpen, onClose, onCreated }: CreateSuppli
             className="btn btn-primary"
           >
             {saving ? (
-              <Icon name="hourglass_empty" size="sm" className="text-white animate-spin" />
+              <Icon name="hourglass_empty" size="sm" className="text-primary-foreground animate-spin" />
             ) : (
-              <Icon name="add" size="sm" className="text-white" />
+              <Icon name="add" size="sm" className="text-primary-foreground" />
             )}
             {saving ? "יוצר..." : "צור ספק"}
           </button>

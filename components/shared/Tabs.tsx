@@ -31,7 +31,7 @@ export function Tabs({
         role="tablist"
         aria-label={ariaLabel}
         dir="rtl"
-        className={`inline-flex bg-[#f1f5f9] p-0.5 rounded-[10px] ${className}`}
+        className={`inline-flex bg-accent p-0.5 rounded-[10px] ${className}`}
       >
         {items.map((item) => {
           const active = item.value === value
@@ -44,8 +44,8 @@ export function Tabs({
               onClick={() => onChange(item.value)}
               className={`inline-flex items-center gap-2 px-5 py-1.5 rounded-lg font-bold text-sm min-h-[44px] transition-all duration-200 ${
                 active
-                  ? "bg-white text-[#1e40af] shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)]"
-                  : "text-[#474747] hover:text-[#1e40af]"
+                  ? "bg-card text-primary shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1)]"
+                  : "text-muted-foreground hover:text-primary"
               }`}
             >
               {item.icon && <Icon name={item.icon} size="sm" />}
@@ -63,7 +63,7 @@ export function Tabs({
       role="tablist"
       aria-label={ariaLabel}
       dir="rtl"
-      className={`inline-flex bg-[#f4f2fc] p-1 rounded-xl ${className}`}
+      className={`inline-flex bg-accent p-1 rounded-xl ${className}`}
     >
       {items.map((item) => {
         const active = item.value === value
@@ -76,8 +76,8 @@ export function Tabs({
             onClick={() => onChange(item.value)}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm min-h-[44px] transition-all duration-200 ${
               active
-                ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                : "text-[#474747] hover:text-[#1e40af]"
+                ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                : "text-muted-foreground hover:text-primary"
             }`}
           >
             {item.icon && <Icon name={item.icon} size="sm" />}

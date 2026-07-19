@@ -201,9 +201,9 @@ export function SupplierCategoriesPanel({ isOpen, onClose }: SupplierCategoriesP
               className="btn btn-primary"
             >
               {adding ? (
-                <Icon name="hourglass_empty" size="sm" className="text-white animate-spin" />
+                <Icon name="hourglass_empty" size="sm" className="text-primary-foreground animate-spin" />
               ) : (
-                <Icon name="add" size="sm" className="text-white" />
+                <Icon name="add" size="sm" className="text-primary-foreground" />
               )}
               {adding ? "מוסיף..." : "הוסף"}
             </button>

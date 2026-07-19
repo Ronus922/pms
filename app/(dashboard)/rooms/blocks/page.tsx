@@ -15,6 +15,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Icon } from "@/components/shared/Icon"
 import { SidePanel } from "@/components/shared/SidePanel"
+import { useConfirm } from "@/components/shared/ConfirmDialog"
+import { toast } from "sonner"
 import { FormField, inputClass, selectClass, textareaClass } from "@/components/shared/FormField"
 import { useTenant, usePermissions } from "@/lib/hooks/use-tenant"
 import {
@@ -104,6 +106,8 @@ export default function RoomBlocksPage() {
     return blocks.filter((b) => getLifeState(b, today) === filter)
   }, [blocks, filter, today])
 
+  const { confirm, confirmDialog } = useConfirm()
+
   function openNew() {
     setEditing(null)
     setDialogOpen(true)
@@ -115,20 +119,27 @@ export default function RoomBlocksPage() {
   }
 
   async function handleCancel(b: RoomBlockRow) {
-    if (!confirm(`לבטל את החסימה לחדר ${b.room_number}?`)) return
+    if (!(await confirm({ message: `לבטל את החסימה לחדר ${b.room_number}?`, confirmLabel: "בטל חסימה" }))) return
     const r = await cancelRoomBlock(tenantId, b.id)
     if (!r.success) {
-      alert(r.error || "שגיאה")
+      toast.error(r.error || "שגיאה")
       return
     }
     load()
   }
 
   async function handleDelete(b: RoomBlockRow) {
-    if (!confirm(`למחוק לצמיתות את החסימה לחדר ${b.room_number}? פעולה זו אינה הפיכה.`)) return
+    if (
+      !(await confirm({
+        message: `למחוק לצמיתות את החסימה לחדר ${b.room_number}? פעולה זו אינה הפיכה.`,
+        danger: true,
+        confirmLabel: "מחק לצמיתות",
+      }))
+    )
+      return
     const r = await deleteRoomBlock(tenantId, b.id)
     if (!r.success) {
-      alert(r.error || "שגיאה")
+      toast.error(r.error || "שגיאה")
       return
     }
     load()
@@ -136,6 +147,7 @@ export default function RoomBlocksPage() {
 
   return (
     <div className="space-y-6">
+      {confirmDialog}
       {/* ── Header ───────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -153,7 +165,7 @@ export default function RoomBlocksPage() {
               onClick={openNew}
               className="btn btn-primary"
             >
-              <Icon name="add" size="sm" className="text-white" />
+              <Icon name="add" size="sm" className="text-primary-foreground" />
               חסימה חדשה
             </button>
           )}
@@ -174,7 +186,7 @@ export default function RoomBlocksPage() {
             onClick={() => setFilter(k)}
             className={`px-4 py-2 rounded-full text-xs font-bold min-h-[36px] transition-colors ${
               filter === k
-                ? "bg-primary text-white shadow-sm"
+                ? "bg-primary text-primary-foreground shadow-sm"
                 : "bg-accent text-muted-foreground hover:bg-border/40"
             }`}
           >

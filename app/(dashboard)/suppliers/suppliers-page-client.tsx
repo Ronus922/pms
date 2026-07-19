@@ -104,7 +104,7 @@ export function SuppliersPageClient() {
             <>
               <button
                 onClick={() => setShowCategories(true)}
-                className="flex items-center gap-2 bg-[#e3e1ea] text-foreground font-bold text-sm rounded-xl hover:bg-[#d5d3de] transition-colors min-h-[44px] px-5 py-2.5"
+                className="flex items-center gap-2 bg-muted text-foreground font-bold text-sm rounded-xl hover:bg-border transition-colors min-h-[44px] px-5 py-2.5"
               >
                 <Icon name="category" size="sm" />
                 הוסף תחום
@@ -114,7 +114,7 @@ export function SuppliersPageClient() {
                 onClick={() => setShowCreate(true)}
                 className="btn btn-primary"
               >
-                <Icon name="add" size="sm" className="text-white" />
+                <Icon name="add" size="sm" className="text-primary-foreground" />
                 ספק חדש
               </button>
             </>

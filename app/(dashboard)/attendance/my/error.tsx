@@ -26,7 +26,7 @@ export default function AttendanceMyError({
       </div>
       <button
         onClick={reset}
-        className="bg-primary text-white px-4 py-2 rounded font-bold"
+        className="bg-primary text-primary-foreground px-4 py-2 rounded font-bold"
       >
         נסה שוב
       </button>

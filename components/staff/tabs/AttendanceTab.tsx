@@ -202,7 +202,7 @@ export function AttendanceTab({
                 key={level}
                 className={[
                   "flex items-center gap-3 p-3 rounded-xl transition-colors min-h-[44px] cursor-pointer",
-                  isActive ? "bg-[#eff6ff]" : "hover:bg-[#f4f2fc]",
+                  isActive ? "bg-primary/10" : "hover:bg-accent",
                 ].join(" ")}
               >
                 <input
@@ -211,7 +211,7 @@ export function AttendanceTab({
                   value={level}
                   checked={isActive}
                   onChange={() => setLevel(level)}
-                  className="h-4 w-4 cursor-pointer accent-[#1e40af]"
+                  className="h-4 w-4 cursor-pointer accent-primary"
                 />
                 <span className="text-sm text-foreground">
                   {ATTENDANCE_REQUIRED_LABELS[level]}

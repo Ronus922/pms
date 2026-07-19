@@ -96,7 +96,7 @@ export function ReportsCenter() {
           </button>
         ))}
 
-        <div className="mr-auto" />
+        <div className="ms-auto" />
 
         <label className="relative">
           <Icon name="search" size="sm" className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />

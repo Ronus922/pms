@@ -165,7 +165,7 @@ export function ImagesTab({ store }: ImagesTabProps) {
                   <button
                     type="button"
                     onClick={() => store.removeImage(img.id)}
-                    className="rounded-xl border border-destructive/30 text-destructive px-3 py-1.5 text-xs font-medium hover:bg-destructive/5 transition-colors min-h-[44px] mr-auto"
+                    className="rounded-xl border border-destructive/30 text-destructive px-3 py-1.5 text-xs font-medium hover:bg-destructive/5 transition-colors min-h-[44px] ms-auto"
                   >
                     מחק
                   </button>

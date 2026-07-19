@@ -157,7 +157,7 @@ function LoginPageInner() {
         <button
           type="submit"
           disabled={loading || googleLoading}
-          className="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-xl font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+          className="w-full bg-gradient-to-br from-primary to-primary-container text-primary-foreground py-3 rounded-xl font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
         >
           {loading ? "מתחבר..." : "כניסה"}
         </button>

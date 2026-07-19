@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { SidePanel } from "@/components/shared/SidePanel"
 import { Icon } from "@/components/shared/Icon"
+import { useConfirm } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
 import { MaintenanceAuditTimeline } from "./MaintenanceAuditTimeline"
 import { MaintenanceMediaSection } from "./MaintenanceMediaSection"
@@ -187,8 +188,11 @@ export function MaintenanceDetailPanel({
     }
   }
 
+  const { confirm, confirmDialog } = useConfirm()
+
   const handleDelete = async () => {
-    if (!task || !confirm("למחוק את המשימה?")) return
+    if (!task) return
+    if (!(await confirm({ message: "למחוק את המשימה?", danger: true, confirmLabel: "מחק" }))) return
     setBusy(true)
     const result = await deleteMaintenanceTask(tenantId, task.id, userId, userName)
     setBusy(false)
@@ -254,7 +258,7 @@ export function MaintenanceDetailPanel({
         <>
           {/* Tabs — Azure Ethos Subtle Card (Variation 3) */}
           <div className="mb-5 flex justify-end">
-            <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+            <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
               {tabs.map((t) => {
                 const active = tab === t.key
                 return (
@@ -265,14 +269,14 @@ export function MaintenanceDetailPanel({
                     aria-pressed={active}
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                       active
-                        ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                        : "text-[#474747] hover:text-[#1e40af] font-medium"
+                        ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                        : "text-muted-foreground hover:text-primary font-medium"
                     }`}
                   >
                     <Icon name={t.icon} size="sm" />
                     {t.label}
                     {t.count != null && t.count > 0 && (
-                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${active ? "bg-[#eff6ff] text-[#1e40af]" : "bg-white text-[#474747]"}`}>
+                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${active ? "bg-primary/10 text-primary" : "bg-white text-muted-foreground"}`}>
                         {t.count}
                       </span>
                     )}
@@ -293,7 +297,13 @@ export function MaintenanceDetailPanel({
                     <button
                       type="button"
                       onClick={async () => {
-                        if (!confirm("לבטל את החזרתיות? משימות שכבר נוצרו לא ימחקו.")) return
+                        if (
+                          !(await confirm({
+                            message: "לבטל את החזרתיות? משימות שכבר נוצרו לא ימחקו.",
+                            confirmLabel: "בטל חזרתיות",
+                          }))
+                        )
+                          return
                         const { deactivateRecurrenceRule } = await import("@/lib/actions/maintenance")
                         const result = await deactivateRecurrenceRule(tenantId, task.recurrence_rule_id!)
                         if (result.success) {
@@ -451,6 +461,7 @@ export function MaintenanceDetailPanel({
           {tab === "history" && (
             <MaintenanceAuditTimeline entries={audit} loading={loading} />
           )}
+          {confirmDialog}
         </>
       ) : (
         <div className="flex items-center justify-center py-12 text-muted-foreground">

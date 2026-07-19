@@ -57,6 +57,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
   const [newPassword, setNewPassword] = useState("")
   const [emailNewPassword, setEmailNewPassword] = useState(true)
   const [resetResult, setResetResult] = useState<{ password: string } | null>(null)
+  const [resendNotice, setResendNotice] = useState("")
   const [authActionPending, setAuthActionPending] = useState(false)
 
   function updateField(field: string, value: string) {
@@ -161,9 +162,12 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
   async function handleResendCredentials() {
     setAuthActionPending(true)
     setError("")
+    setResendNotice("")
     const res = await resendCredentialsToUser(employee.id, tenantId)
     if (!res.success) {
       setError(res.error || "שגיאה בשליחת הקישור")
+    } else {
+      setResendNotice(`קישור התחברות נשלח למייל ${employee.email}`)
     }
     setAuthActionPending(false)
   }
@@ -205,9 +209,9 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
       )}
 
       {/* User Info Card */}
-      <div className="rounded-xl border border-[#dad9e3] bg-white p-5">
+      <div className="rounded-xl border border-border bg-white p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Icon name="info" size="sm" className="text-[#1e40af]" />
+          <Icon name="info" size="sm" className="text-primary" />
           <h3 className="text-base font-bold text-foreground">פרטי עובד</h3>
         </div>
 
@@ -327,9 +331,9 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
 
       {/* Extended Info (View Mode) */}
       {!isEditing && (
-        <div className="rounded-xl border border-[#dad9e3] bg-white p-5">
+        <div className="rounded-xl border border-border bg-white p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Icon name="info" size="sm" className="text-[#1e40af]" />
+            <Icon name="info" size="sm" className="text-primary" />
             <h3 className="text-base font-bold text-foreground">מידע נוסף</h3>
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 max-sm:grid-cols-1">
@@ -341,7 +345,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
             <InfoRow label="הצטרפות" value={formatDate(employee.created_at)} />
           </div>
           {employee.notes && (
-            <div className="mt-4 pt-4 border-t border-[#f4f2fc]">
+            <div className="mt-4 pt-4 border-t border-accent">
               <p className="text-xs font-bold text-muted-foreground mb-1">הערות</p>
               <p className="text-sm text-foreground whitespace-pre-wrap">{employee.notes}</p>
             </div>
@@ -350,9 +354,9 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
       )}
 
       {/* Auth Settings Card */}
-      <div className="rounded-xl border border-[#dad9e3] bg-white p-5 space-y-4">
+      <div className="rounded-xl border border-border bg-white p-5 space-y-4">
         <div className="flex items-center gap-2">
-          <Icon name="key" size="sm" className="text-[#1e40af]" />
+          <Icon name="key" size="sm" className="text-primary" />
           <h3 className="text-base font-bold text-foreground">הגדרות התחברות</h3>
         </div>
 
@@ -433,7 +437,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
           </div>
         </label>
 
-        <div className="flex flex-wrap gap-2 pt-3 border-t border-[#f4f2fc]">
+        <div className="flex flex-wrap gap-2 pt-3 border-t border-accent">
           <button
             type="button"
             onClick={() => setShowResetPassword(true)}
@@ -453,6 +457,13 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
             שלח קישור התחברות במייל
           </button>
         </div>
+
+        {resendNotice && (
+          <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-800 rounded-xl p-4 flex items-start gap-3">
+            <Icon name="check_circle" size="sm" className="text-emerald-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">{resendNotice}</p>
+          </div>
+        )}
 
         {showResetPassword && (
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800 rounded-xl p-4 space-y-3">
@@ -493,7 +504,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
                 type="button"
                 onClick={handleResetPassword}
                 disabled={authActionPending || newPassword.length < 6}
-                className="flex-1 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 min-h-[44px]"
+                className="flex-1 bg-gradient-to-l from-primary to-secondary text-primary-foreground px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50 min-h-[44px]"
               >
                 {authActionPending ? "שומר..." : "אפס סיסמה"}
               </button>
@@ -547,7 +558,7 @@ function InfoRow({ label, value, accent }: { label: string; value: string | null
   return (
     <div>
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className={`text-sm font-bold ${accent ? "text-[#1e40af]" : "text-foreground"}`}>{value || "—"}</p>
+      <p className={`text-sm font-bold ${accent ? "text-primary" : "text-foreground"}`}>{value || "—"}</p>
     </div>
   )
 }

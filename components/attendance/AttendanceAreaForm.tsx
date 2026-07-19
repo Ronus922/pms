@@ -278,7 +278,7 @@ export function AttendanceAreaForm({
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center gap-1.5 text-sm text-[#1e40af] hover:text-[#1e3a8a]"
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary"
         >
           <Icon name="arrow_forward" size="sm" />
           חזור לרשימה
@@ -323,7 +323,7 @@ export function AttendanceAreaForm({
           <p className="text-xs text-green-700">✓ {location.address}</p>
         )}
         {location && !location.address && (
-          <p className="text-xs text-[#474747]">📍 מיקום מותאם ידנית</p>
+          <p className="text-xs text-muted-foreground">📍 מיקום מותאם ידנית</p>
         )}
       </div>
 
@@ -357,12 +357,12 @@ export function AttendanceAreaForm({
                       checked={shape === s}
                       onChange={() => handleSetShape(s)}
                       disabled={isUnavailable}
-                      className="h-4 w-4 cursor-pointer accent-[#1e40af] disabled:cursor-not-allowed"
+                      className="h-4 w-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
                     />
                     <span className="text-sm text-foreground">
                       {SHAPE_LABELS[s]}
                       {isUnavailable && (
-                        <span className="text-[10px] text-[#9ca3af] mr-1">
+                        <span className="text-[10px] text-muted-foreground mr-1">
                           (בקרוב)
                         </span>
                       )}
@@ -418,7 +418,7 @@ export function AttendanceAreaForm({
             <Icon
               name="hourglass_empty"
               size="sm"
-              className="text-white animate-spin"
+              className="text-primary-foreground animate-spin"
             />
           ) : (
             <Icon name="check_circle" size="sm" className="text-white" />

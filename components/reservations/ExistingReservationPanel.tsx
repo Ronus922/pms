@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { SidePanel } from "@/components/shared/SidePanel"
 import { Icon } from "@/components/shared/Icon"
+import { useConfirm } from "@/components/shared/ConfirmDialog"
 import { StatusPill } from "@/components/reservations/StatusPill"
 import { SourceBadge } from "@/components/reservations/SourceBadge"
 import { toast } from "sonner"
@@ -143,14 +144,19 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
   }, [store, onSaved])
 
   /* ── Close with dirty check ───────────────────────────────── */
-  const handleClose = useCallback(() => {
+  const { confirm, confirmDialog } = useConfirm()
+  const handleClose = useCallback(async () => {
     if (store.isDirty) {
-      const confirmed = window.confirm("יש שינויים שלא נשמרו. לסגור בכל זאת?")
+      const confirmed = await confirm({
+        message: "יש שינויים שלא נשמרו. לסגור בכל זאת?",
+        confirmLabel: "סגור בלי לשמור",
+        danger: true,
+      })
       if (!confirmed) return
     }
     store.close()
     setSaveError("")
-  }, [store])
+  }, [store, confirm])
 
   /* ── Action icon handler ─────────────────────────────────── */
   const handleAction = useCallback(
@@ -294,7 +300,7 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
       ) : (
         <div className="flex flex-col h-full">
           {/* ── Badges + Action Icons + Step Progress ──────────── */}
-          <div className="shrink-0 bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 border-b border-border/15">
+          <div className="shrink-0 bg-gradient-to-l from-primary/10 to-secondary/10 border-b border-border/15">
             {/* Source + Status Badges */}
             <div className="flex items-center gap-2 px-6 pt-3 pb-2 flex-wrap">
               {store.data.source && (
@@ -379,7 +385,7 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
                       <div
                         className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
                           i === activeTab
-                            ? "bg-primary text-white shadow-md"
+                            ? "bg-primary text-primary-foreground shadow-md"
                             : i < activeTab
                               ? "bg-primary/20 text-primary"
                               : "bg-accent text-muted-foreground group-hover:bg-border/40"
@@ -428,7 +434,7 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
                     <span
                       className={`w-6 h-6 rounded-lg flex items-center justify-center text-[12px] font-bold shrink-0 ${
                         i === activeTab
-                          ? "bg-primary text-white"
+                          ? "bg-primary text-primary-foreground"
                           : i < activeTab
                             ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30"
                             : "bg-accent text-muted-foreground"
@@ -496,6 +502,7 @@ export function ExistingReservationPanel({ onSaved }: ExistingReservationPanelPr
           </div>
         </div>
       )}
+      {confirmDialog}
     </SidePanel>
   )
 }

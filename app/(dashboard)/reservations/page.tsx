@@ -27,7 +27,7 @@ interface Reservation {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  confirmed: "bg-[#003aa0]/10 text-[#003aa0]",
+  confirmed: "bg-primary/10 text-primary",
   checked_in: "bg-emerald-50 text-emerald-700",
   checked_out: "bg-accent text-muted-foreground",
   cancelled: "bg-red-50/80 text-red-600",
@@ -126,7 +126,7 @@ export default function ReservationsPage() {
               onClick={() => setStatusFilter(key)}
               className={`px-4 py-2.5 text-xs font-bold rounded-xl transition-colors whitespace-nowrap min-h-[44px] ${
                 statusFilter === key
-                  ? "bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white shadow-sm"
+                  ? "bg-gradient-to-l from-primary to-secondary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-accent"
               }`}
             >
@@ -141,7 +141,7 @@ export default function ReservationsPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] text-sm">
             <thead>
-              <tr className="bg-[#e1e7fa]">
+              <tr className="bg-primary/10">
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap w-[180px]">מס׳ הזמנה</th>
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">אורח</th>
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap">טלפון</th>

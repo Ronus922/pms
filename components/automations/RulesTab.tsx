@@ -110,7 +110,7 @@ export function RulesTab({ onCreateNew, onSelect }: RulesTabProps) {
 
         <button
           onClick={onCreateNew}
-          className="mr-auto flex items-center gap-2 bg-primary text-primary-foreground rounded-xl px-5 py-3 min-h-[44px] text-sm font-medium hover:opacity-90 transition-opacity"
+          className="ms-auto flex items-center gap-2 bg-primary text-primary-foreground rounded-xl px-5 py-3 min-h-[44px] text-sm font-medium hover:opacity-90 transition-opacity"
         >
           <Icon name="add" size="sm" />
           אוטומציה חדשה
@@ -122,7 +122,7 @@ export function RulesTab({ onCreateNew, onSelect }: RulesTabProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[#e1e7fa]">
+              <tr className="bg-primary/10">
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">שם</th>
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">טריגר</th>
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">תזמון</th>

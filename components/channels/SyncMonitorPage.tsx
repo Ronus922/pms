@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Icon } from "@/components/shared/Icon"
+import { useConfirm } from "@/components/shared/ConfirmDialog"
 import { ChannelsShell } from "./ChannelsShell"
 import { JobStatusPill } from "./shared/StatusPills"
 import { JsonViewer } from "./shared/JsonViewer"
@@ -54,8 +55,10 @@ export function SyncMonitorPage() {
     }
   }
 
+  const { confirm, confirmDialog } = useConfirm()
+
   const handleRetryAll = async () => {
-    if (!confirm("לשלוח שוב את כל המשימות שנכשלו?")) return
+    if (!(await confirm({ message: "לשלוח שוב את כל המשימות שנכשלו?", confirmLabel: "שלח שוב" }))) return
     setRetrying(true)
     const res = await retryAllFailedJobs()
     setRetrying(false)
@@ -85,6 +88,7 @@ export function SyncMonitorPage() {
 
   return (
     <ChannelsShell>
+      {confirmDialog}
       {/* Toolbar */}
       <div className="bg-card rounded-[20px] p-4 shadow-sm border border-border/20 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
@@ -191,7 +195,7 @@ export function SyncMonitorPage() {
                     <button
                       type="button"
                       onClick={() => handleRowRetry(r.id)}
-                      className="h-8 w-8 min-h-[36px] min-w-[36px] rounded-lg bg-accent hover:bg-primary hover:text-white text-muted-foreground flex items-center justify-center"
+                      className="h-8 w-8 min-h-[36px] min-w-[36px] rounded-lg bg-accent hover:bg-primary hover:text-primary-foreground text-muted-foreground flex items-center justify-center"
                       title="נסה שוב"
                     >
                       <Icon name="replay" size="sm" />
@@ -203,7 +207,7 @@ export function SyncMonitorPage() {
                     <button
                       type="button"
                       onClick={() => handleRowCancel(r.id)}
-                      className="h-8 w-8 min-h-[36px] min-w-[36px] rounded-lg bg-accent hover:bg-destructive hover:text-white text-muted-foreground flex items-center justify-center"
+                      className="h-8 w-8 min-h-[36px] min-w-[36px] rounded-lg bg-accent hover:bg-destructive hover:text-destructive-foreground text-muted-foreground flex items-center justify-center"
                       title="בטל"
                     >
                       <Icon name="close" size="sm" />

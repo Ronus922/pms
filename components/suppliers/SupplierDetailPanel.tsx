@@ -131,7 +131,7 @@ export function SupplierDetailPanel({ supplierId, onClose, onUpdated }: Supplier
             type="submit"
             className="btn btn-primary"
           >
-            <Icon name="check_circle" size="sm" className="text-white" />
+            <Icon name="check_circle" size="sm" className="text-primary-foreground" />
             שמור שינויים
           </button>
         </>
@@ -191,7 +191,7 @@ export function SupplierDetailPanel({ supplierId, onClose, onUpdated }: Supplier
         <>
           {/* Tab Navigation — Azure Ethos Subtle Card (Variation 3) */}
           <div className="mb-5 flex justify-end">
-            <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+            <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
               {TABS.map((tab) => {
                 const active = activeTab === tab.key
                 return (
@@ -201,8 +201,8 @@ export function SupplierDetailPanel({ supplierId, onClose, onUpdated }: Supplier
                     aria-pressed={active}
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                       active
-                        ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                        : "text-[#474747] hover:text-[#1e40af] font-medium"
+                        ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                        : "text-muted-foreground hover:text-primary font-medium"
                     }`}
                   >
                     <Icon name={tab.icon} size="sm" />
@@ -629,7 +629,7 @@ function DocumentsTab({ supplier, canEdit, tenantId, userId }: { supplier: Suppl
           </div>
           <div className="flex items-center gap-4">
             <label className="btn btn-primary">
-              {uploading ? <Icon name="hourglass_empty" size="sm" className="text-white animate-spin" /> : <Icon name="upload" size="sm" className="text-white" />}
+              {uploading ? <Icon name="hourglass_empty" size="sm" className="text-primary-foreground animate-spin" /> : <Icon name="upload" size="sm" className="text-primary-foreground" />}
               {uploading ? "מעלה..." : "בחר קובץ"}
               <input type="file" className="hidden" accept={ALLOWED_DOC_TYPES.join(",")} onChange={handleFileSelect} disabled={uploading} />
             </label>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Icon } from "@/components/shared/Icon"
+import { useConfirm } from "@/components/shared/ConfirmDialog"
 import { ChannelsShell } from "./ChannelsShell"
 import { ConnectionStatusPill } from "./shared/StatusPills"
 import {
@@ -62,8 +63,17 @@ export function SettingsPage() {
     load()
   }
 
+  const { confirm, confirmDialog } = useConfirm()
+
   const handleUnlink = async () => {
-    if (!confirm("לנתק את החיבור ל-Channex? (הלוגים יישמרו)")) return
+    if (
+      !(await confirm({
+        message: "לנתק את החיבור ל-Channex? (הלוגים יישמרו)",
+        danger: true,
+        confirmLabel: "נתק",
+      }))
+    )
+      return
     setUnlinking(true)
     const res = await unlinkChannelConnection()
     setUnlinking(false)
@@ -81,6 +91,7 @@ export function SettingsPage() {
 
   return (
     <ChannelsShell>
+      {confirmDialog}
       {loading ? (
         <div className="bg-card rounded-[20px] p-16 shadow-sm border border-border/20 flex items-center justify-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />

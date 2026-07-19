@@ -122,9 +122,9 @@ export default function MyAbsenceRequestsPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <div className="bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 rounded-[20px] p-4 sm:p-6 border border-border/15 flex items-start justify-between flex-wrap gap-4">
+      <div className="bg-gradient-to-l from-primary/10 to-secondary/10 rounded-[20px] p-4 sm:p-6 border border-border/15 flex items-start justify-between flex-wrap gap-4">
         <div className="flex items-start gap-4 min-w-0">
-          <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-[#003aa0] to-[#3F51B5] text-white flex items-center justify-center shadow-md">
+          <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary text-primary-foreground flex items-center justify-center shadow-md">
             <Icon name="event_busy" size="lg" />
           </div>
           <div className="min-w-0">
@@ -140,9 +140,9 @@ export default function MyAbsenceRequestsPage() {
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm shadow-md hover:opacity-90 transition-opacity min-h-[44px] w-full sm:w-auto"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-primary to-secondary text-primary-foreground font-bold text-sm shadow-md hover:opacity-90 transition-opacity min-h-[44px] w-full sm:w-auto"
         >
-          <Icon name="add_circle" size="sm" className="text-white" />
+          <Icon name="add_circle" size="sm" className="text-primary-foreground" />
           בקשה חדשה
         </button>
       </div>

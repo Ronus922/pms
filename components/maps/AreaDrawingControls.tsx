@@ -36,7 +36,7 @@ export function AreaDrawingControls({
     <div
       role="group"
       aria-label="בחירת צורת אזור"
-      className="inline-flex items-center gap-1 rounded-xl bg-[#f4f2fc] p-1"
+      className="inline-flex items-center gap-1 rounded-xl bg-accent p-1"
     >
       {SHAPE_TYPES.map((shape) => {
         const isActive = activeShape === shape
@@ -51,8 +51,8 @@ export function AreaDrawingControls({
               "inline-flex min-h-[44px] items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all",
               "disabled:cursor-not-allowed disabled:opacity-50",
               isActive
-                ? "bg-white text-[#1e40af] font-semibold shadow-[0_2px_4px_rgba(0,0,0,0.05)]"
-                : "text-[#474747] font-medium hover:text-[#1e40af]",
+                ? "bg-card text-primary font-semibold shadow-[0_2px_4px_rgba(0,0,0,0.05)]"
+                : "text-muted-foreground font-medium hover:text-primary",
             ].join(" ")}
           >
             <span aria-hidden="true">{SHAPE_ICONS[shape]}</span>

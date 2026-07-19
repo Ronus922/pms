@@ -52,7 +52,7 @@ export function ReservationTable({ rows, onRowClick, selectedId }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-[#e1e7fa]">
+            <tr className="bg-primary/10">
               <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 whitespace-nowrap w-[180px]">מס׳ הזמנה</th>
               <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">שם אורח</th>
               <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70 max-md:hidden">טלפון</th>

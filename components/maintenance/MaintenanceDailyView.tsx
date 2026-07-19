@@ -19,14 +19,14 @@ interface TaskGroupProps {
 
 function TaskGroup({ title, subtitle, tasks, onTaskClick, avatar = "person" }: TaskGroupProps) {
   return (
-    <div className="border border-[#dad9e3] rounded-xl overflow-hidden bg-white">
+    <div className="border border-border rounded-xl overflow-hidden bg-white">
       {/* Group header */}
-      <div className="bg-[#eff6ff] px-4 py-3 flex items-center justify-between border-b border-[#dad9e3]">
+      <div className="bg-primary/10 px-4 py-3 flex items-center justify-between border-b border-border">
         <div className="text-right">
           <h3 className="text-base font-extrabold text-foreground">{title}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
         </div>
-        <div className="w-10 h-10 rounded-full bg-white border border-[#dad9e3] flex items-center justify-center text-muted-foreground shrink-0">
+        <div className="w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center text-muted-foreground shrink-0">
           <Icon name={avatar === "alert" ? "priority_high" : "person"} size="md" />
         </div>
       </div>
@@ -45,7 +45,7 @@ function TaskGroup({ title, subtitle, tasks, onTaskClick, avatar = "person" }: T
               key={task.id}
               type="button"
               onClick={() => onTaskClick(task)}
-              className="w-full flex items-center justify-between px-4 py-3.5 bg-white border-b border-[#f4f2fc] last:border-0 hover:bg-[#fbfafd] cursor-pointer transition-colors text-right"
+              className="w-full flex items-center justify-between px-4 py-3.5 bg-white border-b border-accent last:border-0 hover:bg-accent/50 cursor-pointer transition-colors text-right"
             >
               {/* Right: title + subtitle */}
               <div className="flex-1 min-w-0">
@@ -62,7 +62,7 @@ function TaskGroup({ title, subtitle, tasks, onTaskClick, avatar = "person" }: T
                     {task.room_number}
                   </span>
                 )}
-                <div className="w-8 h-8 rounded-full border border-[#dad9e3] bg-white flex items-center justify-center text-sm font-bold text-foreground tabular-nums">
+                <div className="w-8 h-8 rounded-full border border-border bg-white flex items-center justify-center text-sm font-bold text-foreground tabular-nums">
                   {idx + 1}
                 </div>
               </div>

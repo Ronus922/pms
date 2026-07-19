@@ -65,7 +65,7 @@ export function RoomBlock({
       style={{ width: totalWidth }}
     >
       {/* Header bar */}
-      <div className="bg-[#1e40af] text-white flex items-center justify-between gap-3 px-4 py-2.5 sticky right-0 z-10">
+      <div className="bg-primary text-primary-foreground flex items-center justify-between gap-3 px-4 py-2.5 sticky right-0 z-10">
         <div className="flex items-center gap-2 min-w-0">
           <Icon name="bed" size="sm" />
           <span className="text-sm font-bold truncate">

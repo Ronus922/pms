@@ -232,14 +232,14 @@ export function TemplateDetailPanel({ templateId, onClose, onUpdated }: Template
         <div className="space-y-5">
           {/* Toggle preview / details — Azure Ethos Subtle Card (Variation 3) */}
           <div className="flex justify-end">
-            <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+            <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
               <button
                 onClick={() => setShowPreview(false)}
                 aria-pressed={!showPreview}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   !showPreview
-                    ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-[#474747] hover:text-[#1e40af] font-medium"
+                    ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-muted-foreground hover:text-primary font-medium"
                 }`}
               >
                 <Icon name="info" size="sm" />
@@ -250,8 +250,8 @@ export function TemplateDetailPanel({ templateId, onClose, onUpdated }: Template
                 aria-pressed={showPreview}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   showPreview
-                    ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-[#474747] hover:text-[#1e40af] font-medium"
+                    ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-muted-foreground hover:text-primary font-medium"
                 }`}
               >
                 <Icon name="visibility" size="sm" />

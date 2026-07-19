@@ -107,7 +107,7 @@ export function HistoryTab() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[#e1e7fa]">
+              <tr className="bg-primary/10">
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">תאריך</th>
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">נמען</th>
                 <th className="text-right px-5 py-4 text-xs font-bold text-foreground/70">ערוץ</th>

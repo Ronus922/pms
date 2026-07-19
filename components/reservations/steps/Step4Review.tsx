@@ -300,7 +300,7 @@ export function Step4Review() {
             value={formatCurrency(store.grandTotal, store.currency)}
             large
             bold
-            color="text-[#003aa0] dark:text-blue-400"
+            color="text-primary dark:text-blue-400"
           />
           <SummaryAmountRow
             label="יתרה לתשלום"

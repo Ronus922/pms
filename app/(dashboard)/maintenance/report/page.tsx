@@ -285,7 +285,7 @@ export default function MaintenanceReportPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-gradient-to-l from-[#1e40af] to-[#3F51B5] px-3 py-2.5 shadow-md">
+      <header className="sticky top-0 z-40 bg-gradient-to-l from-primary to-secondary px-3 py-2.5 shadow-md">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <button
             type="button"

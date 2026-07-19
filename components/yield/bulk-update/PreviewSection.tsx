@@ -81,7 +81,7 @@ export function PreviewSection({ preview, previewLoading, onRunPreview }: Props)
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <span className="bg-primary text-white rounded-full h-7 w-7 flex items-center justify-center text-xs font-bold">
+          <span className="bg-primary text-primary-foreground rounded-full h-7 w-7 flex items-center justify-center text-xs font-bold">
             3
           </span>
           <h3 className="text-base font-bold font-headline">תצוגה מקדימה לפני עדכון</h3>

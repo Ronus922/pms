@@ -118,7 +118,7 @@ export function VariablesTab() {
               {/* Table */}
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-[#e1e7fa]">
+                  <tr className="bg-primary/10">
                     <th className="text-right px-5 py-3 text-xs font-bold text-foreground/70 w-[220px]">משתנה</th>
                     <th className="text-right px-5 py-3 text-xs font-bold text-foreground/70">תווית</th>
                     <th className="text-right px-5 py-3 text-xs font-bold text-foreground/70">ערך לדוגמה</th>

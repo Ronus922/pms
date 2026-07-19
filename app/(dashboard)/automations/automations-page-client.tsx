@@ -151,7 +151,7 @@ export function AutomationsPageClient() {
       </div>
 
       {/* Tabs — Azure Ethos Subtle Card (Variation 3) */}
-      <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+      <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
         {TABS.map((tab) => {
           const active = activeTab === tab.key
           return (
@@ -161,8 +161,8 @@ export function AutomationsPageClient() {
               aria-pressed={active}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                 active
-                  ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                  : "text-[#474747] hover:text-[#1e40af] font-medium"
+                  ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                  : "text-muted-foreground hover:text-primary font-medium"
               }`}
             >
               <Icon name={tab.icon} size="sm" />

@@ -78,7 +78,7 @@ export function SidePanel({
           >
             {/* Header — Azure Ethos blue (suppressed when hideDefaultHeader) */}
             {!hideDefaultHeader && (
-              <div className="relative bg-[#1e40af] border-b border-[#1e40af] px-6 pt-14 pb-5 rounded-tr-[0.65rem] shrink-0">
+              <div className="relative bg-primary border-b border-primary px-6 pt-14 pb-5 rounded-tr-[0.65rem] shrink-0">
                 {/* Close button — SidePanel skill spec, top-left */}
                 <button
                   onClick={onClose}

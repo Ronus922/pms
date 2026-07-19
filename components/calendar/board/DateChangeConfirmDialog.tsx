@@ -75,7 +75,7 @@ export function DateChangeConfirmDialog({
             className="relative z-10 w-full max-w-md rounded-2xl bg-card shadow-2xl ring-1 ring-black/5 overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-[#1e40af] px-5 py-4 text-white">
+            <div className="bg-primary px-5 py-4 text-primary-foreground">
               <h2 className="text-sm font-bold">
                 {change.kind === "resize" ? "שינוי שהייה" : "העברת הזמנה"}
               </h2>

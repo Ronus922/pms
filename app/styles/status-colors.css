@@ -111,6 +111,42 @@
   border-right-color: #34d399;
 }
 
+.dark .ribbon-draft {
+  background: color-mix(in srgb, #94a3b8 12%, transparent);
+  color: #94a3b8;
+  border-right-color: #64748b;
+}
+
+.dark .ribbon-paid {
+  background: color-mix(in srgb, #34d399 15%, transparent);
+  color: #34d399;
+  border-right-color: #34d399;
+}
+
+.dark .ribbon-noshow {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #fca5a5;
+  border-right-color: #ef4444;
+}
+
+.dark .ribbon-cancelled {
+  background: color-mix(in srgb, #94a3b8 10%, transparent);
+  color: #94a3b8;
+  border-right-color: #64748b;
+}
+
+.dark .ribbon-checked-out {
+  background: color-mix(in srgb, #94a3b8 8%, transparent);
+  color: #94a3b8;
+  border-right-color: #475569;
+}
+
+.dark .ribbon-late-checkout {
+  background: color-mix(in srgb, #facc15 12%, transparent);
+  color: #facc15;
+  border-right-color: #facc15;
+}
+
 /* Common ribbon base */
 .booking-ribbon {
   backdrop-filter: blur(12px);

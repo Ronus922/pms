@@ -65,11 +65,11 @@ export function MaintenanceWorkerView() {
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-[#1e40af] text-white px-3 py-2.5 shadow-lg">
+      <div className="sticky top-0 z-10 bg-primary text-primary-foreground px-3 py-2.5 shadow-lg">
         <div className="flex items-center gap-3 mb-2">
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-bold">המשימות שלי</h1>
-            <p className="text-[11px] text-white opacity-85">{todayLabel()}</p>
+            <p className="text-[11px] text-primary-foreground opacity-85">{todayLabel()}</p>
           </div>
           <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
             <Icon name="construction" size="sm" />

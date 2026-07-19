@@ -79,7 +79,7 @@ export function MetaSeoTab({ store }: MetaSeoTabProps) {
               {previewTitle}
             </p>
             {/* Description */}
-            <p className="text-sm text-[#545454] dark:text-muted-foreground leading-relaxed line-clamp-2">
+            <p className="text-sm text-muted-foreground dark:text-muted-foreground leading-relaxed line-clamp-2">
               {previewDescription}
             </p>
           </div>

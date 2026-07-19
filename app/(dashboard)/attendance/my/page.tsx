@@ -243,13 +243,13 @@ export default function MyAttendancePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Sticky gradient header */}
-      <header className="sticky top-0 z-40 bg-gradient-to-l from-[#003aa0] to-[#3F51B5] px-3 py-2.5 shadow-md">
+      <header className="sticky top-0 z-40 bg-gradient-to-l from-primary to-secondary px-3 py-2.5 shadow-md">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold text-white font-headline">
+            <h1 className="text-sm font-bold text-primary-foreground font-headline">
               שעון נוכחות
             </h1>
-            <p className="text-[11px] text-white opacity-85">{fmtHebrewDate(now)}</p>
+            <p className="text-[11px] text-primary-foreground opacity-85">{fmtHebrewDate(now)}</p>
           </div>
           <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
             <Icon name="schedule" size="sm" className="text-white" />
@@ -312,11 +312,11 @@ export default function MyAttendancePage() {
 
         {/* Monthly summary card (moved above cycles) */}
         <section className="bg-card rounded-[20px] border border-border/15 shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-l from-[#003aa0] to-[#3F51B5] px-5 py-3 flex items-center justify-between">
-            <span className="text-white font-bold text-sm">
+          <div className="bg-gradient-to-l from-primary to-secondary px-5 py-3 flex items-center justify-between">
+            <span className="text-primary-foreground font-bold text-sm">
               {fmtHebrewMonth(now)}
             </span>
-            <span className="text-white/80 text-xs">סיכום חודשי</span>
+            <span className="text-primary-foreground/80 text-xs">סיכום חודשי</span>
           </div>
           <div className="grid grid-cols-2 gap-3 p-4">
             <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-3 text-center">

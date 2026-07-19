@@ -25,7 +25,7 @@ export function ReservationSummary() {
   return (
     <div className="bg-card rounded-[20px] overflow-hidden shadow-sm border border-border/20">
       {/* Gradient header */}
-      <div className="p-6 bg-gradient-to-br from-primary to-primary-container text-white">
+      <div className="p-6 bg-gradient-to-br from-primary to-primary-container text-primary-foreground">
         <h2 className="text-xl font-bold mb-1 font-headline">סיכום הזמנה</h2>
         <p className="text-xs opacity-80">צפייה בזמן אמת בפרטי השהייה</p>
       </div>

@@ -105,7 +105,7 @@ export function WorkerTabBar() {
                 aria-current={active ? "page" : undefined}
                 className={`rounded-xl min-h-[52px] flex flex-col items-center justify-center gap-1 border-2 transition-colors ${
                   active
-                    ? "bg-gradient-to-br from-[#003aa0]/10 to-[#3F51B5]/10 border-primary text-primary"
+                    ? "bg-gradient-to-br from-primary/10 to-secondary/10 border-primary text-primary"
                     : "bg-accent/30 border-transparent text-muted-foreground hover:bg-accent/50"
                 }`}
               >

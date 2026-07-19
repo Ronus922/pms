@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -18,10 +20,12 @@ import {
 import {
   SortableContext,
   arrayMove,
+  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   rectSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable"
+import { toast } from "sonner"
 import { CSS } from "@dnd-kit/utilities"
 import { Icon } from "@/components/shared/Icon"
 import { DateInput } from "@/components/shared/DateInput"
@@ -40,6 +44,7 @@ import type {
   CleaningStatus,
 } from "@/lib/types/cleaning"
 import { SidePanel } from "@/components/shared/SidePanel"
+import { useConfirm } from "@/components/shared/ConfirmDialog"
 import { CreateCleaningTaskPanel } from "@/components/housekeeping/CreateCleaningTaskPanel"
 
 /* ── Helpers ────────────────────────────────────────────── */
@@ -105,9 +110,10 @@ interface TaskCardProps {
   task: CleaningTask
   onClick: () => void
   isUnassigned?: boolean
+  onQuickDone?: (task: CleaningTask) => void
 }
 
-function SortableTaskCard({ task, onClick, isUnassigned }: TaskCardProps) {
+function SortableTaskCard({ task, onClick, isUnassigned, onQuickDone }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   })
@@ -132,10 +138,10 @@ function SortableTaskCard({ task, onClick, isUnassigned }: TaskCardProps) {
         if (!isDragging) onClick()
         e.stopPropagation()
       }}
-      className={`bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-[#1e40af]/40 transition-all select-none ${
+      className={`bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-primary/40 transition-all select-none ${
         isUnassigned
           ? "border-amber-300 dark:border-amber-800"
-          : "border-[#dad9e3]"
+          : "border-border"
       }`}
     >
       {/* Priority dot + room number + checkout time */}
@@ -144,6 +150,11 @@ function SortableTaskCard({ task, onClick, isUnassigned }: TaskCardProps) {
           className={`w-2 h-2 rounded-full shrink-0 ${urgVisual.dot}`}
           title={urgVisual.label}
         />
+        {urg === "past" && (
+          <span className="text-[10px] font-bold text-red-600 dark:text-red-400 shrink-0">
+            דחוף
+          </span>
+        )}
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm tabular-nums shrink-0 ${
           task.target_type === "area" ? "bg-violet-500/10 text-violet-600" : "bg-primary/10 text-primary"
         }`}>
@@ -181,24 +192,43 @@ function SortableTaskCard({ task, onClick, isUnassigned }: TaskCardProps) {
         </div>
       </div>
 
-      {/* Bottom row: status pill + unassigned badge */}
+      {/* Bottom row: status pill + unassigned badge + quick-done */}
       <div className="flex items-center justify-between gap-2">
         <span
           className={`px-2 py-0.5 text-[12px] font-bold rounded-full border ${statusVisual.bg} ${statusVisual.text} ${statusVisual.border}`}
         >
           {statusVisual.label}
         </span>
-        {isUnassigned ? (
-          <span className="flex items-center gap-1 text-[12px] font-bold text-amber-700 dark:text-amber-400">
-            <Icon name="warning" size="sm" />
-            לא משויך
-          </span>
-        ) : task.source_trigger === "manager_manual" ? (
-          <span className="flex items-center gap-1 text-[12px] text-muted-foreground">
-            <Icon name="push_pin" size="sm" className="opacity-50" />
-            מראש
-          </span>
-        ) : null}
+        <div className="flex items-center gap-1">
+          {isUnassigned ? (
+            <span className="flex items-center gap-1 text-[12px] font-bold text-amber-700 dark:text-amber-400">
+              <Icon name="warning" size="sm" />
+              לא משויך
+            </span>
+          ) : task.source_trigger === "manager_manual" ? (
+            <span className="flex items-center gap-1 text-[12px] text-muted-foreground">
+              <Icon name="push_pin" size="sm" className="opacity-50" />
+              מראש
+            </span>
+          ) : null}
+          {onQuickDone && (task.status === "pending" || task.status === "in_progress") && (
+            <button
+              type="button"
+              aria-label="סמן כהושלם"
+              title="סמן כהושלם"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                onQuickDone(task)
+              }}
+              className="w-11 h-11 -my-2 -me-1 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+            >
+              <Icon name="check_circle" size="sm" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -221,18 +251,19 @@ interface ColumnProps {
   onTaskClick: (task: CleaningTask) => void
   variant?: "unassigned" | "cleaner"
   stats?: ColumnStats
+  onQuickDone?: (task: CleaningTask) => void
 }
 
-function Column({ id, title, subtitle, icon, tasks, onTaskClick, variant = "cleaner", stats }: ColumnProps) {
+function Column({ id, title, subtitle, icon, tasks, onTaskClick, variant = "cleaner", stats, onQuickDone }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id })
 
   const isUnassigned = variant === "unassigned"
   const headerClass = isUnassigned
     ? "bg-gradient-to-l from-amber-500/15 to-orange-500/10 border-amber-300 dark:border-amber-800"
-    : "bg-[#1e40af]/5 border-[#dad9e3]"
+    : "bg-primary/5 border-border"
   const bodyClass = isUnassigned
     ? "bg-amber-50/40 dark:bg-amber-950/10 border-amber-300 dark:border-amber-800"
-    : "bg-accent/30 border-[#dad9e3]"
+    : "bg-accent/30 border-border"
   const iconBg = isUnassigned
     ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
     : "bg-white/50 dark:bg-black/20 text-primary"
@@ -308,7 +339,7 @@ function Column({ id, title, subtitle, icon, tasks, onTaskClick, variant = "clea
             <div className={`flex-1 flex flex-col items-center justify-center py-6 text-[11px] rounded-lg border-2 border-dashed ${
               isOver
                 ? "border-primary text-primary bg-primary/5"
-                : "border-[#dad9e3] text-muted-foreground/50"
+                : "border-border text-muted-foreground/50"
             }`}>
               <Icon name="drag_indicator" size="md" className="mb-1 opacity-40" />
               {isOver ? "שחרר כאן" : isUnassigned ? "אין חדרים לשיבוץ" : "גרור חדר לכאן"}
@@ -320,6 +351,7 @@ function Column({ id, title, subtitle, icon, tasks, onTaskClick, variant = "clea
                 task={task}
                 onClick={() => onTaskClick(task)}
                 isUnassigned={isUnassigned}
+                onQuickDone={onQuickDone}
               />
             ))
           )}
@@ -335,9 +367,10 @@ interface UnassignedBannerProps {
   id: string
   tasks: CleaningTask[]
   onTaskClick: (task: CleaningTask) => void
+  onQuickDone?: (task: CleaningTask) => void
 }
 
-function UnassignedBanner({ id, tasks, onTaskClick }: UnassignedBannerProps) {
+function UnassignedBanner({ id, tasks, onTaskClick, onQuickDone }: UnassignedBannerProps) {
   const { setNodeRef, isOver } = useDroppable({ id })
 
   return (
@@ -401,6 +434,7 @@ function UnassignedBanner({ id, tasks, onTaskClick }: UnassignedBannerProps) {
                     task={task}
                     onClick={() => onTaskClick(task)}
                     isUnassigned
+                    onQuickDone={onQuickDone}
                   />
                 ))}
               </div>
@@ -438,6 +472,7 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
   const [assignedTo, setAssignedTo] = useState<string>("")
   const [notes, setNotes] = useState("")
   const [saving, setSaving] = useState(false)
+  const { confirm, confirmDialog } = useConfirm()
 
   useEffect(() => {
     if (task) {
@@ -451,27 +486,48 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
     if (!task) return
     setSaving(true)
 
-    if (status !== task.status) {
-      await setCleaningTaskStatus(tenantId, task.id, status)
+    try {
+      const results = []
+      if (status !== task.status) {
+        results.push(await setCleaningTaskStatus(tenantId, task.id, status))
+      }
+      if (assignedTo !== (task.assigned_to ?? "")) {
+        results.push(await assignCleaner(tenantId, task.id, assignedTo || null))
+      }
+      if (notes !== (task.notes ?? "")) {
+        results.push(await updateCleaningTaskNotes(tenantId, task.id, notes))
+      }
+      const failed = results.find((r) => !r.success)
+      if (failed) {
+        toast.error(`השמירה נכשלה: ${failed.error ?? "שגיאה"}`)
+        return
+      }
+    } catch {
+      toast.error("השמירה נכשלה — בעיית תקשורת. נסה שוב.")
+      return
+    } finally {
+      setSaving(false)
     }
-    if (assignedTo !== (task.assigned_to ?? "")) {
-      await assignCleaner(tenantId, task.id, assignedTo || null)
-    }
-    if (notes !== (task.notes ?? "")) {
-      await updateCleaningTaskNotes(tenantId, task.id, notes)
-    }
-
-    setSaving(false)
     onSaved()
     onClose()
   }
 
   const handleDelete = async () => {
     if (!task) return
-    if (!confirm("למחוק את המשימה?")) return
+    if (!(await confirm({ message: "למחוק את המשימה?", danger: true, confirmLabel: "מחק" }))) return
     setSaving(true)
-    await deleteCleaningTask(tenantId, task.id)
-    setSaving(false)
+    try {
+      const result = await deleteCleaningTask(tenantId, task.id)
+      if (!result.success) {
+        toast.error(`המחיקה נכשלה: ${result.error ?? "שגיאה"}`)
+        return
+      }
+    } catch {
+      toast.error("המחיקה נכשלה — בעיית תקשורת. נסה שוב.")
+      return
+    } finally {
+      setSaving(false)
+    }
     onSaved()
     onClose()
   }
@@ -565,7 +621,7 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
                   onClick={() => setStatus(s)}
                   className={`px-3 py-3 rounded-full text-xs font-bold transition-all min-h-[44px] ${
                     status === s
-                      ? "bg-primary text-white shadow-md"
+                      ? "bg-primary text-primary-foreground shadow-md"
                       : "bg-accent text-muted-foreground hover:bg-accent/80"
                   }`}
                 >
@@ -587,6 +643,7 @@ function TaskEditPanel({ task, cleaners, tenantId, onClose, onSaved }: EditPanel
           </div>
         </div>
       )}
+      {confirmDialog}
     </SidePanel>
   )
 }
@@ -609,10 +666,19 @@ export default function HousekeepingPage() {
 
   const canEdit = can("housekeeping", "edit")
 
+  const [loadError, setLoadError] = useState(false)
+
   const loadBoard = useCallback(async () => {
-    const data = await getCleaningBoard(tenantId, date)
-    setBoard(data)
-    setLoading(false)
+    try {
+      const data = await getCleaningBoard(tenantId, date)
+      setBoard(data)
+      setLoadError(false)
+    } catch {
+      // Keep the last good board if we have one; show retry state otherwise
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }, [tenantId, date])
 
   // Pause polling while a drag is in flight so the server doesn't
@@ -640,10 +706,18 @@ export default function HousekeepingPage() {
     }
   }, [loadBoard, loadBoardSafe])
 
-  // 8px activation prevents accidental drags on tap/click
+  // Mouse: 8px activation prevents accidental drags on click.
+  // Touch: long-press (250ms) so vertical swipes scroll instead of dragging.
+  // Keyboard: full a11y drag via arrow keys (dnd-kit sortable coordinates).
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
   // Custom collision detection: pointerWithin checks if pointer is physically
   // INSIDE a droppable rect (no corner-distance ambiguity). closestCenter as
@@ -691,7 +765,6 @@ export default function HousekeepingPage() {
     dragDestRef.current = null
     const id = e.active.id as string
     const containerId = findContainer(id)
-    console.warn("[DND] dragStart", { activeId: id, containerId })
     if (!containerId) return
     dragSourceRef.current = containerId
     const list = getContainerList(containerId)
@@ -703,31 +776,17 @@ export default function HousekeepingPage() {
   // on hover. The drop animation slides instead of jumping because cards
   // are already repositioned in state by the time the drop fires.
   const handleDragOver = (e: DragOverEvent) => {
-    if (!board || !e.over) {
-      console.warn("[DND] dragOver — no board or no e.over", { board: !!board, over: !!e.over })
-      return
-    }
+    if (!board || !e.over) return
     const activeId = e.active.id as string
     const overId = e.over.id as string
 
     const activeContainer = findContainer(activeId)
     const overContainer = findContainer(overId)
-    console.warn("[DND] dragOver", {
-      activeId,
-      overId,
-      activeContainer,
-      overContainer,
-      overData: e.over.data?.current,
-      sameContainer: activeContainer === overContainer,
-    })
     if (!activeContainer || !overContainer || activeContainer === overContainer) return
 
     if (overContainer === dragSourceRef.current && activeContainer !== dragSourceRef.current) {
-      console.warn("[DND] dragOver — BLOCKED anti-bounce")
-      return
+      return // anti-bounce: card already moved out of source, don't ping-pong back
     }
-
-    console.warn("[DND] dragOver — CROSS-CONTAINER MOVE", { from: activeContainer, to: overContainer })
 
     setBoard((prev) => {
       if (!prev) return prev
@@ -752,7 +811,6 @@ export default function HousekeepingPage() {
     })
 
     dragDestRef.current = overContainer
-    console.warn("[DND] dragDestRef SET to:", overContainer)
   }
 
   const handleDragEnd = async (e: DragEndEvent) => {
@@ -762,18 +820,8 @@ export default function HousekeepingPage() {
     dragSourceRef.current = null
     dragDestRef.current = null
 
-    console.warn("[DND] dragEnd", {
-      sourceContainer,
-      lastDest,
-      hasOver: !!e.over,
-      overId: e.over?.id,
-      overData: e.over?.data?.current,
-      activeId: e.active.id,
-    })
-
     try {
       if (!board || !sourceContainer) {
-        console.warn("[DND] dragEnd — EARLY RETURN (no board or source)")
         await loadBoard()
         return
       }
@@ -781,17 +829,18 @@ export default function HousekeepingPage() {
       const activeId = e.active.id as string
 
       if (lastDest && lastDest !== sourceContainer) {
-        console.warn("[DND] dragEnd — CROSS-CONTAINER COMMIT", {
-          activeId,
-          from: sourceContainer,
-          to: lastDest,
-          cleanerUserId: lastDest === UNASSIGNED_ID ? null : lastDest,
-        })
-        await assignCleaner(
-          tenantId,
-          activeId,
-          lastDest === UNASSIGNED_ID ? null : lastDest
-        )
+        try {
+          const result = await assignCleaner(
+            tenantId,
+            activeId,
+            lastDest === UNASSIGNED_ID ? null : lastDest
+          )
+          if (!result.success) {
+            toast.error(`השיבוץ לא נשמר: ${result.error ?? "שגיאה"}`)
+          }
+        } catch {
+          toast.error("השיבוץ לא נשמר — בעיית תקשורת. נסה שוב.")
+        }
         await loadBoard()
         return
       }
@@ -807,13 +856,17 @@ export default function HousekeepingPage() {
         if (oldIndex !== -1 && overIndex !== -1 && oldIndex !== overIndex) {
           const newList = arrayMove(list, oldIndex, overIndex)
           setBoard((prev) => (prev ? setContainerList(prev, sourceContainer, newList) : prev))
-          const result = await reorderCleaningTasks(
-            tenantId,
-            sourceContainer === UNASSIGNED_ID ? null : sourceContainer,
-            newList.map((t) => t.id)
-          )
-          if (!result.success) {
-            console.warn("reorderCleaningTasks failed:", result.error)
+          try {
+            const result = await reorderCleaningTasks(
+              tenantId,
+              sourceContainer === UNASSIGNED_ID ? null : sourceContainer,
+              newList.map((t) => t.id)
+            )
+            if (!result.success) {
+              toast.error(`הסדר לא נשמר: ${result.error ?? "שגיאה"}`)
+            }
+          } catch {
+            toast.error("הסדר לא נשמר — בעיית תקשורת. נסה שוב.")
           }
         }
       }
@@ -832,10 +885,51 @@ export default function HousekeepingPage() {
     loadBoard() // Restore ground-truth
   }
 
+  // One-tap "mark done" from the card — the most common dispatcher action
+  const handleQuickDone = useCallback(
+    async (task: CleaningTask) => {
+      try {
+        const result = await setCleaningTaskStatus(tenantId, task.id, "done")
+        if (!result.success) {
+          toast.error(`העדכון נכשל: ${result.error ?? "שגיאה"}`)
+        }
+      } catch {
+        toast.error("העדכון נכשל — בעיית תקשורת. נסה שוב.")
+      }
+      await loadBoard()
+    },
+    [tenantId, loadBoard]
+  )
+
+  const shiftDate = (days: number) => {
+    const d = new Date(`${date}T00:00:00`)
+    d.setDate(d.getDate() + days)
+    setDate(d.toISOString().slice(0, 10))
+  }
+
   // Flat list for dispatch board (all tasks, assigned + unassigned)
   const allTasks = board
     ? [...board.unassigned, ...Object.values(board.byCleaner).flat()]
     : []
+
+  // Screen-reader labels for drag announcements
+  const taskLabel = (id: string | number): string => {
+    const t = allTasks.find((x) => x.id === id)
+    if (!t) return "משימה"
+    return t.target_type === "area" ? (t.target_label ?? "אזור") : `חדר ${t.room_number ?? ""}`
+  }
+  const containerLabel = (id: string | number | undefined): string => {
+    if (!id || id === UNASSIGNED_ID) return "ממתינים לשיבוץ"
+    if (board?.byCleaner[id as string] !== undefined) {
+      return board?.cleaners.find((c) => c.id === id)?.full_name ?? "עמודה"
+    }
+    return containerLabelOfTask(id as string)
+  }
+  const containerLabelOfTask = (taskId: string): string => {
+    const containerId = findContainer(taskId)
+    if (!containerId || containerId === UNASSIGNED_ID) return "ממתינים לשיבוץ"
+    return board?.cleaners.find((c) => c.id === containerId)?.full_name ?? "עמודה"
+  }
 
   const todayIso = new Date().toISOString().slice(0, 10)
   const kpis = board
@@ -890,11 +984,11 @@ export default function HousekeepingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-[#1e40af]/5 rounded-xl p-6 border border-[#dad9e3]">
+      <div className="bg-primary/5 rounded-xl p-6 border border-border">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#1e40af] flex items-center justify-center">
-              <Icon name="cleaning_services" size="md" className="text-white" />
+            <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center">
+              <Icon name="cleaning_services" size="md" className="text-primary-foreground" />
             </div>
             <div>
               <h1 className="text-xl font-extrabold font-headline text-foreground">לוח ניקיון</h1>
@@ -902,19 +996,48 @@ export default function HousekeepingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <DateInput
-              value={date}
-              onChange={(v) => setDate(v)}
-            />
-            <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => shiftDate(-1)}
+                aria-label="יום קודם"
+                title="יום קודם"
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+              >
+                <Icon name="chevron_right" size="sm" />
+              </button>
+              <DateInput
+                value={date}
+                onChange={(v) => setDate(v)}
+              />
+              <button
+                type="button"
+                onClick={() => shiftDate(1)}
+                aria-label="יום הבא"
+                title="יום הבא"
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+              >
+                <Icon name="chevron_left" size="sm" />
+              </button>
+              {date !== todayStr() && (
+                <button
+                  type="button"
+                  onClick={() => setDate(todayStr())}
+                  className="min-h-[44px] px-3 rounded-xl text-sm font-semibold text-primary hover:bg-accent transition-colors"
+                >
+                  היום
+                </button>
+              )}
+            </div>
+            <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
               <button
                 type="button"
                 onClick={() => setQuickFilter(null)}
                 aria-pressed={quickFilter === null}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   quickFilter === null
-                    ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-[#474747] font-medium hover:text-[#1e40af]"
+                    ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-muted-foreground font-medium hover:text-primary"
                 }`}
               >
                 <Icon name="checklist" size="sm" /> {kpis.total} הכל
@@ -925,8 +1048,8 @@ export default function HousekeepingPage() {
                 aria-pressed={quickFilter === "unassigned"}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   quickFilter === "unassigned"
-                    ? "bg-white text-[#854d0e] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-[#854d0e] font-medium hover:text-[#1e40af]"
+                    ? "bg-white text-amber-800 dark:text-amber-300 shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-amber-800 dark:text-amber-300 font-medium hover:text-primary"
                 }`}
               >
                 <Icon name="warning" size="sm" /> {kpis.unassigned} לא משויכים
@@ -937,8 +1060,8 @@ export default function HousekeepingPage() {
                 aria-pressed={quickFilter === "today"}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   quickFilter === "today"
-                    ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-[#1e40af] font-medium hover:text-[#1e40af]"
+                    ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-primary font-medium hover:text-primary"
                 }`}
               >
                 <Icon name="logout" size="sm" /> {kpis.dueToday} יציאות היום
@@ -949,8 +1072,8 @@ export default function HousekeepingPage() {
                 aria-pressed={quickFilter === "dirty"}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   quickFilter === "dirty"
-                    ? "bg-white text-[#b91c1c] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-[#b91c1c] font-medium hover:text-[#1e40af]"
+                    ? "bg-white text-destructive shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-destructive font-medium hover:text-primary"
                 }`}
               >
                 <Icon name="priority_high" size="sm" /> {kpis.dirty} דחופים
@@ -976,12 +1099,34 @@ export default function HousekeepingPage() {
         onCreated={loadBoard}
       />
 
-      {loading || !board ? (
+      {loading ? (
         <div className="flex items-center justify-center py-24">
           <Icon name="hourglass_empty" size="xl" className="animate-spin text-muted-foreground opacity-30" />
         </div>
+      ) : !board ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+          <Icon name="cloud_off" size="xl" className="text-muted-foreground opacity-40" />
+          <div>
+            <p className="text-base font-bold text-foreground">טעינת הלוח נכשלה</p>
+            <p className="text-sm text-muted-foreground">בדוק את החיבור ונסה שוב</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setLoading(true); loadBoard() }}
+            className="btn btn-primary"
+          >
+            <Icon name="refresh" size="sm" />
+            נסה שוב
+          </button>
+        </div>
       ) : (
         <>
+          {loadError && (
+            <div className="bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 flex items-center gap-2 text-sm font-bold text-destructive">
+              <Icon name="cloud_off" size="sm" />
+              אין תקשורת לשרת — מוצגים נתונים אחרונים שנטענו
+            </div>
+          )}
           {board.cleaners.length === 0 && (
             <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 rounded-[20px] p-5 flex items-center gap-3">
               <Icon name="info" size="md" className="text-amber-600" />
@@ -1006,7 +1151,7 @@ export default function HousekeepingPage() {
               <span className="text-[11px] text-muted-foreground">
                 חדרים לא משויכים למעלה • גרור לעובד לשיבוץ
               </span>
-              <span className="text-[12px] text-muted-foreground/60 mr-auto flex items-center gap-1">
+              <span className="text-[12px] text-muted-foreground/60 ms-auto flex items-center gap-1">
                 <Icon name="info" size="sm" className="opacity-50" />
                 גרור בתוך עמודה לשינוי סדר • ברירת מחדל: לפי שעת יציאה
               </span>
@@ -1019,12 +1164,31 @@ export default function HousekeepingPage() {
               onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
               onDragCancel={handleDragCancel}
+              accessibility={{
+                screenReaderInstructions: {
+                  draggable:
+                    "לחץ רווח או Enter כדי להרים משימה, חצים כדי להזיז בין עמודות, רווח שוב כדי לשחרר, Escape לביטול.",
+                },
+                announcements: {
+                  onDragStart: ({ active }) => `הרמת את ${taskLabel(active.id)}`,
+                  onDragOver: ({ active, over }) =>
+                    over
+                      ? `${taskLabel(active.id)} מעל ${containerLabel(over.id)}`
+                      : undefined,
+                  onDragEnd: ({ active, over }) =>
+                    over
+                      ? `${taskLabel(active.id)} שובץ אל ${containerLabel(over.id)}`
+                      : `${taskLabel(active.id)} שוחרר`,
+                  onDragCancel: ({ active }) => `הגרירה של ${taskLabel(active.id)} בוטלה`,
+                },
+              }}
             >
               {/* Unassigned banner — full width, responsive grid */}
               <UnassignedBanner
                 id={UNASSIGNED_ID}
                 tasks={filteredUnassigned}
                 onTaskClick={setEditTask}
+                onQuickDone={handleQuickDone}
               />
 
               {/* Cleaner columns row — horizontal scroll */}
@@ -1057,14 +1221,21 @@ export default function HousekeepingPage() {
                       onTaskClick={setEditTask}
                       variant="cleaner"
                       stats={{ urgentCount, inProgressCount, nextCheckoutTime }}
+                      onQuickDone={handleQuickDone}
                     />
                   )
                 })}
               </div>
 
-              <DragOverlay dropAnimation={{ duration: 250, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+              <DragOverlay
+                dropAnimation={
+                  prefersReducedMotion
+                    ? null
+                    : { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+                }
+              >
                 {activeTask ? (
-                  <div className="bg-card rounded-[14px] p-3 shadow-2xl border-2 border-primary rotate-2 w-[260px]">
+                  <div className={`bg-card rounded-[14px] p-3 shadow-2xl border-2 border-primary w-[260px] ${prefersReducedMotion ? "" : "rotate-2"}`}>
                     <div className="flex items-center gap-2">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm tabular-nums ${
                         activeTask.target_type === "area" ? "bg-violet-500/10 text-violet-600" : "bg-primary/10 text-primary"

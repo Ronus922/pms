@@ -377,12 +377,12 @@ export function CreateAbsenceRequestPanel({
             type="button"
             onClick={handleSubmit}
             disabled={saving}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-l from-[#003aa0] to-[#3F51B5] text-white font-bold text-sm shadow-sm hover:opacity-90 transition-opacity min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-l from-primary to-secondary text-primary-foreground font-bold text-sm shadow-sm hover:opacity-90 transition-opacity min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
-              <Icon name="hourglass_empty" size="sm" className="text-white animate-spin" />
+              <Icon name="hourglass_empty" size="sm" className="text-primary-foreground animate-spin" />
             ) : (
-              <Icon name="send" size="sm" className="text-white" />
+              <Icon name="send" size="sm" className="text-primary-foreground" />
             )}
             {saving ? "שולח..." : "שלח בקשה"}
           </button>

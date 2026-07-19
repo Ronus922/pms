@@ -350,9 +350,9 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6">
       {/* ─── Header ─── */}
-      <div className="bg-gradient-to-l from-[#003aa0]/10 to-[#3F51B5]/10 rounded-[20px] p-6 border border-border/15 flex items-start justify-between flex-wrap gap-4">
+      <div className="bg-gradient-to-l from-primary/10 to-secondary/10 rounded-[20px] p-6 border border-border/15 flex items-start justify-between flex-wrap gap-4">
         <div className="flex items-start gap-4">
-          <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-[#003aa0] to-[#3F51B5] text-white flex items-center justify-center shadow-md">
+          <div className="shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary text-primary-foreground flex items-center justify-center shadow-md">
             <Icon name="schedule" size="lg" />
           </div>
           <div>
@@ -629,7 +629,7 @@ function SingleEmployeeTable({
                         type="button"
                         onClick={() => onCreate(date)}
                         aria-label="הוסף רישום"
-                        className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#1e40af] text-white hover:bg-[#1e3a8a] transition-colors"
+                        className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                       >
                         <Icon name="add" size="sm" />
                       </button>

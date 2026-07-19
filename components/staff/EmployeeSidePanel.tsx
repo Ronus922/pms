@@ -447,9 +447,9 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                 className="btn btn-primary"
               >
                 {saving ? (
-                  <Icon name="hourglass_empty" size="sm" className="text-white animate-spin" />
+                  <Icon name="hourglass_empty" size="sm" className="text-primary-foreground animate-spin" />
                 ) : (
-                  <Icon name="person_add" size="sm" className="text-white" />
+                  <Icon name="person_add" size="sm" className="text-primary-foreground" />
                 )}
                 {saving ? "יוצר..." : "צור עובד"}
               </button>
@@ -485,7 +485,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
           /* ─── VIEW / EDIT MODE ──────────────────────────────── */
           <>
             {/* Azure-style header */}
-            <div className="relative bg-[#1e40af] border-b border-[#1e40af] px-6 pt-14 pb-5 shrink-0">
+            <div className="relative bg-primary border-b border-primary px-6 pt-14 pb-5 shrink-0">
               {/* Close X — SidePanel skill spec */}
               <button
                 onClick={closePanel}
@@ -533,8 +533,8 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
             </div>
 
             {/* Tab Navigation — Azure Ethos Subtle Card (Variation 3) */}
-            <div className="px-6 pt-3 pb-3 shrink-0 border-b border-[#dad9e3] bg-white">
-              <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+            <div className="px-6 pt-3 pb-3 shrink-0 border-b border-border bg-white">
+              <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
                 {TABS.map((tab) => {
                   const active = activeTab === tab.key
                   return (
@@ -543,8 +543,8 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                       onClick={() => setTab(tab.key)}
                       className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                         active
-                          ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                          : "text-[#474747] hover:text-[#1e40af] font-medium"
+                          ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                          : "text-muted-foreground hover:text-primary font-medium"
                       }`}
                     >
                       <Icon name={tab.icon} size="sm" />
@@ -590,7 +590,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
             </div>
 
             {/* Azure footer */}
-            <div className="border-t border-[#dad9e3] px-6 py-4 bg-white shrink-0 flex items-center gap-2 flex-wrap">
+            <div className="border-t border-border px-6 py-4 bg-white shrink-0 flex items-center gap-2 flex-wrap">
               <button
                 onClick={handleFooterSave}
                 disabled={
@@ -599,7 +599,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                     activeTab !== "profile") ||
                   saving
                 }
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#1e40af] text-white font-bold text-sm hover:bg-[#1e3a8a] transition-colors min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Icon name="check_circle" size="sm" />
                 שמור שינויים
@@ -608,13 +608,13 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
               {employee.id !== currentUserId && (
                 showDeleteConfirm ? (
                   <>
-                    <span className="text-sm text-[#b91c1c] font-bold px-2">
+                    <span className="text-sm text-destructive font-bold px-2">
                       למחוק את {employee.full_name}?
                     </span>
                     <button
                       onClick={handleDeleteEmployee}
                       disabled={deleting}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#b91c1c] text-white font-bold text-sm hover:bg-[#991b1b] transition-colors min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-destructive text-destructive-foreground font-bold text-sm hover:bg-destructive/90 transition-colors min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Icon name="delete" size="sm" />
                       {deleting ? "מוחק..." : "כן, מחק"}
@@ -622,7 +622,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
                       disabled={deleting}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#dad9e3] text-[#6b6280] font-bold text-sm hover:bg-[#f4f2fc] transition-colors min-h-[44px] disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-border text-muted-foreground font-bold text-sm hover:bg-accent transition-colors min-h-[44px] disabled:opacity-50"
                     >
                       ביטול
                     </button>
@@ -631,14 +631,14 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
                   <>
                     <button
                       onClick={() => setShowDeleteConfirm(true)}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#fecaca] text-[#b91c1c] font-bold text-sm hover:bg-[#fef2f2] transition-colors min-h-[44px]"
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-destructive/30 text-destructive font-bold text-sm hover:bg-destructive/5 transition-colors min-h-[44px]"
                     >
                       <Icon name="delete" size="sm" />
                       מחק עובד
                     </button>
                     <button
                       onClick={handleTogglePanelActive}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-[#dad9e3] text-[#6b6280] font-bold text-sm hover:bg-[#f4f2fc] transition-colors min-h-[44px]"
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-border text-muted-foreground font-bold text-sm hover:bg-accent transition-colors min-h-[44px]"
                     >
                       <Icon name={employee.is_active ? "person_off" : "person"} size="sm" />
                       {employee.is_active ? "השבת עובד" : "הפעל עובד"}

@@ -267,10 +267,10 @@ export default function SettingsPage() {
       <div className="flex-1 min-w-0">
         {activeSection === "tax_rate" ? (
           <div className="space-y-6">
-            <div className="bg-[#1e40af]/5 rounded-xl p-6 border border-[#dad9e3]">
+            <div className="bg-primary/5 rounded-xl p-6 border border-border">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-[#1e40af] flex items-center justify-center">
-                  <Icon name="percent" size="md" className="text-white" />
+                <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center">
+                  <Icon name="percent" size="md" className="text-primary-foreground" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold font-headline text-foreground">מע&quot;מ / מיסים</h2>
@@ -316,10 +316,10 @@ export default function SettingsPage() {
           </div>
         ) : activeSection === "operational_times" ? (
           <div className="space-y-6">
-            <div className="bg-[#1e40af]/5 rounded-xl p-6 border border-[#dad9e3]">
+            <div className="bg-primary/5 rounded-xl p-6 border border-border">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-[#1e40af] flex items-center justify-center">
-                  <Icon name="schedule" size="md" className="text-white" />
+                <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center">
+                  <Icon name="schedule" size="md" className="text-primary-foreground" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold font-headline text-foreground">זמני תפעול</h2>
@@ -377,10 +377,10 @@ export default function SettingsPage() {
           </div>
         ) : activeSection === "tenant_settings" ? (
           <div className="space-y-6">
-            <div className="bg-[#1e40af]/5 rounded-xl p-6 border border-[#dad9e3]">
+            <div className="bg-primary/5 rounded-xl p-6 border border-border">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-[#1e40af] flex items-center justify-center">
-                  <Icon name="mail" size="md" className="text-white" />
+                <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center">
+                  <Icon name="mail" size="md" className="text-primary-foreground" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold font-headline text-foreground">מייל להזמנות</h2>
@@ -490,10 +490,10 @@ export default function SettingsPage() {
         ) : section ? (
           <div className="space-y-6">
             {/* Section Header */}
-            <div className="bg-[#1e40af]/5 rounded-xl p-6 border border-[#dad9e3]">
+            <div className="bg-primary/5 rounded-xl p-6 border border-border">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-[#1e40af] flex items-center justify-center">
-                  <Icon name={section.icon} size="md" className="text-white" />
+                <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center">
+                  <Icon name={section.icon} size="md" className="text-primary-foreground" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold font-headline text-foreground">{section.label}</h2>

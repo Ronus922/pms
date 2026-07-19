@@ -39,15 +39,15 @@ export function StaffFilters() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Role Filter */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-[#474747]">תפקיד:</span>
-          <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+          <span className="text-[11px] font-bold text-muted-foreground">תפקיד:</span>
+          <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
             <button
               onClick={() => setRoleFilter("all")}
               aria-pressed={filters.role === "all"}
               className={`inline-flex items-center px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                 filters.role === "all"
-                  ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                  : "text-[#474747] hover:text-[#1e40af] font-medium"
+                  ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                  : "text-muted-foreground hover:text-primary font-medium"
               }`}
             >
               הכל
@@ -59,8 +59,8 @@ export function StaffFilters() {
                 aria-pressed={filters.role === r.value}
                 className={`inline-flex items-center px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   filters.role === r.value
-                    ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-[#474747] hover:text-[#1e40af] font-medium"
+                    ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-muted-foreground hover:text-primary font-medium"
                 }`}
               >
                 {r.label}
@@ -70,12 +70,12 @@ export function StaffFilters() {
         </div>
 
         {/* Separator */}
-        <span className="text-[#dad9e3] max-sm:hidden">|</span>
+        <span className="text-border max-sm:hidden">|</span>
 
         {/* Status Filter */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-[#474747]">סטטוס:</span>
-          <div className="inline-flex bg-[#f4f2fc] p-1 rounded-xl flex-wrap" dir="rtl">
+          <span className="text-[11px] font-bold text-muted-foreground">סטטוס:</span>
+          <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
             {STATUS_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -83,8 +83,8 @@ export function StaffFilters() {
                 aria-pressed={filters.status === opt.value}
                 className={`inline-flex items-center px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   filters.status === opt.value
-                    ? "bg-white text-[#1e40af] shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-[#474747] hover:text-[#1e40af] font-medium"
+                    ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    : "text-muted-foreground hover:text-primary font-medium"
                 }`}
               >
                 {opt.label}
