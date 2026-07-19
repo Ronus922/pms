@@ -47,7 +47,7 @@ export function MaintenanceTaskCard({ task, onClick, isUnassigned, orderIndex }:
         if (!isDragging) onClick()
         e.stopPropagation()
       }}
-      className={`bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-primary/40 transition-all select-none ${
+      className={`relative bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-primary/40 transition-all select-none ${
         isUnassigned
           ? "border-amber-300 dark:border-amber-800"
           : isCritical
@@ -57,6 +57,20 @@ export function MaintenanceTaskCard({ task, onClick, isUnassigned, orderIndex }:
               : "border-border"
       }`}
     >
+      {/* Keyboard escape hatch: Enter on the card starts a drag (dnd-kit preventDefaults it),
+          so keyboard users open the detail panel through this focusable-only button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick()
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="sr-only focus:not-sr-only focus:absolute focus:top-1 focus:start-1 focus:z-10 focus:bg-card focus:border focus:border-primary focus:rounded-lg focus:px-2 focus:py-1 focus:text-xs focus:font-bold focus:text-primary"
+      >
+        פתח פרטים
+      </button>
       {/* Top row: order + category icon + title */}
       <div className="flex items-start gap-2 mb-2">
         {orderIndex != null && (

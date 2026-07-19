@@ -79,8 +79,8 @@ export function AddTargetDialog({ isOpen, onClose, onSelectRoom, onSelectArea }:
               >
                 <Icon name="close" size="sm" className="text-primary-foreground" />
               </button>
-              <h2 className="text-lg font-bold text-white font-headline">הוספת חדר / אזור</h2>
-              <p className="text-sm text-blue-100 mt-1">יצירת יעד תפעולי חדש במערכת</p>
+              <h2 className="text-lg font-bold text-primary-foreground font-headline">הוספת חדר / אזור</h2>
+              <p className="text-sm text-primary-foreground/80 mt-1">יצירת יעד תפעולי חדש במערכת</p>
             </div>
 
             {/* Body */}
@@ -133,7 +133,7 @@ export function AddTargetDialog({ isOpen, onClose, onSelectRoom, onSelectArea }:
             </div>
 
             {/* Footer */}
-            <div className="flex justify-start gap-2 px-6 py-4 border-t border-slate-100 bg-white">
+            <div className="flex justify-start gap-2 px-6 py-4 border-t border-slate-100 bg-card">
               <button
                 type="button"
                 onClick={handleConfirm}

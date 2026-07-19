@@ -78,7 +78,7 @@ export function MaintenanceStatsBar({ stats, onFilter }: MaintenanceStatsProps) 
             key={kpi.key}
             type="button"
             onClick={() => onFilter(kpi.filterPatch)}
-            className="flex items-start justify-between gap-3 bg-white border border-border rounded-xl p-5 min-h-[120px] text-right transition-all hover:border-primary hover:shadow-sm active:scale-[0.98]"
+            className="flex items-start justify-between gap-3 bg-card border border-border rounded-xl p-5 min-h-[120px] text-right transition-all hover:border-primary hover:shadow-sm active:scale-[0.98]"
           >
             <div className="flex flex-col gap-0.5 min-w-0">
               <div className="text-sm font-medium text-muted-foreground">{kpi.label}</div>

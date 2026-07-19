@@ -135,7 +135,7 @@ export function Sidebar({ tenantName = "GuestHub", collapsed = false, onToggle }
 
   return (
     <nav
-      className={`h-screen fixed right-0 top-0 border-l border-border bg-white flex flex-col z-50 transition-all duration-300 ${collapsed ? "w-20" : "w-72"}`}
+      className={`h-screen fixed right-0 top-0 border-l border-border bg-card flex flex-col z-50 transition-all duration-300 ${collapsed ? "w-20" : "w-72"}`}
       dir="rtl"
     >
       {/* Logo / Branding */}
@@ -237,7 +237,7 @@ export function Sidebar({ tenantName = "GuestHub", collapsed = false, onToggle }
         onClick={onToggle}
         aria-label={collapsed ? "הרחב תפריט" : "כווץ תפריט"}
         title={collapsed ? "הרחב תפריט" : "כווץ תפריט"}
-        className="absolute left-[-14px] top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white border border-border shadow-md hover:bg-accent hover:border-primary hover:text-primary flex items-center justify-center text-muted-foreground transition-colors z-50"
+        className="absolute left-[-14px] top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-card border border-border shadow-md hover:bg-accent hover:border-primary hover:text-primary flex items-center justify-center text-muted-foreground transition-colors z-50"
       >
         <Icon name={collapsed ? "chevron_left" : "chevron_right"} size="sm" />
       </button>

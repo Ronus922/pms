@@ -309,7 +309,8 @@ export async function assignCleaner(
     return { success: true }
   } catch (err: unknown) {
     if (err instanceof AuthorizationError) return { success: false, error: err.message }
-    return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
+    console.error("[cleaning] action failed:", err)
+    return { success: false, error: "שגיאה בשמירה. נסה שוב." }
   }
 }
 
@@ -353,7 +354,8 @@ export async function reorderCleaningTasks(
     return { success: true }
   } catch (err: unknown) {
     if (err instanceof AuthorizationError) return { success: false, error: err.message }
-    return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
+    console.error("[cleaning] action failed:", err)
+    return { success: false, error: "שגיאה בשמירה. נסה שוב." }
   }
 }
 
@@ -444,7 +446,8 @@ export async function setCleaningTaskStatus(
     return { success: true }
   } catch (err: unknown) {
     if (err instanceof AuthorizationError) return { success: false, error: err.message }
-    return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
+    console.error("[cleaning] action failed:", err)
+    return { success: false, error: "שגיאה בשמירה. נסה שוב." }
   }
 }
 
@@ -572,7 +575,8 @@ export async function createManualCleaningTask(
     return { success: true, taskId: row.id as string }
   } catch (err: unknown) {
     if (err instanceof AuthorizationError) return { success: false, error: err.message }
-    return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
+    console.error("[cleaning] action failed:", err)
+    return { success: false, error: "שגיאה בשמירה. נסה שוב." }
   }
 }
 
@@ -617,7 +621,8 @@ export async function deleteCleaningTask(
     return { success: true }
   } catch (err: unknown) {
     if (err instanceof AuthorizationError) return { success: false, error: err.message }
-    return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
+    console.error("[cleaning] action failed:", err)
+    return { success: false, error: "שגיאה בשמירה. נסה שוב." }
   }
 }
 
@@ -653,6 +658,7 @@ export async function updateCleaningTaskNotes(
     return { success: true }
   } catch (err: unknown) {
     if (err instanceof AuthorizationError) return { success: false, error: err.message }
-    return { success: false, error: err instanceof Error ? err.message : "שגיאה" }
+    console.error("[cleaning] action failed:", err)
+    return { success: false, error: "שגיאה בשמירה. נסה שוב." }
   }
 }

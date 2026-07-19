@@ -156,7 +156,7 @@ export function ReviewAbsenceRequestPanel({
       widthClass="w-[50%] max-md:w-full"
       noPadding
     >
-      <div className="flex flex-col h-full min-h-0 bg-white">
+      <div className="flex flex-col h-full min-h-0 bg-card">
         {/* ── Error banner ── */}
         {error && (
           <div className="mx-4 sm:mx-6 mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3 shrink-0">

@@ -15,7 +15,7 @@ export function ReportsKpiRow({ definitions, values, loading }: ReportsKpiRowPro
     return (
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {definitions.map((def) => (
-          <div key={def.id} className="bg-white border border-border rounded-xl p-6 min-h-[140px] animate-pulse">
+          <div key={def.id} className="bg-card border border-border rounded-xl p-6 min-h-[140px] animate-pulse">
             <div className="space-y-3">
               <div className="h-4 w-24 rounded-lg bg-accent" />
               <div className="h-9 w-32 rounded-lg bg-accent" />
@@ -39,7 +39,7 @@ export function ReportsKpiRow({ definitions, values, loading }: ReportsKpiRowPro
         return (
           <div
             key={def.id}
-            className="bg-white border border-border rounded-xl p-6 min-h-[140px] flex items-start justify-between gap-4"
+            className="bg-card border border-border rounded-xl p-6 min-h-[140px] flex items-start justify-between gap-4"
           >
             <div className="flex flex-col gap-1 min-w-0 text-right">
               <p className="text-sm font-medium text-muted-foreground">{def.label}</p>

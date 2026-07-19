@@ -693,7 +693,7 @@ export function PermissionsManager({
                         <button
                           type="button"
                           onClick={generateRandomPassword}
-                          className="px-3 py-2 rounded-xl bg-white border border-border/40 text-sm font-bold whitespace-nowrap min-h-[44px]"
+                          className="px-3 py-2 rounded-xl bg-card border border-border/40 text-sm font-bold whitespace-nowrap min-h-[44px]"
                         >
                           צור אוטומטית
                         </button>
@@ -850,7 +850,7 @@ export function PermissionsManager({
                     className="text-primary-foreground animate-spin"
                   />
                 ) : (
-                  <Icon name="send" size="sm" className="text-white" />
+                  <Icon name="send" size="sm" className="text-primary-foreground" />
                 )}
                 {saving ? "שולח..." : "שלח הזמנה"}
               </button>
@@ -878,7 +878,7 @@ export function PermissionsManager({
                       className="text-primary-foreground animate-spin"
                     />
                   ) : (
-                    <Icon name="check_circle" size="sm" className="text-white" />
+                    <Icon name="check_circle" size="sm" className="text-primary-foreground" />
                   )}
                   {saving ? "שומר..." : "שמור שינויים"}
                 </button>

@@ -130,7 +130,7 @@ export function GeneralTab({ store, roomTypes, buildings, floors }: GeneralTabPr
             }`}
           >
             <span
-              className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+              className={`pointer-events-none block h-5 w-5 rounded-full bg-card shadow-sm transition-transform ${
                 store.is_active ? "translate-x-1" : "translate-x-6"
               }`}
             />
@@ -154,7 +154,7 @@ export function GeneralTab({ store, roomTypes, buildings, floors }: GeneralTabPr
             }`}
           >
             <span
-              className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+              className={`pointer-events-none block h-5 w-5 rounded-full bg-card shadow-sm transition-transform ${
                 store.is_listed ? "translate-x-1" : "translate-x-6"
               }`}
             />

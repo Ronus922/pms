@@ -175,7 +175,7 @@ function LoginPageInner() {
         type="button"
         onClick={handleGoogleSignIn}
         disabled={loading || googleLoading}
-        className="w-full bg-white border border-border/60 text-foreground py-3 rounded-xl font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 min-h-[44px] flex items-center justify-center gap-3"
+        className="w-full bg-card border border-border/60 text-foreground py-3 rounded-xl font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition-all disabled:opacity-50 min-h-[44px] flex items-center justify-center gap-3"
       >
         <GoogleIcon />
         {googleLoading ? "מפנה ל-Google..." : "התחבר עם Google"}

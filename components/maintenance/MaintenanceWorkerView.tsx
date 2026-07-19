@@ -82,7 +82,7 @@ export function MaintenanceWorkerView() {
             </span>
             פעילות
           </span>
-          <span className="flex items-center gap-1 text-white/70">
+          <span className="flex items-center gap-1 text-primary-foreground/70">
             <span className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[11px] font-bold">
               {completedTasks.length}
             </span>

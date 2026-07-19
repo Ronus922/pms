@@ -115,7 +115,7 @@ export function RadiusSlider({
             disabled={disabled}
             aria-invalid={error !== null}
             aria-describedby={error ? `${id}-error` : undefined}
-            className="min-h-[44px] w-24 rounded-xl border border-border bg-white px-3 py-2 text-center text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+            className="min-h-[44px] w-24 rounded-xl border border-border bg-card px-3 py-2 text-center text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
           />
           <span className="text-sm text-muted-foreground">מ׳</span>
         </div>

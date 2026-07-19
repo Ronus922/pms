@@ -151,7 +151,7 @@ export function MaintenancePage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Segmented bar: date + view switcher in one rounded container */}
-          <div className="inline-flex items-center gap-1 bg-white border-[1.5px] border-border rounded-full px-2 py-1 min-h-[48px]">
+          <div className="inline-flex items-center gap-1 bg-card border-[1.5px] border-border rounded-full px-2 py-1 min-h-[48px]">
             <DateInput
               value={selectedDate}
               onChange={setSelectedDate}

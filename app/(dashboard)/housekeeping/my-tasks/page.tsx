@@ -206,7 +206,7 @@ export default function MyTasksPage() {
               <p className="text-[11px] text-primary-foreground opacity-85 tabular-nums">{fmtDate(date)}</p>
             </div>
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-              <Icon name="cleaning_services" size="sm" className="text-white" />
+              <Icon name="cleaning_services" size="sm" className="text-primary-foreground" />
             </div>
             <button
               type="button"
@@ -214,10 +214,10 @@ export default function MyTasksPage() {
               className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
               aria-label="רענן"
             >
-              <Icon name="refresh" size="sm" className="text-white" />
+              <Icon name="refresh" size="sm" className="text-primary-foreground" />
             </button>
           </div>
-          <div className="flex items-center gap-2 mt-3 text-[11px] text-blue-100">
+          <div className="flex items-center gap-2 mt-3 text-[11px] text-primary-foreground/80">
             <span className="bg-white/15 px-2.5 py-1 rounded-full font-bold">
               {activeTasks.length} לביצוע
             </span>

@@ -1067,7 +1067,7 @@ function Step2Amenities({
                   <button
                     type="button"
                     onClick={() => store.setPrimaryImage(img.id)}
-                    className="w-10 h-10 rounded-xl bg-white/90 flex items-center justify-center hover:bg-white transition-colors"
+                    className="w-10 h-10 rounded-xl bg-white/90 flex items-center justify-center hover:bg-card transition-colors"
                     title="הגדר כתמונה ראשית"
                   >
                     <Icon name="crown" size="sm" className={img.is_primary ? "text-amber-500" : "text-muted-foreground"} />

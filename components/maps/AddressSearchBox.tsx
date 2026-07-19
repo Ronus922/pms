@@ -108,7 +108,7 @@ export function AddressSearchBox({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={!geocodingLib}
-          className="min-h-[44px] flex-1 rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+          className="min-h-[44px] flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
           dir="rtl"
         />
         <button

@@ -79,7 +79,7 @@ export default function DashboardPage() {
         {KPI_CARDS.map((card) => (
           <div
             key={card.label}
-            className="bg-white rounded-xl p-6 border border-border flex items-start justify-between min-h-[140px]"
+            className="bg-card rounded-xl p-6 border border-border flex items-start justify-between min-h-[140px]"
           >
             <div className="flex flex-col gap-1 text-right">
               <p className="text-sm font-medium text-muted-foreground">{card.label}</p>

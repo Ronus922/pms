@@ -262,7 +262,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
       noPadding
       hideDefaultHeader={!isInvite}
     >
-      <div className="flex flex-col h-full min-h-0 bg-white">
+      <div className="flex flex-col h-full min-h-0 bg-card">
         {/* ── Error Banner ── */}
         {error && (
           <div className="mx-6 mt-4 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3 shrink-0">
@@ -533,7 +533,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
             </div>
 
             {/* Tab Navigation — Azure Ethos Subtle Card (Variation 3) */}
-            <div className="px-6 pt-3 pb-3 shrink-0 border-b border-border bg-white">
+            <div className="px-6 pt-3 pb-3 shrink-0 border-b border-border bg-card">
               <div className="inline-flex bg-accent p-1 rounded-xl flex-wrap" dir="rtl">
                 {TABS.map((tab) => {
                   const active = activeTab === tab.key
@@ -590,7 +590,7 @@ export function EmployeeSidePanel({ onSaved }: EmployeeSidePanelProps) {
             </div>
 
             {/* Azure footer */}
-            <div className="border-t border-border px-6 py-4 bg-white shrink-0 flex items-center gap-2 flex-wrap">
+            <div className="border-t border-border px-6 py-4 bg-card shrink-0 flex items-center gap-2 flex-wrap">
               <button
                 onClick={handleFooterSave}
                 disabled={

@@ -276,7 +276,7 @@ export function MaintenanceDetailPanel({
                     <Icon name={t.icon} size="sm" />
                     {t.label}
                     {t.count != null && t.count > 0 && (
-                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${active ? "bg-primary/10 text-primary" : "bg-white text-muted-foreground"}`}>
+                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${active ? "bg-primary/10 text-primary" : "bg-card text-muted-foreground"}`}>
                         {t.count}
                       </span>
                     )}

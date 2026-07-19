@@ -104,7 +104,7 @@ export function SuppliersPageClient() {
             <>
               <button
                 onClick={() => setShowCategories(true)}
-                className="flex items-center gap-2 bg-muted text-foreground font-bold text-sm rounded-xl hover:bg-border transition-colors min-h-[44px] px-5 py-2.5"
+                className="flex items-center gap-2 bg-muted border border-border text-foreground font-bold text-sm rounded-xl hover:bg-border transition-colors min-h-[44px] px-5 py-2.5"
               >
                 <Icon name="category" size="sm" />
                 הוסף תחום

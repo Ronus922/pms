@@ -60,8 +60,14 @@ function fmtTime(t: string | null): string {
   return t.slice(0, 5)
 }
 
+/** Local-timezone ISO date — toISOString() is UTC and returns yesterday between 00:00–03:00 IL time */
+function toLocalIso(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
+  return toLocalIso(new Date())
 }
 
 const STATUS_VISUAL: Record<CleaningStatus, { label: string; bg: string; text: string; border: string }> = {
@@ -89,7 +95,7 @@ function urgency(task: CleaningTask): Urgency {
   const today = todayStr()
   const d = new Date()
   d.setDate(d.getDate() + 1)
-  const tomorrow = d.toISOString().slice(0, 10)
+  const tomorrow = toLocalIso(d)
   if (task.checkout_date < today) return "past"
   if (task.checkout_date === today) return "today"
   if (task.checkout_date === tomorrow) return "tomorrow"
@@ -138,12 +144,26 @@ function SortableTaskCard({ task, onClick, isUnassigned, onQuickDone }: TaskCard
         if (!isDragging) onClick()
         e.stopPropagation()
       }}
-      className={`bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-primary/40 transition-all select-none ${
+      className={`relative bg-card rounded-[14px] p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md hover:border-primary/40 transition-all select-none ${
         isUnassigned
           ? "border-amber-300 dark:border-amber-800"
           : "border-border"
       }`}
     >
+      {/* Keyboard escape hatch: Enter on the card starts a drag (dnd-kit preventDefaults it),
+          so keyboard users open the editor through this focusable-only button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick()
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="sr-only focus:not-sr-only focus:absolute focus:top-1 focus:start-1 focus:z-10 focus:bg-card focus:border focus:border-primary focus:rounded-lg focus:px-2 focus:py-1 focus:text-xs focus:font-bold focus:text-primary"
+      >
+        פתח פרטים
+      </button>
       {/* Priority dot + room number + checkout time */}
       <div className="flex items-center gap-2 mb-2">
         <span
@@ -668,16 +688,23 @@ export default function HousekeepingPage() {
 
   const [loadError, setLoadError] = useState(false)
 
+  // Monotonic guard: a response only lands if no newer load (or a drag start)
+  // superseded it — otherwise switching days fast, or a poll racing a drag,
+  // paints a stale board.
+  const loadSeq = useRef(0)
+
   const loadBoard = useCallback(async () => {
+    const seq = ++loadSeq.current
     try {
       const data = await getCleaningBoard(tenantId, date)
+      if (seq !== loadSeq.current) return
       setBoard(data)
       setLoadError(false)
     } catch {
       // Keep the last good board if we have one; show retry state otherwise
-      setLoadError(true)
+      if (seq === loadSeq.current) setLoadError(true)
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
   }, [tenantId, date])
 
@@ -762,6 +789,7 @@ export default function HousekeepingPage() {
   const handleDragStart = (e: DragStartEvent) => {
     if (!board) return
     dragInFlight.current = true
+    loadSeq.current++ // discard any in-flight poll response — it would clobber the optimistic drag state
     dragDestRef.current = null
     const id = e.active.id as string
     const containerId = findContainer(id)
@@ -828,12 +856,20 @@ export default function HousekeepingPage() {
 
       const activeId = e.active.id as string
 
-      if (lastDest && lastDest !== sourceContainer) {
+      // Where the card actually was at drop time wins over the hover-ref:
+      // the anti-bounce guard freezes dragDestRef when returning to the source
+      // column (keyboard drags hit this deterministically), so trust e.over
+      // unless it resolves to the dragged card itself (stale mid-optimistic).
+      const dropContainer =
+        e.over && e.over.id !== activeId ? findContainer(e.over.id as string) : null
+      const dest = dropContainer ?? lastDest
+
+      if (dest && dest !== sourceContainer) {
         try {
           const result = await assignCleaner(
             tenantId,
             activeId,
-            lastDest === UNASSIGNED_ID ? null : lastDest
+            dest === UNASSIGNED_ID ? null : dest
           )
           if (!result.success) {
             toast.error(`השיבוץ לא נשמר: ${result.error ?? "שגיאה"}`)
@@ -904,7 +940,7 @@ export default function HousekeepingPage() {
   const shiftDate = (days: number) => {
     const d = new Date(`${date}T00:00:00`)
     d.setDate(d.getDate() + days)
-    setDate(d.toISOString().slice(0, 10))
+    setDate(toLocalIso(d))
   }
 
   // Flat list for dispatch board (all tasks, assigned + unassigned)
@@ -931,7 +967,7 @@ export default function HousekeepingPage() {
     return board?.cleaners.find((c) => c.id === containerId)?.full_name ?? "עמודה"
   }
 
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = todayStr()
   const kpis = board
     ? {
         total: allTasks.filter(
@@ -1048,7 +1084,7 @@ export default function HousekeepingPage() {
                 aria-pressed={quickFilter === "unassigned"}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   quickFilter === "unassigned"
-                    ? "bg-white text-amber-800 dark:text-amber-300 shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    ? "bg-card text-amber-800 dark:text-amber-300 shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
                     : "text-amber-800 dark:text-amber-300 font-medium hover:text-primary"
                 }`}
               >
@@ -1061,7 +1097,7 @@ export default function HousekeepingPage() {
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   quickFilter === "today"
                     ? "bg-card text-primary shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
-                    : "text-primary font-medium hover:text-primary"
+                    : "text-primary font-medium hover:text-primary/80"
                 }`}
               >
                 <Icon name="logout" size="sm" /> {kpis.dueToday} יציאות היום
@@ -1072,7 +1108,7 @@ export default function HousekeepingPage() {
                 aria-pressed={quickFilter === "dirty"}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 min-h-[40px] ${
                   quickFilter === "dirty"
-                    ? "bg-white text-destructive shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
+                    ? "bg-card text-destructive shadow-[0_2px_4px_rgba(0,0,0,0.05)] font-semibold"
                     : "text-destructive font-medium hover:text-primary"
                 }`}
               >

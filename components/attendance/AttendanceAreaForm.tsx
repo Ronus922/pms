@@ -278,7 +278,7 @@ export function AttendanceAreaForm({
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary"
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
         >
           <Icon name="arrow_forward" size="sm" />
           חזור לרשימה
@@ -421,7 +421,7 @@ export function AttendanceAreaForm({
               className="text-primary-foreground animate-spin"
             />
           ) : (
-            <Icon name="check_circle" size="sm" className="text-white" />
+            <Icon name="check_circle" size="sm" className="text-primary-foreground" />
           )}
           {saving ? "שומר..." : isEdit ? "שמור שינויים" : "צור אזור"}
         </button>

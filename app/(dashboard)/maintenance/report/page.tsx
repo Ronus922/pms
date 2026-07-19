@@ -293,11 +293,11 @@ export default function MaintenanceReportPage() {
             className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
             aria-label="חזרה"
           >
-            <Icon name="chevron_right" size="sm" className="text-white" />
+            <Icon name="chevron_right" size="sm" className="text-primary-foreground" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold text-white font-headline">דיווח על תקלה</h1>
-            <p className="text-[11px] text-white opacity-85">פתיחת קריאת שירות</p>
+            <h1 className="text-sm font-bold text-primary-foreground font-headline">דיווח על תקלה</h1>
+            <p className="text-[11px] text-primary-foreground opacity-85">פתיחת קריאת שירות</p>
           </div>
           <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
             <Icon name="build" size="sm" className="text-white" />

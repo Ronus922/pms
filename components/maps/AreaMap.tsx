@@ -192,7 +192,7 @@ export function AreaMap({
 
   return (
     <div
-      className="w-full overflow-hidden rounded-xl border border-border bg-white"
+      className="w-full overflow-hidden rounded-xl border border-border bg-card"
       style={{ height }}
     >
       <Map

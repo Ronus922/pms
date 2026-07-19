@@ -77,7 +77,7 @@ export function FileViewer({ isOpen, onClose, fileUrl, fileName, mimeType }: Fil
           <iframe
             src={fileUrl}
             title={fileName}
-            className="w-full h-full max-w-4xl rounded-xl bg-white"
+            className="w-full h-full max-w-4xl rounded-xl bg-card"
           />
         )}
         {!canPreview && (

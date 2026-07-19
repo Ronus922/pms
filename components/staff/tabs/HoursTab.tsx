@@ -10,7 +10,7 @@ export function HoursTab({ employeeId: _employeeId }: HoursTabProps) {
   return (
     <div className="space-y-5">
       {/* Summary card */}
-      <div className="rounded-xl border border-border bg-white p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-2 mb-4">
           <Icon name="schedule" size="md" className="text-primary" />
           <h3 className="text-base font-bold text-foreground">דיווח שעות</h3>
@@ -33,7 +33,7 @@ export function HoursTab({ employeeId: _employeeId }: HoursTabProps) {
       </div>
 
       {/* Empty placeholder for entries */}
-      <div className="rounded-xl border border-border bg-white p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <h3 className="text-base font-bold text-foreground mb-3">היסטוריה</h3>
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
           <Icon name="schedule" size="xl" className="opacity-20" />

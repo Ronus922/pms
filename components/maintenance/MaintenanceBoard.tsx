@@ -200,13 +200,23 @@ export function MaintenanceBoard({
 
     const activeId = e.active.id as string
 
+    // Where the card actually was at drop time wins over the hover-ref:
+    // the anti-bounce guard freezes dragDestRef when returning to the source
+    // column (keyboard drags hit this deterministically), so trust e.over
+    // unless it resolves to the dragged card itself (stale mid-optimistic).
+    const dropContainer =
+      e.over && e.over.id !== activeId ? findContainer(e.over.id as string) : null
+    const dest = dropContainer ?? lastDest
+
     // Cross-container commit
-    if (lastDest && lastDest !== sourceContainer) {
-      const toWorkerId = lastDest === UNASSIGNED_ID ? null : lastDest
-      const destList = getContainerList(lastDest)
-      const result = await reorderMaintenanceTasks(tenantId, toWorkerId, destList.map((t) => t.id))
-      if (!result.success) {
-        toast.error("שגיאה בהעברה")
+    if (dest && dest !== sourceContainer) {
+      const toWorkerId = dest === UNASSIGNED_ID ? null : dest
+      const destList = getContainerList(dest)
+      try {
+        const result = await reorderMaintenanceTasks(tenantId, toWorkerId, destList.map((t) => t.id))
+        if (!result.success) toast.error("שגיאה בהעברה")
+      } catch {
+        toast.error("ההעברה לא נשמרה — בעיית תקשורת. נסה שוב.")
       }
       onRefresh()
       return
@@ -222,9 +232,14 @@ export function MaintenanceBoard({
         const newList = arrayMove(list, oldIndex, overIndex)
         setBoard((prev) => setContainerList(prev, sourceContainer, newList))
         const workerId = sourceContainer === UNASSIGNED_ID ? null : sourceContainer
-        const result = await reorderMaintenanceTasks(tenantId, workerId, newList.map((t) => t.id))
-        if (!result.success) {
-          toast.error("שגיאה בסידור")
+        try {
+          const result = await reorderMaintenanceTasks(tenantId, workerId, newList.map((t) => t.id))
+          if (!result.success) {
+            toast.error("שגיאה בסידור")
+            onRefresh()
+          }
+        } catch {
+          toast.error("הסדר לא נשמר — בעיית תקשורת. נסה שוב.")
           onRefresh()
         }
       }

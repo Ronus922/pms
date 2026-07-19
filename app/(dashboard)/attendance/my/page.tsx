@@ -252,7 +252,7 @@ export default function MyAttendancePage() {
             <p className="text-[11px] text-primary-foreground opacity-85">{fmtHebrewDate(now)}</p>
           </div>
           <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
-            <Icon name="schedule" size="sm" className="text-white" />
+            <Icon name="schedule" size="sm" className="text-primary-foreground" />
           </div>
         </div>
       </header>

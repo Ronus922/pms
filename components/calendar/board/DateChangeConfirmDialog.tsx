@@ -79,7 +79,7 @@ export function DateChangeConfirmDialog({
               <h2 className="text-sm font-bold">
                 {change.kind === "resize" ? "שינוי שהייה" : "העברת הזמנה"}
               </h2>
-              <p className="text-[11.5px] text-blue-100 mt-0.5 truncate">
+              <p className="text-[11.5px] text-primary-foreground/80 mt-0.5 truncate">
                 {change.guestName}
               </p>
             </div>

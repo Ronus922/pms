@@ -159,7 +159,7 @@ export function AttendanceEntryPanel({
       subtitle={isEdit ? "שינוי שעות הגעה / יציאה / סוג" : "הוספת ידנית של רישום נוכחות"}
       noPadding
     >
-      <div className="flex flex-col h-full min-h-0 bg-white">
+      <div className="flex flex-col h-full min-h-0 bg-card">
         {/* ── Error banner ── */}
         {error && (
           <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3 shrink-0">

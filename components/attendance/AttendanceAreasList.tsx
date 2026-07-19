@@ -94,7 +94,7 @@ export function AttendanceAreasList({
                     onEdit(area)
                   }
                 }}
-                className="rounded-xl border border-border bg-white p-4 flex items-center gap-3 transition-colors hover:bg-accent hover:border-primary/30 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                className="rounded-xl border border-border bg-card p-4 flex items-center gap-3 transition-colors hover:bg-accent hover:border-primary/30 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 style={{ borderRightWidth: 4, borderRightColor: area.color }}
               >
                 {/* Identity */}
@@ -127,7 +127,7 @@ export function AttendanceAreasList({
                     }}
                     aria-label={`ערוך ${area.name}`}
                     title="ערוך אזור"
-                    className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-white transition-colors"
+                    className="min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-card transition-colors"
                   >
                     <Icon name="edit" size="sm" />
                   </button>

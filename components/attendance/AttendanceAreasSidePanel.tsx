@@ -223,7 +223,7 @@ function DeleteConfirm({ area, onConfirm, onCancel }: DeleteConfirmProps) {
       </div>
 
       <div className="rounded-[20px] border border-destructive/30 bg-destructive/5 p-5 flex items-start gap-3">
-        <span className="shrink-0 w-10 h-10 rounded-full bg-white border border-destructive/30 flex items-center justify-center text-destructive">
+        <span className="shrink-0 w-10 h-10 rounded-full bg-card border border-destructive/30 flex items-center justify-center text-destructive">
           <Icon name="delete" size="md" />
         </span>
         <div className="flex-1 min-w-0">
@@ -285,7 +285,7 @@ function DeleteBlocked({ area, linkedUsers, onClose }: DeleteBlockedProps) {
 
       <div className="rounded-[20px] border border-destructive/30 bg-destructive/5 p-5 flex flex-col gap-4">
         <div className="flex items-start gap-3">
-          <span className="shrink-0 w-10 h-10 rounded-full bg-white border border-destructive/30 flex items-center justify-center text-destructive">
+          <span className="shrink-0 w-10 h-10 rounded-full bg-card border border-destructive/30 flex items-center justify-center text-destructive">
             <Icon name="block" size="md" />
           </span>
           <div className="flex-1 min-w-0">
@@ -302,7 +302,7 @@ function DeleteBlocked({ area, linkedUsers, onClose }: DeleteBlockedProps) {
           </div>
         </div>
 
-        <ul className="bg-white rounded-xl border border-destructive/30 divide-y divide-destructive/30 max-h-[260px] overflow-y-auto">
+        <ul className="bg-card rounded-xl border border-destructive/30 divide-y divide-destructive/30 max-h-[260px] overflow-y-auto">
           {linkedUsers.map((u) => (
             <li
               key={u.id}

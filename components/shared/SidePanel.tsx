@@ -94,11 +94,11 @@ export function SidePanel({
                 </button>
 
                 {/* Title */}
-                <h2 className="text-xl font-extrabold text-white text-right">
+                <h2 className="text-xl font-extrabold text-primary-foreground text-right">
                   {title}
                 </h2>
                 {subtitle && (
-                  <p className="text-sm text-white/70 mt-1 text-right">
+                  <p className="text-sm text-primary-foreground/70 mt-1 text-right">
                     {subtitle}
                   </p>
                 )}

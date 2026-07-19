@@ -209,7 +209,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
       )}
 
       {/* User Info Card */}
-      <div className="rounded-xl border border-border bg-white p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-2 mb-4">
           <Icon name="info" size="sm" className="text-primary" />
           <h3 className="text-base font-bold text-foreground">פרטי עובד</h3>
@@ -331,7 +331,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
 
       {/* Extended Info (View Mode) */}
       {!isEditing && (
-        <div className="rounded-xl border border-border bg-white p-5">
+        <div className="rounded-xl border border-border bg-card p-5">
           <div className="flex items-center gap-2 mb-4">
             <Icon name="info" size="sm" className="text-primary" />
             <h3 className="text-base font-bold text-foreground">מידע נוסף</h3>
@@ -354,7 +354,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
       )}
 
       {/* Auth Settings Card */}
-      <div className="rounded-xl border border-border bg-white p-5 space-y-4">
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Icon name="key" size="sm" className="text-primary" />
           <h3 className="text-base font-bold text-foreground">הגדרות התחברות</h3>
@@ -484,7 +484,7 @@ export function ProfileTab({ employee, isEditing, onEdit: _onEdit, onSaved, curr
                 <button
                   type="button"
                   onClick={generateRandomPassword}
-                  className="px-3 py-2 rounded-xl bg-white border border-border/40 text-sm font-bold whitespace-nowrap min-h-[44px]"
+                  className="px-3 py-2 rounded-xl bg-card border border-border/40 text-sm font-bold whitespace-nowrap min-h-[44px]"
                 >
                   צור אוטומטית
                 </button>
