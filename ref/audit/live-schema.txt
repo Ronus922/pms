@@ -1,0 +1,407 @@
+==================== reservations ====================
+                                                     Table "public.reservations"
+          Column          |           Type           | Collation | Nullable |                         Default                         
+--------------------------+--------------------------+-----------+----------+---------------------------------------------------------
+ id                       | uuid                     |           | not null | gen_random_uuid()
+ tenant_id                | uuid                     |           | not null | 
+ reservation_number       | text                     |           | not null | 
+ guest_id                 | uuid                     |           | not null | 
+ property_id              | uuid                     |           | not null | 
+ status                   | text                     |           |          | 'confirmed'::text
+ check_in                 | date                     |           | not null | 
+ check_out                | date                     |           | not null | 
+ actual_checkin_time      | timestamp with time zone |           |          | 
+ actual_checkout_time     | timestamp with time zone |           |          | 
+ estimated_arrival_time   | time without time zone   |           |          | 
+ estimated_departure_time | time without time zone   |           |          | 
+ adults                   | integer                  |           |          | 1
+ children                 | integer                  |           |          | 0
+ infants                  | integer                  |           |          | 0
+ source                   | text                     |           | not null | 'direct'::text
+ channel                  | text                     |           |          | 
+ is_vip                   | boolean                  |           |          | false
+ is_early_checkin         | boolean                  |           |          | false
+ is_late_checkout         | boolean                  |           |          | false
+ company                  | text                     |           |          | 
+ agent                    | text                     |           |          | 
+ coupon_code              | text                     |           |          | 
+ ad_source                | text                     |           |          | 
+ special_requests         | text                     |           |          | 
+ general_notes            | text                     |           |          | 
+ internal_notes           | text                     |           |          | 
+ reception_notes          | text                     |           |          | 
+ cleaning_notes           | text                     |           |          | 
+ maintenance_notes        | text                     |           |          | 
+ meal_plan                | text                     |           |          | 'none'::text
+ parking                  | boolean                  |           |          | false
+ transport                | boolean                  |           |          | false
+ accessibility            | boolean                  |           |          | false
+ extra_beds               | integer                  |           |          | 0
+ crib                     | boolean                  |           |          | false
+ flight_number            | text                     |           |          | 
+ cancellation_policy      | text                     |           |          | 
+ payment_method           | text                     |           |          | 
+ payment_status           | text                     |           |          | 'unpaid'::text
+ deposit                  | numeric(10,2)            |           |          | 0
+ discount_percent         | numeric(5,2)             |           |          | 0
+ discount_per_night       | numeric(10,2)            |           |          | 0
+ tax_exempt               | boolean                  |           |          | false
+ subtotal                 | numeric(10,2)            |           |          | 0
+ tax_amount               | numeric(10,2)            |           |          | 0
+ total_price              | numeric(10,2)            |           |          | 0
+ total_paid               | numeric(10,2)            |           |          | 0
+ balance_due              | numeric(10,2)            |           |          | generated always as ((total_price - total_paid)) stored
+ external_id              | text                     |           |          | 
+ channel_manager_id       | text                     |           |          | 
+ digital_signature_url    | text                     |           |          | 
+ created_by               | uuid                     |           |          | 
+ updated_by               | uuid                     |           |          | 
+ created_at               | timestamp with time zone |           |          | now()
+ updated_at               | timestamp with time zone |           |          | now()
+ card_holder_id           | text                     |           |          | 
+Indexes:
+    "reservations_pkey" PRIMARY KEY, btree (id)
+    "idx_reservations_dates" btree (tenant_id, check_in, check_out)
+    "idx_reservations_guest" btree (guest_id)
+    "idx_reservations_number" btree (tenant_id, reservation_number)
+    "idx_reservations_status" btree (tenant_id, status)
+    "idx_reservations_tenant" btree (tenant_id)
+Check constraints:
+    "valid_dates" CHECK (check_out > check_in)
+Foreign-key constraints:
+    "reservations_created_by_fkey" FOREIGN KEY (created_by) REFERENCES users(id)
+    "reservations_guest_id_fkey" FOREIGN KEY (guest_id) REFERENCES guests(id)
+    "reservations_property_id_fkey" FOREIGN KEY (property_id) REFERENCES properties(id)
+    "reservations_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    "reservations_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES users(id)
+Referenced by:
+    TABLE "automation_log" CONSTRAINT "automation_log_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id)
+    TABLE "channel_booking_revisions" CONSTRAINT "channel_booking_revisions_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE SET NULL
+    TABLE "housekeeping_tasks" CONSTRAINT "housekeeping_tasks_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id)
+    TABLE "payments" CONSTRAINT "payments_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+    TABLE "reservation_charges" CONSTRAINT "reservation_charges_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+    TABLE "reservation_rooms" CONSTRAINT "reservation_rooms_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+Triggers:
+    trg_reservation_number BEFORE INSERT ON reservations FOR EACH ROW WHEN (new.reservation_number IS NULL OR new.reservation_number = ''::text) EXECUTE FUNCTION generate_reservation_number()
+
+==================== reservation_rooms ====================
+                            Table "public.reservation_rooms"
+      Column      |           Type           | Collation | Nullable |      Default      
+------------------+--------------------------+-----------+----------+-------------------
+ id               | uuid                     |           | not null | gen_random_uuid()
+ tenant_id        | uuid                     |           | not null | 
+ reservation_id   | uuid                     |           | not null | 
+ room_id          | uuid                     |           | not null | 
+ check_in         | date                     |           | not null | 
+ check_out        | date                     |           | not null | 
+ rate_per_night   | numeric(10,2)            |           |          | 
+ rate_plan_id     | uuid                     |           |          | 
+ adults           | integer                  |           | not null | 1
+ children         | integer                  |           | not null | 0
+ infants          | integer                  |           | not null | 0
+ guest_first_name | text                     |           |          | 
+ guest_last_name  | text                     |           |          | 
+ guest_phone      | text                     |           |          | 
+ guest_email      | text                     |           |          | 
+ guest_id_number  | text                     |           |          | 
+ updated_at       | timestamp with time zone |           | not null | now()
+Indexes:
+    "reservation_rooms_pkey" PRIMARY KEY, btree (id)
+    "idx_res_rooms_dates" btree (tenant_id, room_id, check_in, check_out)
+    "idx_res_rooms_reservation" btree (reservation_id)
+    "idx_res_rooms_room" btree (room_id)
+    "reservation_rooms_reservation_id_room_id_key" UNIQUE CONSTRAINT, btree (reservation_id, room_id)
+Foreign-key constraints:
+    "reservation_rooms_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+    "reservation_rooms_room_id_fkey" FOREIGN KEY (room_id) REFERENCES rooms(id)
+    "reservation_rooms_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+Referenced by:
+    TABLE "housekeeping_tasks" CONSTRAINT "housekeeping_tasks_reservation_room_id_fkey" FOREIGN KEY (reservation_room_id) REFERENCES reservation_rooms(id) ON DELETE SET NULL
+
+==================== rate_plans ====================
+                                      Table "public.rate_plans"
+       Column        |           Type           | Collation | Nullable |           Default            
+---------------------+--------------------------+-----------+----------+------------------------------
+ id                  | uuid                     |           | not null | gen_random_uuid()
+ tenant_id           | uuid                     |           | not null | 
+ name                | text                     |           | not null | 
+ code                | text                     |           |          | 
+ type                | text                     |           | not null | 'base'::text
+ currency            | text                     |           |          | 'ILS'::text
+ cancellation_policy | text                     |           |          | 
+ min_nights          | integer                  |           |          | 1
+ max_nights          | integer                  |           |          | 
+ active_days         | integer[]                |           |          | '{0,1,2,3,4,5,6}'::integer[]
+ modifier_type       | text                     |           |          | 'fixed'::text
+ modifier_value      | numeric(10,2)            |           |          | 0
+ applicable_channels | uuid[]                   |           |          | '{}'::uuid[]
+ is_active           | boolean                  |           |          | true
+ created_at          | timestamp with time zone |           |          | now()
+Indexes:
+    "rate_plans_pkey" PRIMARY KEY, btree (id)
+    "idx_rate_plans_tenant" btree (tenant_id)
+Foreign-key constraints:
+    "rate_plans_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+Referenced by:
+    TABLE "rate_overrides" CONSTRAINT "rate_overrides_rate_plan_id_fkey" FOREIGN KEY (rate_plan_id) REFERENCES rate_plans(id) ON DELETE CASCADE
+
+==================== rate_overrides ====================
+                               Table "public.rate_overrides"
+       Column        |           Type           | Collation | Nullable |      Default      
+---------------------+--------------------------+-----------+----------+-------------------
+ id                  | uuid                     |           | not null | gen_random_uuid()
+ tenant_id           | uuid                     |           | not null | 
+ rate_plan_id        | uuid                     |           |          | 
+ room_type_id        | uuid                     |           |          | 
+ date_from           | date                     |           | not null | 
+ date_to             | date                     |           | not null | 
+ price               | numeric(10,2)            |           | not null | 
+ min_nights          | integer                  |           |          | 
+ max_nights          | integer                  |           |          | 
+ stop_sell           | boolean                  |           |          | false
+ closed_on_arrival   | boolean                  |           |          | false
+ closed_on_departure | boolean                  |           |          | false
+ reason              | text                     |           |          | 
+ created_at          | timestamp with time zone |           |          | now()
+Indexes:
+    "rate_overrides_pkey" PRIMARY KEY, btree (id)
+Foreign-key constraints:
+    "rate_overrides_rate_plan_id_fkey" FOREIGN KEY (rate_plan_id) REFERENCES rate_plans(id) ON DELETE CASCADE
+    "rate_overrides_room_type_id_fkey" FOREIGN KEY (room_type_id) REFERENCES room_types(id)
+    "rate_overrides_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+
+==================== room_types ====================
+                                Table "public.room_types"
+       Column       |           Type           | Collation | Nullable |      Default      
+--------------------+--------------------------+-----------+----------+-------------------
+ id                 | uuid                     |           | not null | gen_random_uuid()
+ tenant_id          | uuid                     |           | not null | 
+ name               | text                     |           | not null | 
+ max_occupancy      | integer                  |           | not null | 2
+ max_adults         | integer                  |           |          | 2
+ max_children       | integer                  |           |          | 2
+ max_infants        | integer                  |           |          | 1
+ base_price         | numeric(10,2)            |           |          | 0
+ amenities          | text[]                   |           |          | '{}'::text[]
+ description        | text                     |           |          | 
+ is_accessible      | boolean                  |           |          | false
+ is_active          | boolean                  |           |          | true
+ sort_order         | integer                  |           |          | 0
+ created_at         | timestamp with time zone |           |          | now()
+ default_occupancy  | integer                  |           | not null | 2
+ extra_person_price | numeric(10,2)            |           | not null | 0
+Indexes:
+    "room_types_pkey" PRIMARY KEY, btree (id)
+    "idx_room_types_tenant" btree (tenant_id)
+Foreign-key constraints:
+    "room_types_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+Referenced by:
+    TABLE "channel_room_mappings" CONSTRAINT "channel_room_mappings_room_type_id_fkey" FOREIGN KEY (room_type_id) REFERENCES room_types(id)
+    TABLE "channel_room_type_links" CONSTRAINT "channel_room_type_links_room_type_id_fkey" FOREIGN KEY (room_type_id) REFERENCES room_types(id) ON DELETE CASCADE
+    TABLE "guests" CONSTRAINT "guests_preferred_room_type_id_fkey" FOREIGN KEY (preferred_room_type_id) REFERENCES room_types(id)
+    TABLE "rate_overrides" CONSTRAINT "rate_overrides_room_type_id_fkey" FOREIGN KEY (room_type_id) REFERENCES room_types(id)
+    TABLE "rooms" CONSTRAINT "rooms_room_type_id_fkey" FOREIGN KEY (room_type_id) REFERENCES room_types(id)
+
+==================== tenants ====================
+                                                                              Table "public.tenants"
+          Column           |           Type           | Collation | Nullable |                                              Default                                               
+---------------------------+--------------------------+-----------+----------+----------------------------------------------------------------------------------------------------
+ id                        | uuid                     |           | not null | gen_random_uuid()
+ name                      | text                     |           | not null | 
+ brand_name                | text                     |           |          | 
+ business_type             | text                     |           |          | 'hotel'::text
+ plan_id                   | uuid                     |           |          | 
+ subscription_status       | text                     |           |          | 'trial'::text
+ trial_start               | date                     |           |          | CURRENT_DATE
+ trial_end                 | date                     |           |          | (CURRENT_DATE + '14 days'::interval)
+ max_rooms                 | integer                  |           | not null | 10
+ max_users                 | integer                  |           | not null | 3
+ active_modules            | text[]                   |           |          | ARRAY['calendar'::text, 'reservations'::text, 'guests'::text, 'rooms'::text, 'housekeeping'::text]
+ language                  | text                     |           |          | 'he'::text
+ currency                  | text                     |           |          | 'ILS'::text
+ timezone                  | text                     |           |          | 'Asia/Jerusalem'::text
+ country                   | text                     |           |          | 'IL'::text
+ logo_url                  | text                     |           |          | 
+ website                   | text                     |           |          | 
+ phone                     | text                     |           |          | 
+ email                     | text                     |           |          | 
+ address                   | text                     |           |          | 
+ default_checkin_time      | time without time zone   |           |          | '15:00:00'::time without time zone
+ default_checkout_time     | time without time zone   |           |          | '11:00:00'::time without time zone
+ is_active                 | boolean                  |           |          | true
+ created_at                | timestamp with time zone |           |          | now()
+ updated_at                | timestamp with time zone |           |          | now()
+ notification_email        | text                     |           |          | 
+ sabbath_checkin_time      | time without time zone   |           |          | 
+ sabbath_checkout_time     | time without time zone   |           |          | 
+ vat_rate                  | numeric(5,2)             |           | not null | 17.00
+ reservation_notify_emails | text                     |           |          | 
+ guest_email_enabled       | boolean                  |           | not null | true
+ terms_text                | text                     |           |          | 
+Indexes:
+    "tenants_pkey" PRIMARY KEY, btree (id)
+Foreign-key constraints:
+    "tenants_plan_id_fkey" FOREIGN KEY (plan_id) REFERENCES plans(id)
+Referenced by:
+    TABLE "absence_request_attachments" CONSTRAINT "absence_request_attachments_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "absence_requests" CONSTRAINT "absence_requests_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "areas" CONSTRAINT "areas_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    TABLE "attendance_areas" CONSTRAINT "attendance_areas_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "_archive_attendance_punches" CONSTRAINT "attendance_punches_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "attendance_records" CONSTRAINT "attendance_records_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "audit_log" CONSTRAINT "audit_log_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "automation_log" CONSTRAINT "automation_log_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "automations" CONSTRAINT "automations_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "buildings" CONSTRAINT "buildings_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "bulk_room_update_logs" CONSTRAINT "bulk_room_update_logs_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_booking_revisions" CONSTRAINT "channel_booking_revisions_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_connections" CONSTRAINT "channel_connections_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_delivery_errors" CONSTRAINT "channel_delivery_errors_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_mapping_issues" CONSTRAINT "channel_mapping_issues_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_property_links" CONSTRAINT "channel_property_links_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_rate_plan_links" CONSTRAINT "channel_rate_plan_links_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_rate_windows" CONSTRAINT "channel_rate_windows_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_room_mappings" CONSTRAINT "channel_room_mappings_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_room_type_links" CONSTRAINT "channel_room_type_links_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_sync_jobs" CONSTRAINT "channel_sync_jobs_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_sync_log" CONSTRAINT "channel_sync_log_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_sync_logs" CONSTRAINT "channel_sync_logs_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channel_webhook_events" CONSTRAINT "channel_webhook_events_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "channels" CONSTRAINT "channels_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "floors" CONSTRAINT "floors_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "guest_documents" CONSTRAINT "guest_documents_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "guests" CONSTRAINT "guests_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "housekeeping_tasks" CONSTRAINT "housekeeping_tasks_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "leads" CONSTRAINT "leads_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    TABLE "lookup_items" CONSTRAINT "lookup_items_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "notifications" CONSTRAINT "notifications_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "payments" CONSTRAINT "payments_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "pricing_plans" CONSTRAINT "pricing_plans_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "properties" CONSTRAINT "properties_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "rate_overrides" CONSTRAINT "rate_overrides_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "rate_plans" CONSTRAINT "rate_plans_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "reservation_charges" CONSTRAINT "reservation_charges_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "reservation_rooms" CONSTRAINT "reservation_rooms_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "reservations" CONSTRAINT "reservations_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "room_blocks" CONSTRAINT "room_blocks_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "room_daily_pricing" CONSTRAINT "room_daily_pricing_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "room_types" CONSTRAINT "room_types_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "rooms" CONSTRAINT "rooms_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "tenant_invoices" CONSTRAINT "tenant_invoices_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "tickets" CONSTRAINT "tickets_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    TABLE "user_permissions" CONSTRAINT "user_permissions_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    TABLE "users" CONSTRAINT "users_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+
+==================== payments ====================
+                                 Table "public.payments"
+       Column       |           Type           | Collation | Nullable |      Default      
+--------------------+--------------------------+-----------+----------+-------------------
+ id                 | uuid                     |           | not null | gen_random_uuid()
+ tenant_id          | uuid                     |           | not null | 
+ reservation_id     | uuid                     |           | not null | 
+ amount             | numeric(10,2)            |           | not null | 
+ method             | text                     |           | not null | 'cash'::text
+ status             | text                     |           |          | 'completed'::text
+ morning_invoice_id | text                     |           |          | 
+ morning_receipt_id | text                     |           |          | 
+ transaction_id     | text                     |           |          | 
+ notes              | text                     |           |          | 
+ created_by         | uuid                     |           |          | 
+ created_at         | timestamp with time zone |           |          | now()
+Indexes:
+    "payments_pkey" PRIMARY KEY, btree (id)
+    "idx_payments_reservation" btree (reservation_id)
+Foreign-key constraints:
+    "payments_created_by_fkey" FOREIGN KEY (created_by) REFERENCES users(id)
+    "payments_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+    "payments_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+
+==================== reservation_charges ====================
+                          Table "public.reservation_charges"
+     Column     |           Type           | Collation | Nullable |      Default      
+----------------+--------------------------+-----------+----------+-------------------
+ id             | uuid                     |           | not null | gen_random_uuid()
+ tenant_id      | uuid                     |           | not null | 
+ reservation_id | uuid                     |           | not null | 
+ description    | text                     |           | not null | 
+ amount         | numeric(10,2)            |           | not null | 
+ quantity       | integer                  |           |          | 1
+ total          | numeric(10,2)            |           | not null | 
+ charge_date    | date                     |           |          | CURRENT_DATE
+ created_by     | uuid                     |           |          | 
+ created_at     | timestamp with time zone |           |          | now()
+Indexes:
+    "reservation_charges_pkey" PRIMARY KEY, btree (id)
+    "idx_charges_reservation" btree (reservation_id)
+Foreign-key constraints:
+    "reservation_charges_created_by_fkey" FOREIGN KEY (created_by) REFERENCES users(id)
+    "reservation_charges_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
+    "reservation_charges_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+
+==================== channel_booking_revisions ====================
+                          Table "public.channel_booking_revisions"
+        Column        |           Type           | Collation | Nullable |      Default      
+----------------------+--------------------------+-----------+----------+-------------------
+ id                   | uuid                     |           | not null | gen_random_uuid()
+ tenant_id            | uuid                     |           | not null | 
+ connection_id        | uuid                     |           | not null | 
+ channex_revision_id  | uuid                     |           | not null | 
+ channex_booking_id   | uuid                     |           | not null | 
+ channex_property_id  | uuid                     |           | not null | 
+ unique_id            | text                     |           | not null | 
+ system_id            | text                     |           | not null | 
+ ota_name             | text                     |           |          | 
+ ota_reservation_code | text                     |           |          | 
+ status               | text                     |           | not null | 
+ arrival_date         | date                     |           |          | 
+ departure_date       | date                     |           |          | 
+ payload              | jsonb                    |           | not null | 
+ processed_status     | text                     |           | not null | 'pending'::text
+ reservation_id       | uuid                     |           |          | 
+ ack_status           | text                     |           | not null | 'unacked'::text
+ acked_at             | timestamp with time zone |           |          | 
+ error                | text                     |           |          | 
+ received_at          | timestamp with time zone |           | not null | now()
+Indexes:
+    "channel_booking_revisions_pkey" PRIMARY KEY, btree (id)
+    "channel_booking_revisions_connection_id_system_id_key" UNIQUE CONSTRAINT, btree (connection_id, system_id)
+    "idx_channel_booking_revisions_ack" btree (ack_status) WHERE ack_status = 'unacked'::text
+    "idx_channel_booking_revisions_tenant" btree (tenant_id, processed_status, received_at DESC)
+    "idx_channel_booking_revisions_unique_id" btree (unique_id)
+Check constraints:
+    "channel_booking_revisions_ack_status_check" CHECK (ack_status = ANY (ARRAY['unacked'::text, 'acked'::text, 'ack_failed'::text]))
+    "channel_booking_revisions_processed_status_check" CHECK (processed_status = ANY (ARRAY['pending'::text, 'imported'::text, 'skipped'::text, 'failed'::text, 'unmapped'::text]))
+    "channel_booking_revisions_status_check" CHECK (status = ANY (ARRAY['new'::text, 'modified'::text, 'cancelled'::text]))
+Foreign-key constraints:
+    "channel_booking_revisions_connection_id_fkey" FOREIGN KEY (connection_id) REFERENCES channel_connections(id) ON DELETE CASCADE
+    "channel_booking_revisions_reservation_id_fkey" FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE SET NULL
+    "channel_booking_revisions_tenant_id_fkey" FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+Referenced by:
+    TABLE "channel_mapping_issues" CONSTRAINT "channel_mapping_issues_revision_id_fkey" FOREIGN KEY (revision_id) REFERENCES channel_booking_revisions(id) ON DELETE CASCADE
+
+--- GENERATED columns check ---
+       table_name        |    column_name     | is_generated |          generation_expression           | column_default | is_nullable | data_type 
+-------------------------+--------------------+--------------+------------------------------------------+----------------+-------------+-----------
+ absence_requests        | total_days         | ALWAYS       | ((end_date - start_date) + 1)            |                | YES         | integer
+ channel_rate_plan_links | currency           | NEVER        |                                          | 'ILS'::text    | NO          | text
+ guests                  | full_name          | ALWAYS       | ((first_name || ' '::text) || last_name) |                | YES         | text
+ pricing_plans           | currency           | NEVER        |                                          | 'ILS'::text    | NO          | text
+ rate_overrides          | rate_plan_id       | NEVER        |                                          |                | YES         | uuid
+ rate_plans              | currency           | NEVER        |                                          | 'ILS'::text    | YES         | text
+ reservation_rooms       | rate_plan_id       | NEVER        |                                          |                | YES         | uuid
+ reservations            | balance_due        | ALWAYS       | (total_price - total_paid)               |                | YES         | numeric
+ reservations            | card_holder_id     | NEVER        |                                          |                | YES         | text
+ reservations            | deposit            | NEVER        |                                          | 0              | YES         | numeric
+ reservations            | discount_per_night | NEVER        |                                          | 0              | YES         | numeric
+ reservations            | discount_percent   | NEVER        |                                          | 0              | YES         | numeric
+ reservations            | subtotal           | NEVER        |                                          | 0              | YES         | numeric
+ reservations            | tax_amount         | NEVER        |                                          | 0              | YES         | numeric
+ reservations            | tax_exempt         | NEVER        |                                          | false          | YES         | boolean
+ reservations            | total_paid         | NEVER        |                                          | 0              | YES         | numeric
+ reservations            | total_price        | NEVER        |                                          | 0              | YES         | numeric
+ room_daily_pricing      | currency           | NEVER        |                                          | 'ILS'::text    | NO          | text
+ tenant_invoices         | currency           | NEVER        |                                          | 'ILS'::text    | YES         | text
+ tenants                 | currency           | NEVER        |                                          | 'ILS'::text    | YES         | text
+ tenants                 | vat_rate           | NEVER        |                                          | 17.00          | NO          | numeric
+(21 rows)
+
