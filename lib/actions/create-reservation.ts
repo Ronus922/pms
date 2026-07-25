@@ -6,6 +6,14 @@ import type { ReservationFormData } from "@/lib/stores/reservation-form-store"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
 import { sendReservationNotifications } from "@/lib/services/reservation-emails"
+import {
+  computePricing,
+  enumerateNights,
+  validatePricingInput,
+  type DiscountMode,
+  type NightRate,
+  type PricingInput,
+} from "@/lib/pricing/engine"
 
 /** Map internal block_type enum → Hebrew label so conflict error messages
  *  read naturally in the admin UI (never show raw enum strings). */
@@ -175,6 +183,17 @@ export async function createReservation(
   const taxExempt = form.taxExempt ?? false
   const deposit = form.deposit || 0
   const amountPaid = form.amountPaid || 0
+  const priceMode = form.priceMode || "auto"
+  const manualNightlyRate = form.manualNightlyRate ?? null
+  const manualTotal = form.manualTotal ?? null
+  const discountMode: DiscountMode =
+    form.discountMode ||
+    (discountPercent > 0 ? "percent_total" : discountAmount > 0 ? "amount_total" : "none")
+  const discountValue =
+    form.discountValue ?? (discountPercent > 0 ? discountPercent : discountAmount)
+  const vatInclusive = form.vatInclusive ?? true
+  const currency = form.currency || "ILS"
+  const ratePlanId = form.ratePlanId || null
   const adults = form.adults ?? 1
   const children = form.children ?? 0
   const infants = form.infants ?? 0
@@ -371,17 +390,64 @@ export async function createReservation(
         return sum + (r.ratePerNight || 0) * rNights
       }, 0)
     : pricePerNight * nights
-  const discountTotal = discountPercent > 0 ? baseAmount * (discountPercent / 100) : discountAmount
-  const afterDiscount = Math.max(0, baseAmount - discountTotal) + extraChargesTotal
-  // VAT rate from tenant settings (percent → fraction). Server is the source
-  // of truth — never trust the client's taxAmount for the INSERT.
+  // VAT rate from tenant settings (percent → fraction). The server is the source
+  // of truth — the client's taxAmount is never trusted for the INSERT. The rate
+  // is then STORED on the reservation, because tenants.vat_rate is mutable: it
+  // was already changed 17 → 18 here, and without a per-row copy every future
+  // recompute would silently restate older reservations.
   const [tenantRow] = await db<{ vat_rate: string | number | null }[]>`
     SELECT vat_rate FROM tenants WHERE id = ${tenantId}
   `
   const tenantVatFraction = Math.max(0, (Number(tenantRow?.vat_rate) || 0) / 100)
-  const taxAmount = taxExempt ? 0 : afterDiscount * tenantVatFraction
-  const grandTotal = afterDiscount + taxAmount
-  const balanceDue = Math.max(0, grandTotal - amountPaid - deposit)
+
+  // One NightRate per ROOM-night reproduces the per-room pricing above exactly;
+  // everything after that is lib/pricing/engine.ts. There is no second formula.
+  const pricingNights: NightRate[] = hasRooms
+    ? rooms.flatMap((r) =>
+        enumerateNights(r.checkIn || form.checkIn, r.checkOut || form.checkOut).map((date) => ({
+          date,
+          baseRate: r.ratePerNight || 0,
+          appliedRate: r.ratePerNight || 0,
+          source: "room_type_base" as const,
+          ratePlanId,
+          losRuleApplied: null,
+        })),
+      )
+    : enumerateNights(form.checkIn, form.checkOut).map((date) => ({
+        date,
+        baseRate: pricePerNight,
+        appliedRate: pricePerNight,
+        source: "room_type_base" as const,
+        ratePlanId,
+        losRuleApplied: null,
+      }))
+
+  const pricingInput: PricingInput = {
+    nights: pricingNights,
+    priceMode,
+    manualNightlyRate,
+    manualTotal,
+    discountMode,
+    discountValue,
+    extraCharges: extraChargesTotal,
+    vatInclusive,
+    vatRate: tenantVatFraction,
+    vatExempt: taxExempt,
+    // A deposit is a payment, not a second deduction.
+    payments: amountPaid + deposit,
+    currency,
+    exchangeRate: 1,
+  }
+
+  const pricingErrors = validatePricingInput(pricingInput)
+  if (pricingErrors.length > 0) {
+    return { success: false, error: pricingErrors[0].message }
+  }
+
+  const pricing = computePricing(pricingInput)
+  const taxAmount = pricing.vatAmount
+  const grandTotal = pricing.grandTotal
+  const effectiveVatRate = taxExempt ? 0 : tenantVatFraction
 
   try {
     // 1. Create or find guest
@@ -429,7 +495,13 @@ export async function createReservation(
         meal_plan, special_requests, general_notes, internal_notes,
         payment_status, payment_method, deposit,
         discount_percent, discount_per_night, tax_exempt,
-        subtotal, tax_amount, total_price, total_paid, company, agent
+        subtotal, tax_amount, total_price, total_paid, company, agent,
+        price_mode, manual_nightly_rate, manual_total,
+        discount_mode, discount_value, vat_inclusive, vat_rate,
+        currency, exchange_rate, pricing_breakdown, rate_plan_id,
+        card_holder_name, card_last4, card_holder_id,
+        card_expiry_month, card_expiry_year,
+        card_approval_code, card_transaction_ref, card_installments
       ) VALUES (
         ${tenantId}, '', ${guestId}, ${propertyId}, ${status},
         ${form.checkIn}::date, ${form.checkOut}::date,
@@ -439,10 +511,18 @@ export async function createReservation(
         ${boardType}, ${form.specialRequests || null},
         ${form.generalNotes || null}, ${form.internalNotes || null},
         ${form.paymentStatus || "unpaid"}, ${form.paymentMethod || null}, ${deposit},
-        ${discountPercent}, ${discountAmount / Math.max(nights, 1)},
+        ${discountPercent},
+        ${pricing.discountTotal / Math.max(nights, 1)},
         ${taxExempt},
-        ${baseAmount}, ${taxAmount}, ${grandTotal}, ${amountPaid},
-        ${form.company || null}, ${form.company || null}
+        ${pricing.grossBeforeDiscount}, ${taxAmount}, ${grandTotal}, ${amountPaid},
+        ${form.company || null}, ${form.company || null},
+        ${priceMode}, ${manualNightlyRate}, ${manualTotal},
+        ${discountMode}, ${discountValue}, ${vatInclusive}, ${effectiveVatRate},
+        ${currency}, ${1}, ${JSON.stringify(pricing.breakdown)}::jsonb, ${ratePlanId}::uuid,
+        ${form.cardHolderName || null}, ${form.cardLast4 || null}, ${form.cardHolderId || null},
+        ${form.cardExpiryMonth || null}, ${form.cardExpiryYear || null},
+        ${form.cardApprovalCode || null}, ${form.cardTransactionRef || null},
+        ${form.cardInstallments || 1}
       )
       RETURNING id, reservation_number
     `

@@ -62,3 +62,107 @@ Autonomous build. Everything below was decided from the audit; open items are fl
 - `guests.preferred_language` in use = `he` only. Guest template: Hebrew by default; anything not
   starting with `he` → English variant of the same template. Missing business fields render as
   nothing (never "undefined").
+
+---
+
+# מנוע תמחור ותשלומים בהזמנות — 2026-07-25
+
+ענף `feat/reservation-pricing-engine`, worktree `/var/www/wt-pms-pricing`.
+
+## פרוטוקול ה-LOCKED — נפתח ותועד
+
+`claude/PROJECT_MEMORY.md` מסמן את מודול ההזמנות **LOCKED as of 2026-04-10**, ו"pricing
+calculation" ו-"card fields" נמצאים מפורשות ברשימת מה שנעול. חמישה מקבצי המפתח הנעולים
+נגעו: `create-reservation.ts`, `reservation-update.ts`, `reservation-form-store.ts`,
+`reservation-edit-store.ts`, `Step3Pricing.tsx`.
+
+הפרוטוקול אינו דורש אסימון אישור אנושי — הוא דורש **בדיקת רגרסיה בת 10 נקודות** לפני כל
+שינוי. היא בוצעה ומתועדת ב-`ref/audit/pricing-tests.md`. העבודה כולה בענף מבודד, ללא דפלוי.
+`components/shared/DateInput.tsx` לא נגע.
+
+## שיעור המע"מ — לכל הזמנה, לא לכל דייר
+
+`tenants.vat_rate` הוא שדה **משתנה**, והוא כבר שונה 17 → 18. ארבע הזמנות חיות נמכרו ב-17%.
+כל חישוב מחדש לפי שיעור הדייר הנוכחי היה מציג אותן מחדש בטעות.
+
+לכן נוספה `reservations.vat_rate` (שבר, 4 ספרות) והיא ממולאת **מהמספרים של השורה עצמה**:
+`tax_amount / (total_price − tax_amount)`. אומת על 20/20 השורות החיות לפני כתיבת המיגרציה
+(`ref/proof/backfill-parity-live.txt`), ומקובע כטסט רגרסיה קבוע ב-`lib/pricing/backfill-parity.test.ts`.
+
+**הבהרה לניסוח הבקשה:** הבקשה ביקשה להוסיף `vat_rate NUMERIC(5,4) DEFAULT 0.18` ברמת הדייר
+"אם אין". **יש** — `tenants.vat_rate NUMERIC(5,2) DEFAULT 17.00`, השומר **אחוזים**. לא נוספה
+עמודה כפולה; המנוע מחלק ב-100.
+
+## `subtotal` שומר על משמעותו
+
+`subtotal` נכתב היסטורית כ-`baseAmount` (לפני הנחה, לפני תוספות), ו-
+`ReservationPrintView.tsx:272` גוזר ממנו את שורת ההנחה כ-`subtotal × discount_percent/100`.
+לכן `subtotal = pricing.grossBeforeDiscount` ולא הנטו — שינוי המשמעות היה משבש בשקט כל הדפסה.
+
+## `manual_total` — הסכום הוא הסכום
+
+במצב `manual_total` הנחות ותוספות **אינן** מוחלות שוב, אחרת הדרישה "הסכום הסופי הוא בדיוק
+manualTotal, בלי הפרש עיגול" אינה ניתנת לקיום. ה-UI מסתיר את שני הפקדים במצב הזה ומסביר למה.
+טוגל "כולל מע"מ" עדיין קובע אם הסכום שהוזן מכיל מע"מ.
+
+## CHECK במקום ENUM
+
+הבקשה ציינה `ENUM` ל-`discount_type`. מומש כ-`CHECK` — אותה הבטחה, ורולבק שאינו נדרש למחוק
+טיפוס שאובייקטים אחרים כבר עשויים להסתמך עליו.
+
+## מקדמה = תשלום
+
+`balanceDue = grandTotal − paid`, כאשר `paid = total_paid + deposit`. זה תואם לעמודה
+ה-GENERATED `balance_due = total_price − total_paid` ומבטל את הפער שבו ה-preview ביצירה הראה
+יתרה אחת וכל תצוגה שאחרי השמירה הראתה אחרת.
+
+## סעיף 10 — "הערות חיוב": אין מה להסיר
+
+חיפוש בכל הריפו: `grep -rn "הערות חיוב"` → **0 תוצאות**. `billing_notes` / `billingNotes` →
+**0 תוצאות**. שדות ההערות הקיימים: `general_notes`, `internal_notes`, `reception_notes`,
+`cleaning_notes`, `maintenance_notes`. אף אחד מהם אינו מתויג "הערות חיוב" (הקרוב ביותר בתווית
+הוא `reception_notes` → "הערות קבלה").
+
+**החלטה:** אין מיגרציה ואין שינוי UI. ניחוש שאחד מהשדות הקיימים הוא "הערות חיוב" והעברת תוכנו
+ל-`general_notes` היא פעולה הרסנית על סמך השערה. הסעיף מסומן `N/A-NOT-PRESENT`.
+
+## סעיף 11 — סדר "הערות" מול "מדיניות ביטול": אין מה לסדר
+
+אין קומפוננטת מדיניות ביטול. `cancellation_policy` היא עמודה שנכתבת ב-
+`reservation-update.ts:207` ואינה מוצגת באף קומפוננטה. כרטיס "הערות" קיים
+(`Step4Review.tsx:350`, `EditStep4Summary.tsx:214`) והריווח כבר `gap` על ההורה.
+
+**החלטה:** לא נבנה כרטיס מדיניות ביטול חדש — זו הרחבת תחום, לא שינוי סדר. הסעיף מסומן
+`N/A-NOT-PRESENT`.
+
+## סעיף 12 — CVC מהערוץ: חסום חיצונית
+
+`channel_booking_revisions` = **0 שורות**. `channel_webhook_events` = 0. `channel_connections` = 0.
+`lib/integrations/channex/client.ts` מממש 12 פונקציות, **אף אחת אינה endpoint תשלום/כרטיס**.
+`guarantee?: unknown` (`types.ts:221`) אינו נקרא בשום מקום. המחרוזת "לא התקבל קוד סודי מהערוץ"
+וכרטיס "גבייה מהערוץ" אינם קיימים.
+
+**החלטה:** לא נבנתה חשיפת CVC ולא נבנו מצבי "למה לא זמין". ה-probe קבע שאין מקור נתונים, וגם
+ארבעת המצבים אינם ניתנים לזיהוי מהנתונים שיש (ראה `ref/audit/pricing-security.md` §ב).
+בניית UI כזה עכשיו הייתה שילוח פיצ'ר לא-ניתן-לבדיקה מול מקור לא-מוכח. הסעיף מסומן
+`BLOCKED-EXTERNAL`. מה שנדרש כדי לפתוח אותו מפורט בדוח האבטחה §א.
+
+## PCI — מה נשמר ומה לא
+
+נשמרות: 4 ספרות אחרונות, שם בעל הכרטיס, ת.ז., תוקף, קוד אישור, אסמכתא, תשלומים.
+**לא נשמרים: מספר כרטיס מלא ו-CVV — גם לא מוצפנים.** אין להם עמודה, ו-CHECK ברמת ה-DB
+(`reservations_card_last4_check`) דוחה כל ערך שאינו 4 ספרות. הוכח בדחייה בפועל בעת ה-dry-run.
+
+`CardNumberInput` הקודם החזיק PAN מלא בן 16 ספרות ב-state של React (מיסוך לתצוגה בלבד) — הוסר.
+
+## פערים שאותרו ולא תוקנו כאן
+
+- `payments` ו-`reservation_charges` נקראות ואף קוד אינו כותב אליהן. פאנל היסטוריית התשלומים
+  יישאר ריק לכל הזמנה שנוצרה במערכת. **לא תוקן** — יצירת שכבת תשלומים היא תחום נפרד.
+- אין כותב audit log חי. `createAuditLog` יושב ב-`src/services/audit.ts` שהוא קוד מת
+  (`@/*` ממופה לשורש, לא ל-`src/`), הקוד החי קורא מ-`audit_log` ביחיד, ו-`audit_logs` ברבים
+  אינה קיימת ב-DB כלל (`to_regclass` → NULL). אפס INSERT בכל הקוד החי.
+- 22 קריאות `requirePermission` ב-`lib/actions/channex.ts` משתמשות במודול `"rooms"` ולא
+  ב-`"channels"` הקיים.
+- `rate_plans` ריקה (0 שורות) ומסך `/rate-plans` הוא stub "בפיתוח". תשתית ה-LOS נבנתה, אך אין
+  עדיין תוכניות להחיל.

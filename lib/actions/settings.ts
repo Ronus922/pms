@@ -190,7 +190,7 @@ export async function getTenantSettings(_tenantId: string) {
     SELECT notification_email,
            default_checkin_time, default_checkout_time,
            sabbath_checkin_time, sabbath_checkout_time,
-           vat_rate,
+           vat_rate, currency, enabled_currencies,
            reservation_notify_emails, guest_email_enabled, terms_text,
            name, address, phone, website, email, logo_url
     FROM tenants WHERE id = ${tenantId}
@@ -202,6 +202,11 @@ export async function getTenantSettings(_tenantId: string) {
     sabbathCheckinTime: timeToHHMM(row?.sabbath_checkin_time),
     sabbathCheckoutTime: timeToHHMM(row?.sabbath_checkout_time),
     vatRate: row?.vat_rate != null ? Number(row.vat_rate) : 17,
+    // The currency picker reads the tenant's list, never a code constant.
+    defaultCurrency: (row?.currency as string) || "ILS",
+    enabledCurrencies: Array.isArray(row?.enabled_currencies) && row.enabled_currencies.length > 0
+      ? (row.enabled_currencies as string[])
+      : ["ILS", "USD", "EUR"],
     // Reservation email notifications
     reservationNotifyEmails: row?.reservation_notify_emails || "",
     guestEmailEnabled: row?.guest_email_enabled ?? true,
