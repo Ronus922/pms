@@ -12,8 +12,10 @@ import { CURRENCY_SYMBOLS } from "@/lib/constants/payments"
 
 export function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-card rounded-[20px] border border-border/15 p-5 shadow-sm">
-      <h3 className="text-sm font-bold text-foreground mb-4">{title}</h3>
+    // Spacing lives on the parent as `gap`, not as a margin on the heading —
+    // iron rule 4. The original copies of this card used `mb-4` on the <h3>.
+    <div className="bg-card rounded-[20px] border border-border/15 p-5 shadow-sm flex flex-col gap-4">
+      <h3 className="text-sm font-bold text-foreground">{title}</h3>
       {children}
     </div>
   )

@@ -88,9 +88,30 @@ export function PricingEditor({
   disabled = false,
 }: PricingEditorProps) {
   const [showNightly, setShowNightly] = useState(false)
+  const [discountReset, setDiscountReset] = useState(false)
   const sym = CURRENCY_SYMBOLS[value.currency] || "₪"
   const discountMeta = DISCOUNT_MODES.find((d) => d.value === value.discountMode) ?? DISCOUNT_MODES[0]
   const isManualTotal = value.priceMode === "manual_total"
+
+  /**
+   * A discount of "20" means 20% in a percent mode and ₪20 in an amount mode.
+   * Carrying the number across that boundary silently changes what the guest is
+   * charged, and only the percent side is range-checked — so 20% → ₪20 passes
+   * validation while quietly collapsing the discount. Switching between the two
+   * families clears the value and says so; switching within a family keeps it.
+   */
+  const handleDiscountModeChange = (next: DiscountMode) => {
+    const nextMeta = DISCOUNT_MODES.find((d) => d.value === next)
+    const familyChanged =
+      nextMeta?.suffix !== discountMeta.suffix && nextMeta?.suffix !== null && discountMeta.suffix !== null
+    onChange("discountMode", next)
+    if (familyChanged && value.discountValue > 0) {
+      onChange("discountValue", 0)
+      setDiscountReset(true)
+    } else {
+      setDiscountReset(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -299,7 +320,7 @@ export function PricingEditor({
                 <FormField label="סוג הנחה">
                   <select
                     value={value.discountMode}
-                    onChange={(e) => onChange("discountMode", e.target.value as DiscountMode)}
+                    onChange={(e) => handleDiscountModeChange(e.target.value as DiscountMode)}
                     className={selectClass}
                     disabled={disabled}
                   >
@@ -338,6 +359,15 @@ export function PricingEditor({
                   </FormField>
                 )}
               </div>
+
+              {discountReset && (
+                <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-xs text-amber-700 dark:text-amber-400">
+                  <Icon name="info" size="sm" className="shrink-0 mt-0.5" />
+                  <span>
+                    ערך ההנחה אופס — מעבר בין הנחה באחוזים להנחה בסכום משנה את משמעות המספר.
+                  </span>
+                </div>
+              )}
 
               {extraChargesSlot && <div>{extraChargesSlot}</div>}
             </>

@@ -63,7 +63,22 @@
 9. No regression in mobile behavior
 10. No regression in existing RTL layout
 
+**Opened once, 2026-07-25 — pricing engine** (branch `feat/reservation-pricing-engine`).
+Pricing calculation and card fields were reworked under this protocol; the 10-point check was
+run and is recorded in `ref/audit/pricing-tests.md`. Since then **all money flows through
+`lib/pricing/engine.ts`** — a pure function with no I/O. Do not add price arithmetic anywhere
+else; `lib/pricing/no-stray-math.test.ts` scans `lib/stores`, `lib/actions` and
+`components/reservations` and fails the build if you do.
+
+Two traps that bit during that work, worth not rediscovering:
+- `reservations.balance_due` is a **GENERATED** column (`total_price - total_paid`). Writing to
+  it throws. A deposit is a payment; it is never subtracted a second time.
+- `tenants.vat_rate` is **mutable and was changed 17 → 18**. Never recompute a historical
+  reservation from it — use that reservation's own `reservations.vat_rate` (stored as a
+  FRACTION, while the tenant column stores a PERCENT).
+
 **Key locked files:**
+- `lib/pricing/engine.ts` (the single source of truth for every amount)
 - `lib/actions/create-reservation.ts`
 - `lib/actions/reservation-update.ts`
 - `lib/actions/send-reservation-email.ts`
