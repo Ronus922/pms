@@ -447,7 +447,11 @@ export async function createReservation(
   const pricing = computePricing(pricingInput)
   const taxAmount = pricing.vatAmount
   const grandTotal = pricing.grandTotal
-  const effectiveVatRate = taxExempt ? 0 : tenantVatFraction
+  // Store the rate the reservation BELONGS to, even when it is exempt. Zeroing
+  // it here would destroy that fact, so clearing "פטור ממע״מ" on a later edit
+  // would silently re-save the stay at 0% VAT. Exemption is carried by
+  // tax_exempt, which is what the engine actually reads.
+  const storedVatRate = tenantVatFraction
 
   try {
     // 1. Create or find guest
@@ -517,7 +521,7 @@ export async function createReservation(
         ${pricing.grossBeforeDiscount}, ${taxAmount}, ${grandTotal}, ${amountPaid},
         ${form.company || null}, ${form.company || null},
         ${priceMode}, ${manualNightlyRate}, ${manualTotal},
-        ${discountMode}, ${discountValue}, ${vatInclusive}, ${effectiveVatRate},
+        ${discountMode}, ${discountValue}, ${vatInclusive}, ${storedVatRate},
         ${currency}, ${1}, ${JSON.stringify(pricing.breakdown)}::jsonb, ${ratePlanId}::uuid,
         ${form.cardHolderName || null}, ${form.cardLast4 || null}, ${form.cardHolderId || null},
         ${form.cardExpiryMonth || null}, ${form.cardExpiryYear || null},

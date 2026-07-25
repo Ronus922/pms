@@ -1,6 +1,15 @@
 import { create } from "zustand"
 import { getReservationFull } from "@/lib/actions/reservation-detail"
 import { type ReservationRoom, computeRoomRate } from "@/lib/stores/reservation-form-store"
+import {
+  computePricing,
+  deriveHistoricalVatRate,
+  enumerateNights,
+  type DiscountMode,
+  type NightRate,
+  type PriceMode,
+  type PricingResult,
+} from "@/lib/pricing/engine"
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -120,7 +129,7 @@ export interface ReservationEditData {
   agent: string
   adSource: string
 
-  // Pricing
+  // Pricing — every figure here is DERIVED from the engine (see derivePricing).
   totalPrice: number
   totalPaid: number
   balanceDue: number
@@ -131,6 +140,35 @@ export interface ReservationEditData {
   taxAmount: number
   subtotal: number
   currency: string
+
+  // Pricing engine controls (lib/pricing/engine.ts)
+  priceMode: PriceMode
+  manualNightlyRate: number | null
+  manualTotal: number | null
+  discountMode: DiscountMode
+  discountValue: number
+  /** Whether the entered money already contains VAT. */
+  vatInclusive: boolean
+  /** FRACTION (0.1800), never a percent — reservations.vat_rate. Loaded from
+   *  the reservation's OWN row: tenants.vat_rate is mutable and was changed
+   *  17 -> 18, so it cannot restate what an older stay was sold at. */
+  vatRate: number
+  ratePlanId: string
+  exchangeRate: number
+  /** Extras already folded into the price. Recovered from pricing_breakdown
+   *  because creation persists only the total, never the individual lines —
+   *  without this an edit would silently drop them from the reservation. */
+  extraCharges: number
+
+  // Credit card — PCI: last four digits only. Never a PAN, never a CVV.
+  cardHolderName: string
+  cardLast4: string
+  cardHolderId: string
+  cardExpiryMonth: string
+  cardExpiryYear: string
+  cardApprovalCode: string
+  cardTransactionRef: string
+  cardInstallments: number
 }
 
 /* ── Store interface ────────────────────────────────────────── */
@@ -142,7 +180,6 @@ export interface ReservationEditStore {
   isSaving: boolean
   activeTab: number
   errors: Record<string, string>
-  cardRevealed: boolean
 
   // Identity
   reservationId: string
@@ -171,9 +208,17 @@ export interface ReservationEditStore {
   charges: ChargeRecord[]
   logs: LogEntry[]
 
-  // Computed
+  // Computed — all of these come out of lib/pricing/engine.ts. The panel used
+  // to freeze whatever the server sent, so editing a rate or a date left every
+  // total stale until the next reload.
   isDirty: boolean
   nights: number
+  pricing: PricingResult
+  totalPrice: number
+  taxAmount: number
+  netAmount: number
+  /** Negative means the guest is in credit. */
+  balanceDue: number
 
   /** Monotonic counter bumped on every successful save. Pages (reservations
    *  table, calendar board, etc.) subscribe to this and re-fetch their list
@@ -188,7 +233,6 @@ export interface ReservationEditStore {
   setActiveTab: (tab: number) => void
   setErrors: (errors: Record<string, string>) => void
   setSaving: (v: boolean) => void
-  toggleCardReveal: () => void
   /* Per-room editing actions — true source of truth for rooms during edit. */
   addEditableRoom: (room: ReservationRoom) => void
   updateEditableRoom: (id: string, updates: Partial<ReservationRoom>) => void
@@ -224,8 +268,64 @@ function computeNights(checkIn: string, checkOut: string): number {
   return Math.max(0, Math.round((co.getTime() - ci.getTime()) / 86400000))
 }
 
+const PRICE_MODES: ReadonlySet<string> = new Set<PriceMode>([
+  "auto",
+  "manual_nightly",
+  "manual_total",
+])
+
+const DISCOUNT_MODES: ReadonlySet<string> = new Set<DiscountMode>([
+  "none",
+  "amount_per_night",
+  "percent_per_night",
+  "amount_total",
+  "percent_total",
+])
+
+function toPriceMode(v: unknown): PriceMode {
+  return typeof v === "string" && PRICE_MODES.has(v) ? (v as PriceMode) : "auto"
+}
+
+function toDiscountMode(v: unknown): DiscountMode {
+  return typeof v === "string" && DISCOUNT_MODES.has(v) ? (v as DiscountMode) : "none"
+}
+
+/** NUMERIC columns arrive as strings from the driver; NULL must stay null so
+ *  the engine can tell "no manual price" from "a manual price of zero". */
+function toNullableNumber(v: unknown): number | null {
+  if (v == null || v === "") return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+/** The extras the reservation was priced with, read back off its stored
+ *  breakdown. Nothing else records them: the create action folds the total
+ *  into subtotal and discards the line items. */
+function extrasFromBreakdown(raw: unknown): number {
+  if (!Array.isArray(raw)) return 0
+  let total = 0
+  for (const line of raw) {
+    if (line == null || typeof line !== "object") continue
+    const { kind, amount } = line as { kind?: unknown; amount?: unknown }
+    if (kind !== "extra") continue
+    const n = Number(amount)
+    if (Number.isFinite(n)) total += n
+  }
+  return total
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapServerToEdit(res: any): ReservationEditData {
+  const totalPrice = Number(res.total_price) || 0
+  const taxAmount = Number(res.tax_amount) || 0
+  // NEVER fall back to tenants.vat_rate here. It is mutable — it was changed
+  // 17 -> 18 in this database and four live reservations were sold at 17%.
+  // A row that predates the pricing migration carries its rate implicitly in
+  // its own figures, which is what deriveHistoricalVatRate recovers.
+  const storedVatRate = toNullableNumber(res.vat_rate)
+  const vatRate =
+    storedVatRate !== null ? storedVatRate : deriveHistoricalVatRate(totalPrice, taxAmount)
+
   return {
     firstName: res.first_name || "",
     lastName: res.last_name || "",
@@ -265,16 +365,36 @@ function mapServerToEdit(res: any): ReservationEditData {
     agent: res.agent || "",
     adSource: res.ad_source || "",
 
-    totalPrice: Number(res.total_price) || 0,
+    totalPrice,
     totalPaid: Number(res.total_paid) || 0,
     balanceDue: Number(res.balance_due) || 0,
     deposit: Number(res.deposit) || 0,
     discountPercent: Number(res.discount_percent) || 0,
     discountPerNight: Number(res.discount_per_night) || 0,
     taxExempt: res.tax_exempt || false,
-    taxAmount: Number(res.tax_amount) || 0,
+    taxAmount,
     subtotal: Number(res.subtotal) || 0,
-    currency: "ILS",
+    currency: res.currency || "ILS",
+
+    priceMode: toPriceMode(res.price_mode),
+    manualNightlyRate: toNullableNumber(res.manual_nightly_rate),
+    manualTotal: toNullableNumber(res.manual_total),
+    discountMode: toDiscountMode(res.discount_mode),
+    discountValue: Number(res.discount_value) || 0,
+    vatInclusive: res.vat_inclusive ?? true,
+    vatRate,
+    ratePlanId: res.rate_plan_id || "",
+    exchangeRate: Number(res.exchange_rate) || 1,
+    extraCharges: extrasFromBreakdown(res.pricing_breakdown),
+
+    cardHolderName: res.card_holder_name || "",
+    cardLast4: res.card_last4 || "",
+    cardHolderId: res.card_holder_id || "",
+    cardExpiryMonth: res.card_expiry_month || "",
+    cardExpiryYear: res.card_expiry_year || "",
+    cardApprovalCode: res.card_approval_code || "",
+    cardTransactionRef: res.card_transaction_ref || "",
+    cardInstallments: Number(res.card_installments) || 1,
   }
 }
 
@@ -314,6 +434,89 @@ function roomDataToEditable(row: RoomData): ReservationRoom {
   }
 }
 
+/* ── Derived pricing ─────────────────────────────────────────
+ * Mirrors computeDerived in reservation-form-store: one NightRate per
+ * ROOM-night, then lib/pricing/engine.ts owns every rule after that. There is
+ * no second money formula in this file. */
+
+function pricingNightsFor(data: ReservationEditData, rooms: ReservationRoom[]): NightRate[] {
+  const ratePlanId = data.ratePlanId || null
+
+  if (rooms.length > 0) {
+    return rooms.flatMap((r) =>
+      enumerateNights(r.checkIn || data.checkIn, r.checkOut || data.checkOut).map((date) => ({
+        date,
+        baseRate: r.ratePerNight || 0,
+        appliedRate: r.ratePerNight || 0,
+        source: "room_type_base" as const,
+        ratePlanId,
+        losRuleApplied: null,
+      })),
+    )
+  }
+
+  // Room-less reservation (legacy rows). `subtotal` is the gross the engine
+  // itself produces, so feeding it back is a fixed point; total_price is not —
+  // it already carries VAT and would compound on every derive pass.
+  const dates = enumerateNights(data.checkIn, data.checkOut)
+  const base = data.subtotal > 0 ? data.subtotal : data.totalPrice
+  const perNight = dates.length > 0 ? base / dates.length : 0
+  return dates.map((date) => ({
+    date,
+    baseRate: perNight,
+    appliedRate: perNight,
+    source: "room_type_base" as const,
+    ratePlanId,
+    losRuleApplied: null,
+  }))
+}
+
+interface DerivedPricing {
+  data: ReservationEditData
+  pricing: PricingResult
+  totalPrice: number
+  taxAmount: number
+  netAmount: number
+  balanceDue: number
+}
+
+function derivePricing(data: ReservationEditData, rooms: ReservationRoom[]): DerivedPricing {
+  const pricing = computePricing({
+    nights: pricingNightsFor(data, rooms),
+    priceMode: data.priceMode,
+    manualNightlyRate: data.manualNightlyRate,
+    manualTotal: data.manualTotal,
+    discountMode: data.discountMode,
+    discountValue: data.discountValue,
+    extraCharges: Math.max(0, data.extraCharges || 0),
+    vatInclusive: data.vatInclusive,
+    vatRate: Math.max(0, data.vatRate || 0),
+    vatExempt: data.taxExempt,
+    // A deposit IS a payment. Subtracting it again is what made the panel
+    // disagree with every other view of the same reservation.
+    payments: (data.totalPaid || 0) + (data.deposit || 0),
+    currency: data.currency,
+    exchangeRate: data.exchangeRate || 1,
+  })
+
+  return {
+    // Fold the result back onto `data` so the summary tab and the save payload
+    // cannot show one number while the pricing tab shows another.
+    data: {
+      ...data,
+      totalPrice: pricing.grandTotal,
+      taxAmount: pricing.vatAmount,
+      subtotal: pricing.grossBeforeDiscount,
+      balanceDue: pricing.balanceDue,
+    },
+    pricing,
+    totalPrice: pricing.grandTotal,
+    taxAmount: pricing.vatAmount,
+    netAmount: pricing.netAmount,
+    balanceDue: pricing.balanceDue,
+  }
+}
+
 function roomsDirty(a: ReservationRoom[], b: ReservationRoom[] | null): boolean {
   if (!b) return false
   if (a.length !== b.length) return true
@@ -335,7 +538,15 @@ const EMPTY_DATA: ReservationEditData = {
   totalPrice: 0, totalPaid: 0, balanceDue: 0, deposit: 0,
   discountPercent: 0, discountPerNight: 0, taxExempt: false, taxAmount: 0, subtotal: 0,
   currency: "ILS",
+  priceMode: "auto", manualNightlyRate: null, manualTotal: null,
+  discountMode: "none", discountValue: 0, vatInclusive: true, vatRate: 0,
+  ratePlanId: "", exchangeRate: 1, extraCharges: 0,
+  cardHolderName: "", cardLast4: "", cardHolderId: "",
+  cardExpiryMonth: "", cardExpiryYear: "",
+  cardApprovalCode: "", cardTransactionRef: "", cardInstallments: 1,
 }
+
+const EMPTY_DERIVED = derivePricing(EMPTY_DATA, [])
 
 /* ── Store ───────────────────────────────────────────────────── */
 
@@ -345,7 +556,6 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
   isSaving: false,
   activeTab: 0,
   errors: {},
-  cardRevealed: false,
 
   reservationId: "",
   reservationNumber: "",
@@ -369,6 +579,11 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
 
   isDirty: false,
   nights: 0,
+  pricing: EMPTY_DERIVED.pricing,
+  totalPrice: 0,
+  taxAmount: 0,
+  netAmount: 0,
+  balanceDue: 0,
   savedTick: 0,
 
   open: async (reservationId, tenantId) => {
@@ -383,7 +598,6 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
       tenantId,
       activeTab: 0,
       errors: {},
-      cardRevealed: false,
       data: { ...EMPTY_DATA },
       originalData: null,
       rooms: [],
@@ -394,6 +608,11 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
       logs: [],
       isDirty: false,
       nights: 0,
+      pricing: EMPTY_DERIVED.pricing,
+      totalPrice: 0,
+      taxAmount: 0,
+      netAmount: 0,
+      balanceDue: 0,
     })
 
     const raw = await getReservationFull(reservationId)
@@ -412,6 +631,11 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
     const roomsData = (result.rooms || []) as unknown as RoomData[]
     const editable = roomsData.map(roomDataToEditable)
 
+    // Price on load, and treat the priced result as the baseline. Otherwise a
+    // row whose stored totals were already stale would open dirty and nag the
+    // user about a change they never made.
+    const derived = derivePricing(editData, editable)
+
     set({
       isLoading: false,
       reservationNumber: result.reservation_number || "",
@@ -420,8 +644,8 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
       createdAt: result.created_at ? String(result.created_at) : "",
       updatedAt: result.updated_at ? String(result.updated_at) : "",
       createdBy: result.created_by || "",
-      data: editData,
-      originalData: { ...editData },
+      data: derived.data,
+      originalData: { ...derived.data },
       rooms: roomsData,
       editableRooms: editable,
       originalEditableRooms: editable.map((r) => ({ ...r })),
@@ -429,7 +653,12 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
       charges: (result.charges || []) as unknown as ChargeRecord[],
       logs: (result.logs || []) as unknown as LogEntry[],
       isDirty: false,
-      nights: computeNights(editData.checkIn, editData.checkOut),
+      nights: computeNights(derived.data.checkIn, derived.data.checkOut),
+      pricing: derived.pricing,
+      totalPrice: derived.totalPrice,
+      taxAmount: derived.taxAmount,
+      netAmount: derived.netAmount,
+      balanceDue: derived.balanceDue,
     })
   },
 
@@ -447,27 +676,33 @@ export const useReservationEditStore = create<ReservationEditStore>((set) => ({
     charges: [],
     logs: [],
     isDirty: false,
-    cardRevealed: false,
+    pricing: EMPTY_DERIVED.pricing,
+    totalPrice: 0,
+    taxAmount: 0,
+    netAmount: 0,
+    balanceDue: 0,
   }),
 
   setField: (key, value) =>
     set((state) => {
-      const newData = { ...state.data, [key]: value }
+      const derived = derivePricing({ ...state.data, [key]: value }, state.editableRooms)
       return {
-        data: newData,
+        data: derived.data,
+        pricing: derived.pricing,
+        totalPrice: derived.totalPrice,
+        taxAmount: derived.taxAmount,
+        netAmount: derived.netAmount,
+        balanceDue: derived.balanceDue,
         isDirty:
-          !deepEqual(newData, state.originalData) ||
+          !deepEqual(derived.data, state.originalData) ||
           roomsDirty(state.editableRooms, state.originalEditableRooms),
-        nights: (key === "checkIn" || key === "checkOut")
-          ? computeNights(newData.checkIn, newData.checkOut)
-          : state.nights,
+        nights: computeNights(derived.data.checkIn, derived.data.checkOut),
       }
     }),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setErrors: (errors) => set({ errors }),
   setSaving: (v) => set({ isSaving: v }),
-  toggleCardReveal: () => set((s) => ({ cardRevealed: !s.cardRevealed })),
 
   addEditableRoom: (room) =>
     set((state) => {
@@ -527,12 +762,19 @@ function deriveFromRooms(state: ReservationEditStore, editableRooms: Reservation
     infants: derivedInfants,
   }
 
+  const derived = derivePricing(newData, recomputed)
+
   return {
     editableRooms: recomputed,
-    data: newData,
-    nights: computeNights(newData.checkIn, newData.checkOut),
+    data: derived.data,
+    pricing: derived.pricing,
+    totalPrice: derived.totalPrice,
+    taxAmount: derived.taxAmount,
+    netAmount: derived.netAmount,
+    balanceDue: derived.balanceDue,
+    nights: computeNights(derived.data.checkIn, derived.data.checkOut),
     isDirty:
-      !deepEqual(newData, state.originalData) ||
+      !deepEqual(derived.data, state.originalData) ||
       roomsDirty(recomputed, state.originalEditableRooms),
   }
 }

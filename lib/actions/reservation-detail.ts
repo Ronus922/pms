@@ -17,6 +17,12 @@ export async function getReservationFull(reservationId: string) {
       r.payment_status, r.payment_method, r.total_price, r.total_paid, r.balance_due,
       r.deposit, r.discount_percent, r.discount_per_night, r.tax_exempt, r.tax_amount,
       r.subtotal, r.coupon_code, r.company, r.agent, r.ad_source,
+      r.price_mode, r.manual_nightly_rate, r.manual_total,
+      r.discount_mode, r.discount_value, r.vat_inclusive, r.vat_rate,
+      r.currency, r.exchange_rate, r.pricing_breakdown, r.rate_plan_id,
+      r.card_holder_name, r.card_last4, r.card_holder_id,
+      r.card_expiry_month, r.card_expiry_year,
+      r.card_approval_code, r.card_transaction_ref, r.card_installments,
       r.external_id, r.channel_manager_id, r.cancellation_policy,
       r.parking, r.transport, r.accessibility, r.extra_beds, r.crib, r.flight_number,
       r.created_at, r.updated_at, r.created_by, r.updated_by, r.tenant_id, r.property_id,
@@ -53,21 +59,25 @@ export async function getReservationFull(reservationId: string) {
     LEFT JOIN room_types rt ON rt.id = rm.room_type_id
     LEFT JOIN floors f ON f.id = rm.floor_id
     LEFT JOIN buildings b ON b.id = rm.building_id
-    WHERE rr.reservation_id = ${reservationId}
+    WHERE rr.reservation_id = ${reservationId} AND rr.tenant_id = ${actor.tenantId}
     ORDER BY rm.room_number
   `
 
+  // Every child query filters on tenant_id explicitly. Relying on the parent
+  // SELECT above to have proven ownership makes each of these one refactor away
+  // from leaking another tenant's rows — the predicate belongs on the query
+  // that reads the data, not on a check somewhere upstream.
   const charges = await db`
     SELECT id, description, amount, quantity, total, charge_date, created_at
     FROM reservation_charges
-    WHERE reservation_id = ${reservationId}
+    WHERE reservation_id = ${reservationId} AND tenant_id = ${actor.tenantId}
     ORDER BY created_at DESC
   `
 
   const payments = await db`
     SELECT id, amount, method, status, morning_invoice_id, notes, created_at
     FROM payments
-    WHERE reservation_id = ${reservationId}
+    WHERE reservation_id = ${reservationId} AND tenant_id = ${actor.tenantId}
     ORDER BY created_at DESC
   `
 
@@ -76,7 +86,7 @@ export async function getReservationFull(reservationId: string) {
       u.full_name as user_name
     FROM audit_log al
     LEFT JOIN users u ON u.id = al.user_id
-    WHERE al.entity_id = ${reservationId}
+    WHERE al.entity_id = ${reservationId} AND al.tenant_id = ${actor.tenantId}
     ORDER BY al.created_at DESC
     LIMIT 50
   `

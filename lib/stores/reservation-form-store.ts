@@ -250,9 +250,13 @@ const DEFAULTS: ReservationFormData = {
   discountPercent: 0,
   extraCharges: [],
   taxExempt: false,
-  // Pre-fetch fallback only. ReservationModal overwrites this from
-  // tenants.vat_rate the moment the modal opens; the server never trusts it.
-  taxRate: 0.17,
+  // Starts at 0, NOT at an assumed national rate. ReservationModal fills it
+  // from tenants.vat_rate the moment the modal opens. Guessing here is what
+  // produced the only real 17-vs-18 drift: the tenant is on 18%, so a 0.17
+  // fallback quietly previewed a different total from the one the server saved.
+  // Showing no VAT for a few hundred milliseconds is honest; showing the wrong
+  // VAT is not.
+  taxRate: 0,
   deposit: 0,
   amountPaid: 0,
   currency: "ILS",
