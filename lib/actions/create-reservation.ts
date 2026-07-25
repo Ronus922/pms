@@ -544,14 +544,22 @@ export async function createReservation(
             tenant_id, reservation_id, room_id,
             check_in, check_out, rate_per_night,
             adults, children, infants,
-            guest_first_name, guest_last_name, guest_phone, guest_email, guest_id_number
+            guest_first_name, guest_last_name, guest_phone, guest_email, guest_id_number,
+            price_mode, manual_nightly_rate, manual_total,
+            discount_mode, discount_value, vat_inclusive, vat_rate,
+            currency, exchange_rate, rate_plan_id
           )
           VALUES (
             ${tenantId}, ${reservation.id}, ${room.roomId},
             ${roomCheckIn}::date, ${roomCheckOut}::date, ${room.ratePerNight},
             ${room.adults ?? 1}, ${room.children ?? 0}, ${room.infants ?? 0},
             ${room.guestFirstName || null}, ${room.guestLastName || null},
-            ${room.guestPhone || null}, ${room.guestEmail || null}, ${room.guestIdNumber || null}
+            ${room.guestPhone || null}, ${room.guestEmail || null}, ${room.guestIdNumber || null},
+            ${room.priceMode || "auto"}, ${room.manualNightlyRate ?? null}, ${room.manualTotal ?? null},
+            ${room.discountMode || "none"}, ${room.discountValue ?? 0},
+            ${room.vatInclusive ?? vatInclusive}, ${storedVatRate},
+            ${/* one invoice, one currency — the engine does no FX */ currency}, ${1},
+            ${ratePlanId}::uuid
           )
         `
       }
@@ -560,12 +568,18 @@ export async function createReservation(
         INSERT INTO reservation_rooms (
           tenant_id, reservation_id, room_id,
           check_in, check_out, rate_per_night,
-          adults, children, infants
+          adults, children, infants,
+          price_mode, manual_nightly_rate, manual_total,
+          discount_mode, discount_value, vat_inclusive, vat_rate,
+          currency, exchange_rate, rate_plan_id
         )
         VALUES (
           ${tenantId}, ${reservation.id}, ${roomId},
           ${form.checkIn}::date, ${form.checkOut}::date, ${pricePerNight},
-          ${adults}, ${children}, ${infants}
+          ${adults}, ${children}, ${infants},
+          ${priceMode}, ${manualNightlyRate}, ${manualTotal},
+          ${discountMode}, ${discountValue}, ${vatInclusive}, ${storedVatRate},
+          ${currency}, ${1}, ${ratePlanId}::uuid
         )
       `
     }

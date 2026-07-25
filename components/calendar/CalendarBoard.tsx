@@ -140,6 +140,14 @@ export function CalendarBoard({ tenantId }: CalendarBoardProps) {
             guestPhone: "",
             guestEmail: "",
             guestIdNumber: "",
+            // A drag-created room starts on the system price with no override.
+            priceMode: "auto",
+            manualNightlyRate: null,
+            manualTotal: null,
+            discountMode: "none",
+            discountValue: 0,
+            vatInclusive: true,
+            currency: "ILS",
           },
         ],
       })

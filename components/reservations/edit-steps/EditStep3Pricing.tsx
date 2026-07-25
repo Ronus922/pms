@@ -1,22 +1,31 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Icon } from "@/components/shared/Icon"
 import { FormField, inputClass, selectClass } from "@/components/shared/FormField"
 import { StatusPill } from "@/components/reservations/StatusPill"
 import { SmartField } from "@/components/reservations/FieldLock"
 import {
   PricingEditor,
-  type PricingRoomLine,
   type RatePlanOption,
 } from "@/components/reservations/pricing/PricingEditor"
+import { RoomPricingRow } from "@/components/reservations/pricing/RoomPricingRow"
 import { CardFields } from "@/components/reservations/pricing/CardFields"
 import { SectionCard, formatCurrency } from "@/components/reservations/pricing/shared"
-import { useReservationEditStore } from "@/lib/stores/reservation-edit-store"
+import {
+  priceEditableRooms,
+  useReservationEditStore,
+} from "@/lib/stores/reservation-edit-store"
 import { getFormOptions } from "@/lib/actions/create-reservation"
 import { getTenantSettings } from "@/lib/actions/settings"
 import { enumerateNights } from "@/lib/pricing/engine"
 import { PAYMENT_METHODS, CURRENCY_SYMBOLS } from "@/lib/constants/payments"
+
+/** Shown on the reservation-level editor when its own manual total is the
+ *  authoritative figure and the per-room sum is therefore not. */
+const RESERVATION_OVERRIDES_ROOMS =
+  'ההזמנה במצב "סה״כ מחיר ידני" — הסכום שהוזן כאן גובר על סכום החדרים. ' +
+  "התמחור פר-חדר נשמר אך אינו משנה את הסה״כ; עבור למצב אחר כדי שסכום החדרים יקבע."
 
 /**
  * Edit-flow pricing step. Renders the SAME PricingEditor / CardFields as the
@@ -54,12 +63,17 @@ export function EditStep3Pricing() {
     }
   }, [tenantId])
 
-  const rooms: PricingRoomLine[] = editableRooms.map((room) => ({
-    id: room.id,
-    label: `חדר ${room.roomNumber || "—"}`,
-    ratePerNight: Number(room.ratePerNight) || 0,
-    nights: enumerateNights(room.checkIn || data.checkIn, room.checkOut || data.checkOut).length,
-  }))
+  /** A reservation-level manual total is the final word — the per-room sum
+   *  cannot move it, so the room controls are shown but locked. */
+  const reservationOverridesRooms = data.priceMode === "manual_total"
+
+  // Priced through the SAME function the store used for the reservation total.
+  // Two code paths pricing one room is how a screen starts disagreeing with the
+  // number that gets saved.
+  const roomPricing = useMemo(
+    () => priceEditableRooms(data, editableRooms),
+    [data, editableRooms],
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,12 +96,56 @@ export function EditStep3Pricing() {
             else store.setField(key, next as never)
           }}
           result={pricing}
-          rooms={rooms}
+          /* The per-room lines live in RoomPricingRow below, where they are also
+           * editable. Repeating them here would show the same money twice. */
+          rooms={[]}
           ratePlans={ratePlans}
           currencies={currencies}
           errors={store.errors}
+          overriddenNotice={reservationOverridesRooms ? RESERVATION_OVERRIDES_ROOMS : null}
         />
       </SmartField>
+
+      {/* ── Per-room pricing ────────────────────────────────── */}
+      {editableRooms.length > 0 && (
+        <SectionCard title="תמחור לפי חדר">
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-muted-foreground">
+              לכל חדר אותן אפשרויות תמחור של ההזמנה. הסה״כ של כל חדר מחושב לפי הפקדים שלו,
+              והנחת ההזמנה והתוספות מוחלות מעל סכום החדרים.
+            </p>
+
+            {editableRooms.map((room, idx) => (
+              <RoomPricingRow
+                key={room.id}
+                label={`חדר ${room.roomNumber || room.roomTypeName || idx + 1}`}
+                nightsCount={
+                  enumerateNights(room.checkIn || data.checkIn, room.checkOut || data.checkOut)
+                    .length
+                }
+                value={{
+                  priceMode: room.priceMode,
+                  manualNightlyRate: room.manualNightlyRate,
+                  manualTotal: room.manualTotal,
+                  discountMode: room.discountMode,
+                  discountValue: room.discountValue,
+                  vatInclusive: room.vatInclusive,
+                  currency: room.currency || data.currency,
+                }}
+                onChange={(key, next) => {
+                  // One invoice, one currency: the room picker writes the
+                  // reservation's currency, which cascades back to every room.
+                  if (key === "currency") store.setField("currency", next as string)
+                  else store.updateEditableRoom(room.id, { [key]: next })
+                }}
+                result={roomPricing[idx].result}
+                currencies={currencies}
+                overridden={reservationOverridesRooms}
+              />
+            ))}
+          </div>
+        </SectionCard>
+      )}
 
       {/* ── Payment method ──────────────────────────────────── */}
       <SectionCard title="אמצעי תשלום">

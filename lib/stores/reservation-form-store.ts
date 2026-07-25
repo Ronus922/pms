@@ -44,6 +44,20 @@ export interface ReservationRoom {
   guestPhone: string
   guestEmail: string
   guestIdNumber: string
+  /** Per-room pricing controls — the SAME set the reservation carries.
+   *  reservation_rooms grew its own price_mode / manual_* / discount_* /
+   *  vat_inclusive / currency columns in the 2026-07-25 pricing migration; this
+   *  is the client-side mirror of them. The VAT RATE is deliberately absent: it
+   *  belongs to the reservation (the era the stay was sold in), not to a room.
+   *  Edited in the edit panel via RoomPricingRow; the create wizard carries the
+   *  defaults so both flows speak one shape. */
+  priceMode: PriceMode
+  manualNightlyRate: number | null
+  manualTotal: number | null
+  discountMode: DiscountMode
+  discountValue: number
+  vatInclusive: boolean
+  currency: string
 }
 
 export interface AttachmentFile {

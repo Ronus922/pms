@@ -5,7 +5,17 @@ import { Icon } from "@/components/shared/Icon"
 import { FormField, inputClass, selectClass } from "@/components/shared/FormField"
 import { CURRENCY_SYMBOLS } from "@/lib/constants/payments"
 import type { DiscountMode, PriceMode, PricingResult } from "@/lib/pricing/engine"
-import { SectionCard, SummaryRow, ToggleSwitch, formatCurrency } from "./shared"
+import {
+  DISCOUNT_MODES,
+  DISCOUNT_RESET_NOTICE,
+  PRICE_MODES,
+  SectionCard,
+  SummaryRow,
+  ToggleSwitch,
+  discountFamilyChanged,
+  discountMeta,
+  formatCurrency,
+} from "./shared"
 
 /**
  * The one pricing surface. Create, edit and per-room editing all render THIS —
@@ -40,20 +50,6 @@ export interface RatePlanOption {
   id: string
   name: string
 }
-
-const PRICE_MODES: Array<{ value: PriceMode; label: string }> = [
-  { value: "auto", label: "מחיר מקורי (אוטומטי)" },
-  { value: "manual_nightly", label: "מחיר ידני ללילה" },
-  { value: "manual_total", label: "סה״כ מחיר ידני" },
-]
-
-const DISCOUNT_MODES: Array<{ value: DiscountMode; label: string; suffix: "%" | "amount" | null }> = [
-  { value: "none", label: "מחיר מלא (בלי הנחה)", suffix: null },
-  { value: "amount_per_night", label: "הנחה בסכום ללילה", suffix: "amount" },
-  { value: "percent_per_night", label: "אחוז הנחה ללילה", suffix: "%" },
-  { value: "amount_total", label: "הנחה בסכום להזמנה", suffix: "amount" },
-  { value: "percent_total", label: "אחוז הנחה להזמנה", suffix: "%" },
-]
 
 export interface PricingEditorProps {
   value: PricingEditorValue
@@ -90,20 +86,11 @@ export function PricingEditor({
   const [showNightly, setShowNightly] = useState(false)
   const [discountReset, setDiscountReset] = useState(false)
   const sym = CURRENCY_SYMBOLS[value.currency] || "₪"
-  const discountMeta = DISCOUNT_MODES.find((d) => d.value === value.discountMode) ?? DISCOUNT_MODES[0]
+  const meta = discountMeta(value.discountMode)
   const isManualTotal = value.priceMode === "manual_total"
 
-  /**
-   * A discount of "20" means 20% in a percent mode and ₪20 in an amount mode.
-   * Carrying the number across that boundary silently changes what the guest is
-   * charged, and only the percent side is range-checked — so 20% → ₪20 passes
-   * validation while quietly collapsing the discount. Switching between the two
-   * families clears the value and says so; switching within a family keeps it.
-   */
   const handleDiscountModeChange = (next: DiscountMode) => {
-    const nextMeta = DISCOUNT_MODES.find((d) => d.value === next)
-    const familyChanged =
-      nextMeta?.suffix !== discountMeta.suffix && nextMeta?.suffix !== null && discountMeta.suffix !== null
+    const familyChanged = discountFamilyChanged(value.discountMode, next)
     onChange("discountMode", next)
     if (familyChanged && value.discountValue > 0) {
       onChange("discountValue", 0)
@@ -332,8 +319,8 @@ export function PricingEditor({
                   </select>
                 </FormField>
 
-                {discountMeta.suffix && (
-                  <FormField label={discountMeta.label} error={errors.discountValue}>
+                {meta.suffix && (
+                  <FormField label={meta.label} error={errors.discountValue}>
                     <div className="relative">
                       <input
                         type="number"
@@ -342,18 +329,18 @@ export function PricingEditor({
                           const raw = Number(e.target.value) || 0
                           onChange(
                             "discountValue",
-                            discountMeta.suffix === "%" ? Math.min(100, Math.max(0, raw)) : Math.max(0, raw),
+                            meta.suffix === "%" ? Math.min(100, Math.max(0, raw)) : Math.max(0, raw),
                           )
                         }}
                         placeholder="0"
                         min={0}
-                        max={discountMeta.suffix === "%" ? 100 : undefined}
+                        max={meta.suffix === "%" ? 100 : undefined}
                         dir="ltr"
                         disabled={disabled}
                         className={`${inputClass} pe-12 text-start tabular-nums`}
                       />
                       <div className="absolute top-1/2 -translate-y-1/2 start-4 text-muted-foreground pointer-events-none text-sm font-bold">
-                        {discountMeta.suffix === "%" ? "%" : sym}
+                        {meta.suffix === "%" ? "%" : sym}
                       </div>
                     </div>
                   </FormField>
@@ -363,9 +350,7 @@ export function PricingEditor({
               {discountReset && (
                 <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-xs text-amber-700 dark:text-amber-400">
                   <Icon name="info" size="sm" className="shrink-0 mt-0.5" />
-                  <span>
-                    ערך ההנחה אופס — מעבר בין הנחה באחוזים להנחה בסכום משנה את משמעות המספר.
-                  </span>
+                  <span>{DISCOUNT_RESET_NOTICE}</span>
                 </div>
               )}
 
@@ -393,6 +378,7 @@ export function PricingEditor({
                 checked={value.vatInclusive}
                 onChange={(next) => onChange("vatInclusive", next)}
                 label="המחיר כולל מע״מ"
+                disabled={disabled}
               />
             </div>
 
@@ -408,6 +394,7 @@ export function PricingEditor({
                 checked={value.vatExempt}
                 onChange={(next) => onChange("vatExempt", next)}
                 label="פטור ממע״מ"
+                disabled={disabled}
               />
             </div>
           </div>

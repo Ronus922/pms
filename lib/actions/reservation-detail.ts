@@ -44,6 +44,12 @@ export async function getReservationFull(reservationId: string) {
     SELECT rr.id, rr.room_id, rr.check_in, rr.check_out, rr.rate_per_night,
       rr.adults, rr.children, rr.infants,
       rr.guest_first_name, rr.guest_last_name, rr.guest_phone, rr.guest_email, rr.guest_id_number,
+      -- Per-room pricing controls (2026-07-25 pricing migration). Without these
+      -- the edit panel would re-open every room in "auto" and silently discard
+      -- an override the operator saved a minute earlier.
+      rr.price_mode, rr.manual_nightly_rate, rr.manual_total,
+      rr.discount_mode, rr.discount_value, rr.vat_inclusive,
+      rr.vat_rate, rr.currency, rr.exchange_rate, rr.pricing_breakdown,
       rm.room_number, rm.status AS room_status,
       rt.name AS room_type_name,
       COALESCE(rm.max_occupancy, rt.max_occupancy) AS max_occupancy,

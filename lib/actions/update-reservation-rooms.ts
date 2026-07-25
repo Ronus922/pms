@@ -5,6 +5,14 @@ import { requireActor } from "@/lib/auth/actor"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
 import type { ReservationRoom } from "@/lib/stores/reservation-form-store"
+import { deriveHistoricalVatRate } from "@/lib/pricing/engine"
+import {
+  priceRoom,
+  validateRoomPricing,
+  type ReservationPricingContext,
+  type RoomPricingOutcome,
+  type RoomPricingSource,
+} from "@/lib/pricing/rooms"
 
 /** postgres.js hands back DATE columns as JavaScript Date objects, so a
  *  plain `String(prev.check_in).slice(0, 10)` produces "Mon Apr 13" (never
@@ -296,9 +304,83 @@ export async function updateReservationRooms(
       }
     }
 
+    /* ── Per-room pricing ────────────────────────────────────
+     * The client's per-room figures are a preview; these are the ones stored.
+     * The VAT context comes from the RESERVATION row — tenants.vat_rate is
+     * mutable (it went 17 -> 18) and would restate a stay sold under the old
+     * rate. A row predating the pricing migration carries its rate implicitly
+     * in its own figures, which deriveHistoricalVatRate recovers.
+     *
+     * NOTE ON ORDERING: this action runs BEFORE updateReservation in the save
+     * flow, so `resPricing` is the reservation as it stood before this save.
+     * updateReservation re-derives vat_rate / exchange_rate / pricing_breakdown
+     * for every room afterwards with the authoritative context — that second
+     * pass is what makes a save that ALSO flips "פטור ממע״מ" come out right. */
+    const [resPricing] = await db<
+      {
+        vat_rate: string | null
+        tax_exempt: boolean | null
+        vat_inclusive: boolean | null
+        currency: string | null
+        exchange_rate: string | null
+        rate_plan_id: string | null
+        total_price: string | null
+        tax_amount: string | null
+      }[]
+    >`
+      SELECT vat_rate, tax_exempt, vat_inclusive, currency, exchange_rate,
+             rate_plan_id, total_price, tax_amount
+      FROM reservations
+      WHERE id = ${reservationId} AND tenant_id = ${tenantId}
+    `
+    if (!resPricing) {
+      return { success: false, error: "לא נמצאה הזמנה" }
+    }
+
+    const storedVat = resPricing.vat_rate == null ? null : Number(resPricing.vat_rate)
+    const pricingCtx: ReservationPricingContext = {
+      vatRate:
+        storedVat !== null && Number.isFinite(storedVat)
+          ? storedVat
+          : deriveHistoricalVatRate(
+              Number(resPricing.total_price) || 0,
+              Number(resPricing.tax_amount) || 0,
+            ),
+      vatExempt: resPricing.tax_exempt ?? false,
+      vatInclusive: resPricing.vat_inclusive ?? true,
+      currency: resPricing.currency || "ILS",
+      exchangeRate: Number(resPricing.exchange_rate) || 1,
+      ratePlanId: resPricing.rate_plan_id,
+    }
+
+    const pricedRooms = new Map<string, RoomPricingOutcome>()
+    for (let i = 0; i < rooms.length; i++) {
+      const r = rooms[i]
+      const source: RoomPricingSource = {
+        ...r,
+        ratePerNight: Number(r.ratePerNight) || 0,
+        currency: r.currency || pricingCtx.currency,
+      }
+      const roomErrors = validateRoomPricing(source, pricingCtx)
+      if (roomErrors.length > 0) {
+        return { success: false, error: `חדר ${i + 1}: ${roomErrors[0].message}` }
+      }
+      pricedRooms.set(r.id, priceRoom(source, pricingCtx))
+    }
+
+    /** Every per-room money figure that gets stored, straight off the engine. */
+    function pricingOf(room: ReservationRoom) {
+      const outcome = pricedRooms.get(room.id)
+      return {
+        currency: room.currency || pricingCtx.currency,
+        breakdown: JSON.stringify(outcome ? outcome.result.breakdown : []),
+      }
+    }
+
     // Transactional writes — UPDATE existing, INSERT new, DELETE removed.
     await db.begin(async (tx) => {
       for (const r of toUpdate) {
+        const p = pricingOf(r)
         await tx`
           UPDATE reservation_rooms SET
             room_id = ${r.roomId},
@@ -313,6 +395,16 @@ export async function updateReservationRooms(
             guest_phone = ${r.guestPhone || null},
             guest_email = ${r.guestEmail || null},
             guest_id_number = ${r.guestIdNumber || null},
+            price_mode = ${r.priceMode},
+            manual_nightly_rate = ${r.manualNightlyRate},
+            manual_total = ${r.manualTotal},
+            discount_mode = ${r.discountMode},
+            discount_value = ${r.discountValue},
+            vat_inclusive = ${r.vatInclusive},
+            vat_rate = ${pricingCtx.vatRate},
+            currency = ${p.currency},
+            exchange_rate = ${pricingCtx.exchangeRate},
+            pricing_breakdown = ${p.breakdown}::jsonb,
             updated_at = NOW()
           WHERE id = ${r.id}
             AND tenant_id = ${tenantId}
@@ -321,19 +413,27 @@ export async function updateReservationRooms(
       }
 
       for (const r of toInsert) {
+        const p = pricingOf(r)
         await tx`
           INSERT INTO reservation_rooms (
             tenant_id, reservation_id, room_id,
             check_in, check_out, rate_per_night,
             adults, children, infants,
-            guest_first_name, guest_last_name, guest_phone, guest_email, guest_id_number
+            guest_first_name, guest_last_name, guest_phone, guest_email, guest_id_number,
+            price_mode, manual_nightly_rate, manual_total,
+            discount_mode, discount_value, vat_inclusive,
+            vat_rate, currency, exchange_rate, pricing_breakdown
           )
           VALUES (
             ${tenantId}, ${reservationId}, ${r.roomId},
             ${r.checkIn}::date, ${r.checkOut}::date, ${r.ratePerNight},
             ${r.adults}, ${r.children}, ${r.infants},
             ${r.guestFirstName || null}, ${r.guestLastName || null},
-            ${r.guestPhone || null}, ${r.guestEmail || null}, ${r.guestIdNumber || null}
+            ${r.guestPhone || null}, ${r.guestEmail || null}, ${r.guestIdNumber || null},
+            ${r.priceMode}, ${r.manualNightlyRate}, ${r.manualTotal},
+            ${r.discountMode}, ${r.discountValue}, ${r.vatInclusive},
+            ${pricingCtx.vatRate}, ${p.currency}, ${pricingCtx.exchangeRate},
+            ${p.breakdown}::jsonb
           )
         `
       }

@@ -141,6 +141,54 @@ describe("price modes", () => {
     expect(resolved.every((n) => n.appliedRate === 275 && n.source === "manual")).toBe(true)
   })
 
+  it("manual_nightly applies even when the caller assembled nights by hand", () => {
+    // Every store and server action builds NightRate[] itself rather than going
+    // through resolveNightRates. Before this was fixed, a reservation set to
+    // "manual nightly" was silently billed at the system rate.
+    const r = computePricing(
+      input({ nights: nights(4, 500), priceMode: "manual_nightly", manualNightlyRate: 275 }),
+    )
+    expect(r.grossBeforeDiscount).toBe(1100)
+    expect(r.grandTotal).toBe(1100)
+    expect(r.nights.every((n) => n.appliedRate === 275 && n.source === "manual")).toBe(true)
+  })
+
+  it("manual_nightly combines with a discount and VAT correctly", () => {
+    const r = computePricing(
+      input({
+        nights: nights(10, 900),
+        priceMode: "manual_nightly",
+        manualNightlyRate: 300,
+        discountMode: "percent_total",
+        discountValue: 10,
+        vatInclusive: false,
+      }),
+    )
+    expect(r.grossBeforeDiscount).toBe(3000)
+    expect(r.discountTotal).toBe(300)
+    expect(r.netAmount).toBe(2700)
+    expect(r.grandTotal).toBe(round2(2700 * (1 + VAT_18)))
+  })
+
+  it("manual_nightly is idempotent with resolveNightRates", () => {
+    // resolveNightRates already applies the override; applying it again in the
+    // engine must not change the result.
+    const resolved = resolveNightRates({
+      dates: enumerateNights("2026-08-01", "2026-08-05"),
+      roomTypeBasePrice: 800,
+      ratePlanId: null,
+      ratePlanPrice: null,
+      overrides: [],
+      losRules: [],
+      priceMode: "manual_nightly",
+      manualNightlyRate: 275,
+    })
+    const r = computePricing(
+      input({ nights: resolved, priceMode: "manual_nightly", manualNightlyRate: 275 }),
+    )
+    expect(r.grossBeforeDiscount).toBe(1100)
+  })
+
   it("manual_total lands on exactly the stated figure, no rounding drift", () => {
     const r = computePricing(
       input({ nights: nights(7, 999.99), priceMode: "manual_total", manualTotal: 15000 }),

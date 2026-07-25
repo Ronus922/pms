@@ -44,6 +44,8 @@ export function makeEmptyRoom(seed: {
   infants?: number
   firstName?: string
   lastName?: string
+  /** A new room inherits the reservation's currency — one invoice, one currency. */
+  currency?: string
 } = {}): ReservationRoom {
   const ci = seed.checkIn || todayIso()
   const co = seed.checkOut || addDaysIso(ci, 1)
@@ -73,6 +75,16 @@ export function makeEmptyRoom(seed: {
     guestPhone: "",
     guestEmail: "",
     guestIdNumber: "",
+    // Per-room pricing starts neutral: the room is priced by the system and
+    // inherits the reservation's VAT convention. Anything else would be an
+    // override the operator never asked for.
+    priceMode: "auto",
+    manualNightlyRate: null,
+    manualTotal: null,
+    discountMode: "none",
+    discountValue: 0,
+    vatInclusive: true,
+    currency: seed.currency || "ILS",
   }
 }
 
@@ -108,6 +120,7 @@ export function RoomsSection() {
         infants: store.infants,
         firstName: store.firstName,
         lastName: store.lastName,
+        currency: store.currency,
       }))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot seed
@@ -128,6 +141,7 @@ export function RoomsSection() {
       infants: first?.infants ?? 0,
       firstName: store.firstName,
       lastName: store.lastName,
+      currency: store.currency,
     }))
   }
 

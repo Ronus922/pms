@@ -332,8 +332,9 @@ export function validatePricingInput(input: PricingInput): PricingValidationErro
 
 export function computePricing(input: PricingInput): PricingResult {
   const {
-    nights,
+    nights: nightsIn,
     priceMode,
+    manualNightlyRate,
     manualTotal,
     discountMode,
     discountValue,
@@ -345,6 +346,21 @@ export function computePricing(input: PricingInput): PricingResult {
     currency,
     exchangeRate,
   } = input
+
+  // `manual_nightly` is also applied by resolveNightRates, but a caller that
+  // assembled NightRate[] by hand (every store and server action does) would
+  // otherwise have the mode silently ignored and be billed the system rate.
+  // Applying it here too makes the engine correct on any path; doing it twice
+  // is idempotent.
+  const nights =
+    priceMode === "manual_nightly" && manualNightlyRate !== null
+      ? nightsIn.map((n) => ({
+          ...n,
+          appliedRate: round2(Math.max(0, manualNightlyRate)),
+          source: "manual" as const,
+          losRuleApplied: null,
+        }))
+      : nightsIn
 
   const nightsCount = nights.length
   const effectiveVatRate = vatExempt ? 0 : Math.max(0, vatRate)

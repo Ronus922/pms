@@ -6,11 +6,17 @@ import type { ReservationEditData } from "@/lib/stores/reservation-edit-store"
 import {
   computePricing,
   deriveHistoricalVatRate,
-  enumerateNights,
   validatePricingInput,
   type NightRate,
   type PricingInput,
 } from "@/lib/pricing/engine"
+import {
+  priceRoom,
+  reservationNightsFromRooms,
+  roomPricingControlsFromRow,
+  type ReservationPricingContext,
+  type RoomPricingOutcome,
+} from "@/lib/pricing/rooms"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
 import { createCleaningTasksForCheckout, syncTaskTimesForReservation } from "@/lib/services/cleaning-tasks"
@@ -176,10 +182,24 @@ export async function updateReservation(
     // The engine is fed from reservation_rooms (already written by
     // updateReservationRooms earlier in the save flow) plus the operator's
     // pricing controls, and its output is what lands in the row.
-    const priceRooms = await db<
-      { check_in: Date | string; check_out: Date | string; rate_per_night: string | number | null }[]
+    const priceRoomRows = await db<
+      {
+        id: string
+        check_in: Date | string
+        check_out: Date | string
+        rate_per_night: string | number | null
+        price_mode: string | null
+        manual_nightly_rate: string | null
+        manual_total: string | null
+        discount_mode: string | null
+        discount_value: string | null
+        vat_inclusive: boolean | null
+        currency: string | null
+      }[]
     >`
-      SELECT check_in, check_out, rate_per_night
+      SELECT id, check_in, check_out, rate_per_night,
+             price_mode, manual_nightly_rate, manual_total,
+             discount_mode, discount_value, vat_inclusive, currency
       FROM reservation_rooms
       WHERE reservation_id = ${reservationId} AND tenant_id = ${tenantId}
       ORDER BY check_in
@@ -205,20 +225,38 @@ export async function updateReservation(
         : deriveHistoricalVatRate(Number(priceRow.total_price) || 0, Number(priceRow.tax_amount) || 0)
 
     const ratePlanId = data.ratePlanId || null
-    const pricingNights: NightRate[] = priceRooms.flatMap((room) => {
-      const rate = Number(room.rate_per_night) || 0
-      return enumerateNights(
-        toIsoDate(room.check_in) || data.checkIn,
-        toIsoDate(room.check_out) || data.checkOut,
-      ).map((date) => ({
-        date,
-        baseRate: rate,
-        appliedRate: rate,
-        source: "room_type_base" as const,
-        ratePlanId,
-        losRuleApplied: null,
-      }))
-    })
+
+    // Each room is priced on ITS OWN controls first, then the reservation is
+    // priced over the nights those rooms contribute — so the reservation total
+    // is the sum of its rooms by construction, not by a second addition that
+    // could disagree with the panel. A reservation in `manual_total` still
+    // wins: the engine ignores nights for the total in that mode.
+    const roomPricingCtx: ReservationPricingContext = {
+      vatRate: resolvedVatRate,
+      vatExempt: data.taxExempt,
+      vatInclusive: data.vatInclusive,
+      currency: data.currency || "ILS",
+      exchangeRate: Number(data.exchangeRate) || 1,
+      ratePlanId,
+    }
+
+    const roomOutcomes = new Map<string, RoomPricingOutcome>()
+    for (const room of priceRoomRows) {
+      roomOutcomes.set(
+        room.id,
+        priceRoom(
+          {
+            checkIn: toIsoDate(room.check_in) || data.checkIn,
+            checkOut: toIsoDate(room.check_out) || data.checkOut,
+            ratePerNight: Number(room.rate_per_night) || 0,
+            ...roomPricingControlsFromRow(room, roomPricingCtx.currency),
+          },
+          roomPricingCtx,
+        ),
+      )
+    }
+
+    const pricingNights: NightRate[] = reservationNightsFromRooms([...roomOutcomes.values()])
 
     const pricingInput: PricingInput = {
       nights: pricingNights,
@@ -338,6 +376,23 @@ export async function updateReservation(
         updated_at = NOW()
       WHERE id = ${reservationId} AND tenant_id = ${tenantId}
     `
+
+    // Re-derive the per-room figures against the context we just committed.
+    // updateReservationRooms wrote them from the reservation as it stood BEFORE
+    // this save, so a save that also flipped "פטור ממע״מ" or the VAT
+    // convention would otherwise leave each room's stored breakdown one save
+    // behind the reservation it belongs to.
+    for (const [roomId, outcome] of roomOutcomes) {
+      await db`
+        UPDATE reservation_rooms SET
+          vat_rate = ${resolvedVatRate},
+          currency = ${data.currency || "ILS"},
+          exchange_rate = ${pricingInput.exchangeRate},
+          pricing_breakdown = ${JSON.stringify(outcome.result.breakdown)}::jsonb,
+          updated_at = NOW()
+        WHERE id = ${roomId} AND tenant_id = ${tenantId} AND reservation_id = ${reservationId}
+      `
+    }
 
     // Room occupancy is DERIVED — do NOT write rooms.status for occupancy here.
     // On check-out: auto-create cleaning tasks + flip cleaning_state to dirty
