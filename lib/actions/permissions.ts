@@ -7,7 +7,7 @@ import { DEFAULT_RECEPTIONIST, DEFAULT_CLEANER, MODULES, getDefaultPermissions }
 import { requireActor } from "@/lib/auth/actor"
 import { AuthorizationError } from "@/lib/auth/errors"
 import { canManageRole } from "@/lib/permissions/check"
-import { sendCredentialsEmail } from "@/lib/services/email"
+import { sendCredentialsEmail, sendLoginLinkEmail } from "@/lib/services/email"
 import crypto from "crypto"
 
 /* ── Types ──────────────────────────────────────────────────── */
@@ -654,7 +654,7 @@ export async function resendCredentialsToUser(
     const tenantId = actor.tenantId
 
     const [target] = await db`
-      SELECT id, role, email FROM users
+      SELECT id, role, email, full_name FROM users
       WHERE id = ${userId} AND tenant_id = ${tenantId}
     `
     if (!target) return { success: false, error: "המשתמש לא נמצא" }
@@ -666,7 +666,7 @@ export async function resendCredentialsToUser(
 
     const supabase = createAdminSupabase()
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || ""
-    const { error: linkError } = await supabase.auth.admin.generateLink({
+    const { data, error: linkError } = await supabase.auth.admin.generateLink({
       type: "recovery",
       email: target.email as string,
       options: {
@@ -676,6 +676,21 @@ export async function resendCredentialsToUser(
 
     if (linkError) {
       return { success: false, error: linkError.message }
+    }
+
+    // generateLink only CREATES the link — it does not send it. We email it ourselves.
+    const actionLink = data?.properties?.action_link
+    if (!actionLink) {
+      return { success: false, error: "לא התקבל קישור התחברות מהשרת" }
+    }
+
+    const emailRes = await sendLoginLinkEmail({
+      to: target.email as string,
+      fullName: (target.full_name as string) || "",
+      loginUrl: actionLink,
+    })
+    if (!emailRes.success) {
+      return { success: false, error: emailRes.error || "שליחת המייל נכשלה" }
     }
 
     return { success: true }

@@ -143,6 +143,40 @@ export async function sendCredentialsEmail(
   return sendEmail({ to: p.to, subject, html })
 }
 
+interface LoginLinkEmailParams {
+  to: string
+  fullName: string
+  loginUrl: string
+}
+
+export async function sendLoginLinkEmail(
+  p: LoginLinkEmailParams,
+): Promise<{ success: boolean; error?: string }> {
+  const subject = "קישור התחברות למערכת GuestHub"
+
+  const html = `<!doctype html>
+<html dir="rtl" lang="he">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:24px;background:#f4f2fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+    <h1 style="margin:0 0 16px;font-size:22px;color:#1e40af;">שלום ${escapeHtml(p.fullName)}</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">קיבלת קישור חד-פעמי להתחברות למערכת. לחץ על הכפתור כדי להיכנס ולהגדיר סיסמה חדשה:</p>
+
+    <p style="margin:24px 0;">
+      <a href="${escapeHtml(p.loginUrl)}" style="display:inline-block;background:#1e40af;color:#ffffff;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:600;font-size:15px;">כניסה למערכת</a>
+    </p>
+
+    <p style="margin:24px 0 0;font-size:13px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:16px;line-height:1.6;">
+      הקישור תקף לזמן מוגבל וניתן לשימוש חד-פעמי.<br>
+      אם לא ביקשת קישור זה — פשוט התעלם מההודעה.
+    </p>
+  </div>
+</body>
+</html>`
+
+  return sendEmail({ to: p.to, subject, html })
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
