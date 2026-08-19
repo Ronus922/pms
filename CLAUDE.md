@@ -78,3 +78,50 @@ pnpm add zustand next-safe-action @formkit/auto-animate sonner cmdk
 | `@dnd-kit/core` + `@dnd-kit/sortable` | Drag-and-drop, Kanban boards |
 | `next-intl` | Full i18n (Hebrew + English + Arabic) |
 | `react-resizable-panels` | Split views, resizable sidebars |
+
+
+---
+
+## Ruflo — תמיד פעיל (ALWAYS ON)
+
+**Ruflo/claude-flow v3 הוא שכבת האורקסטרציה הקבועה של כל שיחה.**
+
+| פלטפורמה | אחריות |
+|----------|--------|
+| 🔵 Claude Code | ארכיטקטורה, אבטחה, בדיקות, code review, PRD |
+| 🟢 Codex (OMX) | מימוש, ריפקטורינג, אופטימיזציה, boilerplate |
+
+- כל החלטת ארכיטקטורה → כתוב לזיכרון: `npx claude-flow@v3alpha memory write --namespace collaboration`
+- משימות מורכבות → `npx claude-flow-codex dual run --namespace collaboration`
+- Swarm → `npx claude-flow@v3alpha swarm run --topology hierarchical --max-agents 8`
+- תמיד `doctor --fix` לפני swarm
+- `/ruflo` לטעינת הסקייל המלא
+
+---
+
+
+---
+
+## OMX Runtime (ברירת מחדל תפעולית)
+- `omx` מריץ את Codex תחת `oh-my-codex`
+- עבודה רחבה, רב-קובצית, refactor, debug ארוך או handoff-heavy: ברירת המחדל היא `omx team`
+- `om "<task>"` הוא ה־shortcut הראשי: `omx team 3:executor "<task>"`
+- `/prompts:planner`, `/prompts:architect`, `/prompts:executor`, `/prompts:verifier` הם משטחי העבודה הדיפולטיים של OMX
+- `omd` מפעיל `omx doctor --team`
+- `omx team status <team>`, `omx team resume <team>`, `omx team shutdown <team>` הם כלי הבקרה
+- לא מריצים `omx agents-init .` בפרויקט KIT רגיל; התבניות של ה־KIT הן ה־source of truth ל־`CLAUDE.md` ו־`AGENTS.md`
+
+---
+
+
+---
+
+## Agents & Skills
+
+**מקור-אמת יחיד:** בחירת agent, decision trees, task decomposition, וקטלוג מלא של כל ה-skills/agents — טען `/master`.
+
+- כל ה-skills זמינים אוטומטית כ-`/<name>` (auto-discovery) — לדוגמה `/design`, `/api`, `/security`, `/qa`, `/ruflo`.
+- כל ה-agents זמינים דרך כלי ה-Task (Design, API, Security, QA, Fullstack, Ruflo, ועוד).
+- הרשימה החיה המלאה נוצרת אוטומטית ב-`/master` (`gen-catalog.sh`) — לעולם לא ידנית, לעולם לא מתיישנת.
+
+---
