@@ -7,12 +7,6 @@ import type { BoardView } from "./board-types"
 import { addDays, todayIso } from "./board-rules"
 import { useCalendarStore } from "@/lib/stores/calendar-store"
 
-interface LegendItem {
-  value: string
-  label: string
-  color: string | null
-}
-
 interface BoardHeaderProps {
   startDateIso: string
   view: BoardView
@@ -20,11 +14,8 @@ interface BoardHeaderProps {
   onJumpToToday: () => void
   onPrev: () => void
   onNext: () => void
-  currency: string
-  visibleRoomCount: number
-  occupiedCount: number
-  /** Payment status legend — same source of truth as the reservation bar colours. */
-  legend: LegendItem[]
+  /** Total room units — shown as a badge next to the title. */
+  unitsCount: number
 }
 
 function formatHebrewDate(iso: string): string {
@@ -42,7 +33,7 @@ export function BoardHeader({
   onJumpToToday,
   onPrev,
   onNext,
-  legend,
+  unitsCount,
 }: BoardHeaderProps) {
   const days = VIEW_DAYS[view]
   const endIso = addDays(startDateIso, days - 1)
@@ -77,50 +68,58 @@ export function BoardHeader({
   }
 
   return (
-    // Explicit dir="rtl" so source order deterministically maps to visual
-    // right→left. Visual layout (right to left):
-    //   [ title · ← next-date · date · → prev-date · היום ]   ←┐
-    //                              ┌──────────────────────────┘
-    //   [ week | two-weeks | month ]                centered
-    //                              ┌──────────────────────────┐
-    //   [ payment-status legend · VIP ]            far left   │
-    <div
-      dir="rtl"
-      className="flex items-center justify-between gap-3 rounded-2xl bg-card border border-border/20 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-5 py-3 flex-wrap"
-    >
-      {/* 1 · Date + navigation + today (visual right) */}
-      <div className="flex items-center gap-2">
-        <h1 className="text-[15px] font-bold text-foreground whitespace-nowrap">יומן חדרים</h1>
+    // Bare toolbar row (matches reference .cal-head — no card). RTL: title +
+    // count on the right; view segmented + date nav + today grouped on the left.
+    <div dir="rtl" className="flex items-center gap-3 flex-wrap px-0.5">
+      {/* Title + units count (visual right) */}
+      <h1 className="text-[23px] font-extrabold tracking-[-0.3px] text-foreground whitespace-nowrap">
+        יומן חדרים
+      </h1>
+      <span className="inline-flex items-center rounded-lg bg-accent px-2.5 py-[3px] text-[13.5px] font-bold text-muted-foreground tabular-nums whitespace-nowrap">
+        {unitsCount} יחידות
+      </span>
 
-        <div className="flex items-center gap-0.5 rounded-full bg-accent/40 px-1 py-0.5">
-          {/* RTL row, source order 1 renders visually on the RIGHT.
-              Right side = backward (older dates). In RTL, a right-pointing
-              chevron (→) reads as "go back" (against reading flow). */}
+      <div className="flex-1" />
+
+      {/* Left cluster: segmented view · date nav · today (reference tokens) */}
+      <div className="flex items-center gap-2.5">
+        {/* View segmented control */}
+        <div role="tablist" aria-label="טווח תצוגה" className="cal-seg">
+          {(["week", "two-weeks", "month"] as BoardView[]).map((v) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => onViewChange(v)}
+              className={`cal-seg-btn ${view === v ? "active" : ""}`}
+            >
+              {VIEW_LABEL[v]}
+            </button>
+          ))}
+        </div>
+
+        {/* Date navigation */}
+        <div className="cal-datenav">
           <button
             onClick={onPrev}
-            className="w-8 h-8 rounded-full hover:bg-card flex items-center justify-center"
+            className="cal-dn-btn"
             aria-label="תקופה קודמת"
             title="תקופה קודמת"
           >
             <Icon name="chevron_right" size="sm" />
           </button>
 
-          {/* Clickable date range — a button visually shows the date and an
-              invisible <input type="date"> sits behind it. The button calls
-              showPicker() so the native calendar opens reliably across
-              Chromium/Firefox/Safari, even when the input is opacity-0. */}
+          {/* Clickable date range — invisible native <input type="date"> behind
+              a button that calls showPicker() for reliable cross-browser open. */}
           <button
             type="button"
             onClick={openPicker}
-            className="relative inline-flex items-center min-h-[44px] px-3 py-1 cursor-pointer rounded-full hover:bg-card/60 transition-colors"
+            className="cal-dn-range relative inline-flex items-center cursor-pointer"
             title="לחץ לבחירת תאריך"
             aria-label="בחר תאריך התחלה"
           >
-            <span
-              dir="ltr"
-              className="text-[12.5px] font-bold text-foreground tabular-nums whitespace-nowrap pointer-events-none"
-            >
-              {formatHebrewDate(startDateIso)} - {formatHebrewDate(endIso)}
+            <span dir="ltr" className="pointer-events-none">
+              {formatHebrewDate(startDateIso)} – {formatHebrewDate(endIso)}
             </span>
             <input
               ref={dateInputRef}
@@ -133,11 +132,9 @@ export function BoardHeader({
             />
           </button>
 
-          {/* Left side = forward (upcoming). Left-pointing chevron (←) reads
-              as "go forward" in RTL (same direction as the reading flow). */}
           <button
             onClick={onNext}
-            className="w-8 h-8 rounded-full hover:bg-card flex items-center justify-center"
+            className="cal-dn-btn"
             aria-label="תקופה הבאה"
             title="תקופה הבאה"
           >
@@ -145,57 +142,9 @@ export function BoardHeader({
           </button>
         </div>
 
-        <button
-          onClick={onJumpToToday}
-          disabled={isToday}
-          className={`min-h-[36px] px-5 py-1.5 rounded-full text-[12.5px] font-bold transition-colors ${
-            isToday
-              ? "bg-primary/10 text-primary cursor-default"
-              : "bg-primary text-primary-foreground hover:brightness-110"
-          }`}
-        >
+        <button onClick={onJumpToToday} disabled={isToday} className="cal-dn-today">
           היום
         </button>
-      </div>
-
-      {/* 2 · View tabs — week / two-weeks / month (center) */}
-      <div
-        role="tablist"
-        aria-label="טווח תצוגה"
-        className="inline-flex rounded-full bg-accent/50 p-0.5"
-      >
-        {(["week", "two-weeks", "month"] as BoardView[]).map((v) => (
-          <button
-            key={v}
-            role="tab"
-            aria-selected={view === v}
-            onClick={() => onViewChange(v)}
-            className={`min-h-[36px] px-5 py-1.5 text-[12.5px] font-bold rounded-full transition-all ${
-              view === v
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {VIEW_LABEL[v]}
-          </button>
-        ))}
-      </div>
-
-      {/* 3 · Payment-status legend (visual left) — same hex as the reservation
-          bars in the grid, so the legend always stays in sync. */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {legend.map((item) => (
-          <span
-            key={item.value}
-            className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground font-semibold"
-          >
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: item.color ?? "#64748b" }}
-            />
-            {item.label}
-          </span>
-        ))}
       </div>
     </div>
   )

@@ -5,6 +5,8 @@ import { Icon } from "@/components/shared/Icon"
 
 interface DayCellProps {
   dateIso: string
+  col: number
+  roomId: string
   price: number
   currency: string
   minNights: number
@@ -16,6 +18,8 @@ interface DayCellProps {
   blocked: boolean
   isWeekend: boolean
   isToday: boolean
+  /** Begin a create-drag from this empty cell. */
+  onStartCreate: (roomId: string, col: number) => void
 }
 
 function fmtPrice(n: number, currency: string): string {
@@ -24,75 +28,63 @@ function fmtPrice(n: number, currency: string): string {
 }
 
 function DayCellInner({
+  dateIso,
+  col,
+  roomId,
   price,
   currency,
   minNights,
-  maxNights,
   closed,
   closedOnArrival,
   closedOnDeparture,
   blocked,
   isWeekend,
   isToday,
+  onStartCreate,
 }: DayCellProps) {
   const unavailable = blocked || closed
-  // Today renders as any other day (no special bg tint). Friday/Saturday get a
-  // slightly stronger amber tint so the weekend stands out across the board.
-  const bgClass = unavailable
-    ? "bg-rose-50/60 dark:bg-rose-950/15"
-    : isWeekend
-      ? "bg-amber-50/50 dark:bg-amber-950/15"
-      : "bg-card"
+
+  const cls = [
+    "tl-cell",
+    isWeekend ? "wknd" : "",
+    isToday ? "today" : "",
+    unavailable ? "unavail" : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    // Bars live in a pointer-events overlay above the cells; an empty-cell
+    // pointerdown never originates from a reservation. Guard anyway.
+    if ((e.target as HTMLElement).closest("[data-reservation]")) return
+    onStartCreate(roomId, col)
+  }
 
   return (
     <div
+      data-cell
+      data-col={col}
+      data-room={roomId}
+      data-date={dateIso}
       data-today={isToday || undefined}
-      className={`relative h-full w-full border-s border-border/15 ${bgClass} select-none`}
+      className={cls}
+      onPointerDown={handlePointerDown}
     >
-      {/* Price — centered, soft green, scannable. */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span
-          className={`text-[12.5px] font-bold tabular-nums ${
-            unavailable
-              ? "text-rose-400 line-through"
-              : "text-emerald-700 dark:text-emerald-400"
-          }`}
-        >
-          {price > 0 ? fmtPrice(price, currency) : "—"}
-        </span>
-      </div>
-
-      {/* LOS + closure markers — sit below the price so they never occlude it.
-          Min-nights is shown ONLY for 2+ (never for 1-night stays) as a subtle
-          "{N} 🌙" pair in slate-500 — no word "לילות", no accent badge.
-          Max-nights badge is intentionally hidden from the cell for now —
-          it's enforced on save, but cells stay visually clean. Closure
-          markers are kept for the arrival/departure hint icons.
-          See project memory `project_calendar_los_rules.md`. */}
-      {/* Min-stay indicator pinned to the inline-start edge (visual right
-          in RTL). Slightly smaller than before so it tucks into the corner
-          without crowding the price. */}
-      {minNights > 1 && (
-        <span
-          title={`מינימום ${minNights} לילות`}
-          className="absolute bottom-0.5 start-1 flex items-center gap-0.5 text-[9.5px] font-medium leading-none text-slate-500 dark:text-slate-400 tabular-nums pointer-events-none"
-        >
+      <span className="pr">{price > 0 ? fmtPrice(price, currency) : "—"}</span>
+      {minNights > 1 && !unavailable && (
+        <span className="ms" title={`מינימום ${minNights} לילות`}>
           {minNights}
-          <Icon name="dark_mode" className="h-2.5 w-2.5 opacity-90" />
+          <Icon name="dark_mode" className="cb-moon" />
         </span>
       )}
 
       {(closedOnArrival || closedOnDeparture) && (
-        <div className="absolute bottom-1 inset-x-0 flex items-center justify-center gap-1 pointer-events-none">
-          {closedOnArrival && (
-            <Icon name="do_not_disturb_on" size="sm" className="text-rose-400/80 text-[10px]" />
-          )}
-          {closedOnDeparture && (
-            <Icon name="do_not_disturb_off" size="sm" className="text-amber-400/80 text-[10px]" />
-          )}
+        <div className="cell-flags">
+          {closedOnArrival && <Icon name="block" size="sm" className="text-rose-400" />}
+          {closedOnDeparture && <Icon name="block" size="sm" className="text-amber-400" />}
         </div>
       )}
-
     </div>
   )
 }

@@ -86,15 +86,14 @@ export function ReservationBlock({
   const barRef = useRef<HTMLDivElement | null>(null)
 
   // Colour is sourced SOLELY from the Payment Status settings lookup.
-  // Fallback to a neutral slate only when no color is configured.
-  // `color-mix` produces an OPAQUE pastel so the cell's price behind the pill
-  // is fully hidden (earlier `${color}22` was too translucent — ₪ prices bled
-  // through and covered the guest name).
+  // Fallback to a neutral slate only when no color is configured. Pastel bg is
+  // OPAQUE so the price behind the pill never bleeds through; the full-strength
+  // status colour lives on the check-in-edge nub (border-inline-start) + avatar.
   const baseColor = paymentColor ?? "#64748b"
   const pillStyle: React.CSSProperties = {
-    backgroundColor: `color-mix(in srgb, ${baseColor} 18%, white)`,
-    borderColor: `color-mix(in srgb, ${baseColor} 55%, white)`,
-    color: baseColor,
+    backgroundColor: `color-mix(in srgb, ${baseColor} 13%, white)`,
+    color: `color-mix(in srgb, ${baseColor} 78%, #000)`,
+    borderInlineStart: `4px solid ${baseColor}`,
   }
 
   // Logical positioning — works for both RTL and LTR:
@@ -107,7 +106,14 @@ export function ReservationBlock({
     reservation.full_name ||
     [reservation.first_name, reservation.last_name].filter(Boolean).join(" ") ||
     "אורח"
+  const initials = guestName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
   const totalGuests = (reservation.adults || 0) + (reservation.children || 0)
+  const nights = diffDays(reservation.segment_check_in, reservation.segment_check_out)
   const segmentId = reservation.segment_id
 
   const onPointerDown = useCallback(
@@ -203,9 +209,7 @@ export function ReservationBlock({
       aria-label={`הזמנה ${reservation.reservation_number} של ${guestName}`}
       data-reservation={reservation.id}
       data-segment={segmentId}
-      className={`absolute rounded-full border shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-visible cursor-grab active:cursor-grabbing select-none transition-opacity ${
-        isDragged ? "opacity-40" : "opacity-100"
-      } ${isSelected ? "ring-2 ring-primary/60 ring-offset-1 ring-offset-card" : ""} focus:outline-none focus:ring-2 focus:ring-primary/40`}
+      className={`tl-bar ${isDragged ? "dim" : ""} ${isSelected ? "sel" : ""}`}
       style={{
         ...pillStyle,
         insetInlineStart: `${startPct}%`,
@@ -232,31 +236,32 @@ export function ReservationBlock({
       }}
       onKeyDown={onKey}
     >
-      {/* Start (check-in) edge — LOCKED. No handle, no pointer events here.
-          Direction-agnostic: inline-start is visual right in RTL, visual left in LTR. */}
+      {/* Avatar — full-strength status colour + guest initials (check-in edge). */}
+      <span className="bavatar" style={{ backgroundColor: baseColor }} aria-hidden>
+        {initials}
+      </span>
+      {reservation.is_vip && <Icon name="star" filled className="bstar" />}
+      <span className="bname">{guestName}</span>
 
-      {/* Content — clean pastel pill: guest name + optional VIP star.
-          Guests count, nights, and dates live on the hover/focus card. */}
-      <div className="h-full flex items-center justify-center gap-1.5 px-4 pointer-events-none">
-        {reservation.is_vip && (
-          <Icon name="star" filled size="sm" className="text-amber-500 shrink-0" />
-        )}
-        <span className="text-[12.5px] font-bold truncate leading-tight">
-          {guestName}
+      {/* Nights count pushed to the check-out (inline-end) edge. Full detail
+          (guests, dates, totals) lives on the hover/focus card. */}
+      {nights > 0 && (
+        <span className="bmeta">
+          {nights}
+          <Icon name="dark_mode" className="cb-moon" />
         </span>
-      </div>
+      )}
 
-      {/* End (check-out) edge handle — the ONLY resizable edge.
-          Logical inline-end: visual left in RTL, visual right in LTR.
-          Width is deliberately generous so the resize cursor always catches. */}
+      {/* End (check-out) edge handle — the ONLY resizable edge (start is locked).
+          Logical inline-end: visual left in RTL. */}
       <button
         type="button"
         onPointerDown={onEdgePointerDown("end")}
         aria-label="שנה תאריך יציאה"
-        className="absolute top-0 h-full touch-none flex items-center justify-center group"
-        style={{ width: EDGE_HANDLE + 14, insetInlineEnd: 0, cursor: "ew-resize" }}
+        className="bhandle"
+        style={{ width: EDGE_HANDLE + 14 }}
       >
-        <span className="w-[3px] h-5 rounded-full bg-current opacity-50 group-hover:opacity-90 transition-opacity" />
+        <span />
       </button>
 
       {/* Modern floating hover card. Portaled to document.body so the card

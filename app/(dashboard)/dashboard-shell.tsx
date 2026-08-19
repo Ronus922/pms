@@ -101,7 +101,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
         />
-        <div className={`flex-1 flex flex-col transition-all duration-300 ${collapsed ? "mr-20" : "mr-72"}`}>
+        {/* sm:min-w-0 lets flex children with internal horizontal scroll (e.g.
+            the calendar board) stay contained on tablet/desktop. Left off below
+            sm so the fixed sidebar margin (mr-72) doesn't squeeze mobile content
+            into a sliver — mobile keeps its prior overflow behaviour. */}
+        <div className={`flex-1 sm:min-w-0 flex flex-col transition-all duration-300 ${collapsed ? "mr-20" : "mr-72"}`}>
           <TopBar title={title} />
           <main className="flex-1 px-8 py-6">
             {children}

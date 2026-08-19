@@ -4,7 +4,8 @@ import { forwardRef, useMemo } from "react"
 import { DayCell } from "./DayCell"
 import { ReservationBlock } from "./ReservationBlock"
 import { PreviewLayer } from "./PreviewLayer"
-import { ROW_HEIGHT } from "./board-constants"
+import { RailCorner, RoomCell } from "./RoomRail"
+import { HEADER_HEIGHT, ROW_HEIGHT } from "./board-constants"
 import type {
   BoardBlock,
   BoardDailyPricing,
@@ -12,6 +13,7 @@ import type {
   BoardRateOverride,
   BoardReservation,
   BoardRoom,
+  DerivedRoomStatus,
   DragState,
   OperationalTimes,
 } from "./board-types"
@@ -33,12 +35,15 @@ interface BoardBodyProps {
   ratePlans: BoardRatePlan[]
   currency: string
   operationalTimes: OperationalTimes
+  statusByRoomId: Record<string, DerivedRoomStatus>
   /** lookup_items color (hex) keyed by reservations.payment_status — sole source of bar colour. */
   paymentStatusColors: Record<string, string>
   /** lookup_items label keyed by payment_status — shown in tooltip. */
   paymentStatusLabels: Record<string, string>
   startDateIso: string
   totalDays: number
+  /** Fixed day-column width (px) for the active view. */
+  colWidth: number
   drag: DragState
   selectedSegmentId: string | null
   onOpenReservation: (reservationId: string) => void
@@ -57,20 +62,7 @@ function isWeekendIso(iso: string): boolean {
 function formatHeaderDay(iso: string): { weekday: string; dom: string; month: string } {
   const d = new Date(iso + "T00:00:00Z")
   const wdHeb = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]
-  const monthNames = [
-    "ינו",
-    "פבר",
-    "מרץ",
-    "אפר",
-    "מאי",
-    "יונ",
-    "יול",
-    "אוג",
-    "ספט",
-    "אוק",
-    "נוב",
-    "דצמ",
-  ]
+  const monthNames = ["ינו", "פבר", "מרץ", "אפר", "מאי", "יונ", "יול", "אוג", "ספט", "אוק", "נוב", "דצמ"]
   return {
     weekday: wdHeb[d.getUTCDay()],
     dom: String(d.getUTCDate()),
@@ -88,10 +80,12 @@ export const BoardBody = forwardRef<HTMLDivElement, BoardBodyProps>(function Boa
     ratePlans,
     currency,
     operationalTimes,
+    statusByRoomId,
     paymentStatusColors,
     paymentStatusLabels,
     startDateIso,
     totalDays,
+    colWidth,
     drag,
     selectedSegmentId,
     onOpenReservation,
@@ -109,12 +103,6 @@ export const BoardBody = forwardRef<HTMLDivElement, BoardBodyProps>(function Boa
     [startDateIso, totalDays],
   )
 
-  const roomIdxByRoomId = useMemo(() => {
-    const m: Record<string, number> = {}
-    rooms.forEach((r, i) => (m[r.id] = i))
-    return m
-  }, [rooms])
-
   const reservationsByRoom = useMemo(() => {
     const m = new Map<string, BoardReservation[]>()
     for (const r of reservations) {
@@ -131,105 +119,75 @@ export const BoardBody = forwardRef<HTMLDivElement, BoardBodyProps>(function Boa
     return m
   }, [blocks])
 
-  const handleEmptyPointerDown = (roomId: string, col: number) => (e: React.PointerEvent) => {
-    if (e.button !== 0) return
-    const target = e.target as HTMLElement
-    // Ignore if the user hit a reservation block
-    if (target.closest("[data-reservation]")) return
-    onStartCreate(roomId, col)
-  }
+  const floorCount = useMemo(
+    () => new Set(rooms.map((r) => r.floor_id).filter(Boolean)).size,
+    [rooms],
+  )
 
   return (
     <div
-      ref={ref}
-      className="relative flex-1 overflow-auto bg-card rounded-2xl border border-border/30"
+      className="cal-board tl"
       style={
         {
           "--row-h": `${ROW_HEIGHT}px`,
+          // Mobile fallback column width; on desktop CSS flex-fills columns to
+          // the available width (see calendar.css @media ≥1024px) so the board
+          // never overflows horizontally.
+          "--col": `${colWidth}px`,
         } as React.CSSProperties
       }
     >
-      {/* Day header — today rendered in the same style as every other day;
-          Friday/Saturday get a stronger amber tint and a small שבת/שבת tag. */}
-      <div
-        className="sticky top-0 z-20 flex w-full bg-card/95 backdrop-blur-sm border-b border-border/25"
-        style={{ height: 64 }}
-      >
-        {days.map((iso) => {
-          const info = formatHeaderDay(iso)
-          const isToday = iso === today
-          const weekend = isWeekendIso(iso)
-          return (
-            <div
-              key={iso}
-              className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 border-s border-border/10 text-center transition-colors ${
-                weekend ? "bg-amber-50/70 dark:bg-amber-950/20" : ""
-              }`}
-            >
-              <span
-                className={`text-[11px] leading-none ${
-                  weekend ? "text-amber-700 font-bold" : "text-muted-foreground/80"
-                }`}
-              >
-                {info.weekday}
-              </span>
-              <span
-                className={`text-[15px] leading-none tabular-nums mt-1 font-semibold ${
-                  weekend ? "text-amber-800" : "text-foreground"
-                } ${isToday ? "underline decoration-primary decoration-2 underline-offset-4" : ""}`}
-              >
-                {info.dom}
-              </span>
-              <span
-                className={`text-[9.5px] leading-none mt-1 ${
-                  isToday
-                    ? "text-primary font-bold"
-                    : weekend
-                      ? "text-amber-600"
-                      : "text-muted-foreground/70"
-                }`}
-              >
-                {isToday ? "היום" : weekend ? "שבת" : info.month}
-              </span>
+      <div ref={ref} className="tl-scroll">
+        <div className="tl-inner">
+          {/* Sticky day header */}
+          <div className="tl-head" style={{ height: HEADER_HEIGHT }}>
+            <RailCorner unitsCount={rooms.length} floorCount={floorCount} />
+            <div className="tl-days">
+              {days.map((iso) => {
+                const info = formatHeaderDay(iso)
+                const cls = [
+                  "tl-day",
+                  isWeekendIso(iso) ? "wknd" : "",
+                  iso === today ? "today" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+                return (
+                  <div key={iso} className={cls}>
+                    <span className="dl">{info.weekday}</span>
+                    <span className="dn">{info.dom}</span>
+                    <span className="dm">{iso === today ? "היום" : info.month}</span>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
-      </div>
+          </div>
 
-      {/* Grid body */}
-      <div className="relative w-full">
-        {rooms.map((room) => {
-          const roomReservations = reservationsByRoom.get(room.id) ?? []
-          return (
-            <div
-              key={room.id}
-              className="relative w-full border-b border-border/25"
-              style={{ height: ROW_HEIGHT }}
-            >
-              {/* Day cells — flex row with RTL handled by parent dir */}
-              <div className="absolute inset-0 flex">
-                {days.map((iso, col) => {
-                  const pricing = getCellPricing(
-                    room.id,
-                    room.room_type_id,
-                    Number(room.base_price) || 0,
-                    iso,
-                    dailyPricing,
-                    rateOverrides,
-                    ratePlans,
-                  )
-                  const blocked = blocksByRoomDate.has(`${room.id}_${iso}`)
-                  return (
-                    <div
-                      key={iso}
-                      data-cell
-                      data-col={col}
-                      data-room={room.id}
-                      onPointerDown={handleEmptyPointerDown(room.id, col)}
-                      className="h-full flex-1 min-w-0"
-                    >
+          {/* Rows */}
+          {rooms.map((room) => {
+            const roomReservations = reservationsByRoom.get(room.id) ?? []
+            const status = statusByRoomId[room.id] ?? "vacant_clean"
+            return (
+              <div key={room.id} className="tl-row" style={{ height: ROW_HEIGHT }}>
+                <RoomCell room={room} status={status} />
+
+                <div className="tl-track" style={{ height: ROW_HEIGHT }}>
+                  {days.map((iso, col) => {
+                    const pricing = getCellPricing(
+                      room.id,
+                      room.room_type_id,
+                      Number(room.base_price) || 0,
+                      iso,
+                      dailyPricing,
+                      rateOverrides,
+                      ratePlans,
+                    )
+                    return (
                       <DayCell
+                        key={iso}
                         dateIso={iso}
+                        col={col}
+                        roomId={room.id}
                         price={pricing.price}
                         currency={currency}
                         minNights={pricing.minNights}
@@ -237,93 +195,77 @@ export const BoardBody = forwardRef<HTMLDivElement, BoardBodyProps>(function Boa
                         closed={pricing.closed}
                         closedOnArrival={pricing.closedOnArrival}
                         closedOnDeparture={pricing.closedOnDeparture}
-                        blocked={blocked}
+                        blocked={blocksByRoomDate.has(`${room.id}_${iso}`)}
                         isWeekend={isWeekendIso(iso)}
                         isToday={iso === today}
+                        onStartCreate={onStartCreate}
                       />
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+
+                  {/* Reservation bars + drag preview — pointer overlay above cells. */}
+                  <div className="tl-bars">
+                    {roomReservations.map((r) => {
+                      const resStart = r.segment_check_in
+                      const resEnd = r.segment_check_out
+                      const startCol = diffDays(startDateIso, resStart)
+                      const nights = diffDays(resStart, resEnd)
+                      const endCol = startCol + nights
+                      if (endCol <= 0 || startCol >= totalDays) return null
+
+                      const checkInHours = resolveCheckInTime(r, resStart, operationalTimes)
+                      const checkOutHours = resolveCheckOutTime(r, resEnd, operationalTimes)
+                      const startFrac = checkInHours / 24
+                      const endFrac = checkOutHours / 24
+                      const formatClock = (h: number) => {
+                        const hh = Math.floor(h)
+                        const mm = Math.round((h - hh) * 60)
+                        return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
+                      }
+                      const roomLabel = `${room.room_number} · ${room.room_type_name}`
+
+                      let leftEdgeCols = startCol + startFrac
+                      let rightEdgeCols = endCol + endFrac
+                      if (leftEdgeCols < 0) leftEdgeCols = 0
+                      if (rightEdgeCols > totalDays) rightEdgeCols = totalDays
+                      if (rightEdgeCols <= leftEdgeCols) return null
+
+                      const isDragged = drag.type === "move" && drag.segmentId === r.segment_id
+                      const isInteracting =
+                        (drag.type === "move" || drag.type === "resize") &&
+                        drag.segmentId === r.segment_id
+
+                      return (
+                        <ReservationBlock
+                          key={r.segment_id}
+                          reservation={r}
+                          startOffsetCols={leftEdgeCols}
+                          endOffsetCols={rightEdgeCols}
+                          totalDays={totalDays}
+                          currency={currency}
+                          paymentColor={paymentStatusColors[r.payment_status] ?? null}
+                          paymentLabel={paymentStatusLabels[r.payment_status] ?? r.payment_status}
+                          roomLabel={roomLabel}
+                          checkInTimeLabel={formatClock(checkInHours)}
+                          checkOutTimeLabel={formatClock(checkOutHours)}
+                          isDragged={isDragged}
+                          isInteracting={isInteracting}
+                          isSelected={selectedSegmentId === r.segment_id}
+                          onOpen={onOpenReservation}
+                          onStartMove={onStartMove}
+                          onStartResize={onStartResize}
+                          onFocusChange={onFocusSegment}
+                        />
+                      )
+                    })}
+
+                    <PreviewLayer drag={drag} totalDays={totalDays} roomId={room.id} />
+                  </div>
+                </div>
               </div>
-
-              {/* Reservation bars — one per SEGMENT, rendered with fractional
-                  start/end offsets based on resolved check-in/out times. */}
-              {roomReservations.map((r) => {
-                const resStart = r.segment_check_in
-                const resEnd = r.segment_check_out
-                const startCol = diffDays(startDateIso, resStart)
-                const nights = diffDays(resStart, resEnd)
-                const endCol = startCol + nights
-
-                if (endCol <= 0 || startCol >= totalDays) return null
-
-                // Fractional offsets within the check-in / check-out day cells.
-                const checkInHours = resolveCheckInTime(r, resStart, operationalTimes)
-                const checkOutHours = resolveCheckOutTime(r, resEnd, operationalTimes)
-                const startFrac = checkInHours / 24
-                const endFrac = checkOutHours / 24
-                const formatClock = (h: number) => {
-                  const hh = Math.floor(h)
-                  const mm = Math.round((h - hh) * 60)
-                  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
-                }
-                const roomLabel = `${room.room_number} · ${room.room_type_name}`
-
-                // Position in column-units from the start of the window.
-                // Left edge (physical) = check-in day col + startFrac.
-                // Right edge (physical) = check-out day col + endFrac.
-                let leftEdgeCols = startCol + startFrac
-                let rightEdgeCols = endCol + endFrac
-
-                // Clip to visible window — clamp at whole-cell boundaries.
-                if (leftEdgeCols < 0) leftEdgeCols = 0
-                if (rightEdgeCols > totalDays) rightEdgeCols = totalDays
-                if (rightEdgeCols <= leftEdgeCols) return null
-
-                // Only a MOVE drag dims the original bar (because the move
-                // preview is rendered at a different position). A RESIZE drag
-                // keeps the original bar locked at full opacity — the
-                // resize preview is a delta-only layer rendered alongside
-                // the existing bar, so the committed pill never stretches
-                // or reflows while the user drags the edge handle.
-                const isDragged =
-                  drag.type === "move" && drag.segmentId === r.segment_id
-                // Suppress the tooltip during ANY drag targeting this segment
-                // (move OR resize) so the hover card never hangs over an
-                // active preview overlay.
-                const isInteracting =
-                  (drag.type === "move" || drag.type === "resize") &&
-                  drag.segmentId === r.segment_id
-
-                return (
-                  <ReservationBlock
-                    key={r.segment_id}
-                    reservation={r}
-                    startOffsetCols={leftEdgeCols}
-                    endOffsetCols={rightEdgeCols}
-                    totalDays={totalDays}
-                    currency={currency}
-                    paymentColor={paymentStatusColors[r.payment_status] ?? null}
-                    paymentLabel={paymentStatusLabels[r.payment_status] ?? r.payment_status}
-                    roomLabel={roomLabel}
-                    checkInTimeLabel={formatClock(checkInHours)}
-                    checkOutTimeLabel={formatClock(checkOutHours)}
-                    isDragged={isDragged}
-                    isInteracting={isInteracting}
-                    isSelected={selectedSegmentId === r.segment_id}
-                    onOpen={onOpenReservation}
-                    onStartMove={onStartMove}
-                    onStartResize={onStartResize}
-                    onFocusChange={onFocusSegment}
-                  />
-                )
-              })}
-            </div>
-          )
-        })}
-
-        {/* Preview layer — floats over the whole grid */}
-        <PreviewLayer drag={drag} totalDays={totalDays} roomIdxByRoomId={roomIdxByRoomId} />
+            )
+          })}
+        </div>
       </div>
     </div>
   )

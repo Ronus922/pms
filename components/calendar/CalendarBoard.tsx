@@ -7,13 +7,14 @@ import { useReservationFormStore } from "@/lib/stores/reservation-form-store"
 import { useReservationEditStore } from "@/lib/stores/reservation-edit-store"
 import { useLookup } from "@/lib/hooks/use-lookup"
 import { moveReservationSegment, resizeReservationSegment } from "@/lib/actions/board-actions"
+import { getCalendarKpis, type CalendarKpis } from "@/lib/actions/calendar"
 import { BoardHeader } from "./board/BoardHeader"
-import { RoomRail } from "./board/RoomRail"
+import { BoardKpis } from "./board/BoardKpis"
 import { BoardBody } from "./board/BoardBody"
 import { DateChangeConfirmDialog, type PendingDateChange } from "./board/DateChangeConfirmDialog"
 import { useBoardData } from "./board/use-board-data"
 import { useBoardInteraction } from "./board/use-board-interaction"
-import { VIEW_DAYS } from "./board/board-constants"
+import { COL_WIDTH, VIEW_DAYS } from "./board/board-constants"
 import { addDays, deriveRoomStatus, todayIso } from "./board/board-rules"
 import type { BoardRoom, DerivedRoomStatus } from "./board/board-types"
 import { seedDefaultAdults } from "@/lib/utils/room-capacity"
@@ -54,6 +55,27 @@ export function CalendarBoard({ tenantId }: CalendarBoardProps) {
       })),
     [paymentStatusItems],
   )
+
+  /* Board KPIs — fetched straight from the DB for TODAY + current month,
+   * independent of the visible window. Refreshed on mount, after any edit
+   * (savedTick), and on a 60s interval. */
+  const [kpiData, setKpiData] = useState<CalendarKpis | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = () => {
+      getCalendarKpis(tenantId, todayIso())
+        .then((k) => {
+          if (alive) setKpiData(k)
+        })
+        .catch(() => {})
+    }
+    load()
+    const id = setInterval(load, 60_000)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [tenantId, savedTick])
 
   const [focusedSegmentId, setFocusedSegmentId] = useState<string | null>(null)
   /** Pending date change awaiting user confirmation. */
@@ -302,15 +324,10 @@ export function CalendarBoard({ tenantId }: CalendarBoardProps) {
     return m
   }, [data.rooms, data.reservations, data.blocks])
 
-  const occupiedCount = useMemo(
-    () => Object.values(statusByRoomId).filter((s) => s === "occupied").length,
-    [statusByRoomId],
-  )
-
   /* ── Render ──────────────────────────────────────────────── */
 
   return (
-    <div className="flex flex-col gap-3 h-[calc(100vh-140px)] min-h-[600px]" dir="rtl">
+    <div className="flex flex-col gap-3" dir="rtl">
       <BoardHeader
         startDateIso={startDateIso}
         view={view}
@@ -318,11 +335,10 @@ export function CalendarBoard({ tenantId }: CalendarBoardProps) {
         onJumpToToday={goToday}
         onPrev={goBackward}
         onNext={goForward}
-        currency={data.currency}
-        visibleRoomCount={data.rooms.length}
-        occupiedCount={occupiedCount}
-        legend={paymentLegend}
+        unitsCount={data.rooms.length}
       />
+
+      <BoardKpis kpis={kpiData} />
 
       {error && (
         <div className="rounded-xl bg-rose-50 text-rose-700 border border-rose-200 p-4 text-sm">
@@ -330,39 +346,54 @@ export function CalendarBoard({ tenantId }: CalendarBoardProps) {
         </div>
       )}
 
-      <div className="flex-1 flex gap-0 overflow-hidden rounded-2xl border border-border/30 bg-card shadow-sm">
-        {loading && data.rooms.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-sm text-muted-foreground animate-pulse">טוען לוח תפוסה…</div>
-          </div>
-        ) : (
-          <>
-            <RoomRail rooms={data.rooms as BoardRoom[]} statusByRoomId={statusByRoomId} />
-            <BoardBody
-              ref={bodyRef}
-              rooms={data.rooms as BoardRoom[]}
-              reservations={data.reservations}
-              blocks={data.blocks}
-              dailyPricing={data.dailyPricing}
-              rateOverrides={data.rateOverrides}
-              ratePlans={data.ratePlans}
-              currency={data.currency}
-              operationalTimes={data.operationalTimes}
-              paymentStatusColors={paymentStatusColors}
-              paymentStatusLabels={paymentStatusLabels}
-              startDateIso={startDateIso}
-              totalDays={days}
-              drag={drag}
-              selectedSegmentId={focusedSegmentId}
-              onOpenReservation={(id) => openExistingReservation(id, tenantId)}
-              onStartCreate={startCreate}
-              onStartMove={startMove}
-              onStartResize={startResize}
-              onFocusSegment={setFocusedSegmentId}
-            />
-          </>
-        )}
-      </div>
+      {/* Payment-status legend — same hex as the reservation bars in the grid. */}
+      {paymentLegend.length > 0 && (
+        <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap px-1">
+          {paymentLegend.map((item) => (
+            <span
+              key={item.value}
+              className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground font-semibold"
+            >
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: item.color ?? "#64748b" }}
+              />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {loading && data.rooms.length === 0 ? (
+        <div className="cal-board tl min-h-[420px] flex items-center justify-center">
+          <div className="text-sm text-muted-foreground animate-pulse">טוען לוח תפוסה…</div>
+        </div>
+      ) : (
+        <BoardBody
+          ref={bodyRef}
+          rooms={data.rooms as BoardRoom[]}
+          reservations={data.reservations}
+          blocks={data.blocks}
+          dailyPricing={data.dailyPricing}
+          rateOverrides={data.rateOverrides}
+          ratePlans={data.ratePlans}
+          currency={data.currency}
+          operationalTimes={data.operationalTimes}
+          statusByRoomId={statusByRoomId}
+          paymentStatusColors={paymentStatusColors}
+          paymentStatusLabels={paymentStatusLabels}
+          startDateIso={startDateIso}
+          totalDays={days}
+          colWidth={COL_WIDTH[view]}
+          drag={drag}
+          selectedSegmentId={focusedSegmentId}
+          onOpenReservation={(id) => openExistingReservation(id, tenantId)}
+          onStartCreate={startCreate}
+          onStartMove={startMove}
+          onStartResize={startResize}
+          onFocusSegment={setFocusedSegmentId}
+        />
+      )}
 
       {/* Live region for screen-reader announcements */}
       <div

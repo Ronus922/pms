@@ -127,6 +127,96 @@ function shiftIsoDate(iso: string, deltaDays: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+export interface CalendarKpis {
+  /** Reservations whose check-in date is today. */
+  arrivalsToday: number
+  /** Reservations whose check-out date is today. */
+  departuresToday: number
+  /** Guests (adults + children + infants) currently in-house today. */
+  inHouseGuests: number
+  /** Rooms occupied today (segment covering today) / sellable inventory. */
+  occupiedToday: number
+  sellableRooms: number
+  occupancyTodayPct: number
+  /** Occupied room-nights this calendar month / (sellable × days-in-month). */
+  occupancyMonthPct: number
+}
+
+/**
+ * Board KPI metrics computed DIRECTLY from the database for **today** and the
+ * **current calendar month** — independent of the calendar's visible window
+ * (the board payload is window-scoped and would miss today when the user pans
+ * to another month). Reuses the project's live status logic:
+ *   • occupying reservation = status IN ('confirmed','checked_in') covering the day
+ *     (mirrors `deriveRoomStatus` / `checkAvailability`)
+ *   • sellable inventory = active rooms excluding out_of_order/unavailable/maintenance
+ * `today` is the client's local ISO date (same value the board highlights).
+ */
+export async function getCalendarKpis(_tenantId: string, today: string): Promise<CalendarKpis> {
+  const actor = await requireActor()
+  const tenantId = actor.tenantId
+
+  // Current calendar month bounds [monthStart, monthEnd) derived from `today`.
+  const [y, m] = today.split("-").map(Number)
+  const monthStart = `${y}-${String(m).padStart(2, "0")}-01`
+  const nextY = m === 12 ? y + 1 : y
+  const nextM = m === 12 ? 1 : m + 1
+  const monthEnd = `${nextY}-${String(nextM).padStart(2, "0")}-01`
+
+  const [row] = await db`
+    SELECT
+      (SELECT count(*) FROM reservations
+        WHERE tenant_id = ${tenantId} AND status <> 'cancelled'
+          AND check_in = ${today}::date) AS arrivals,
+      (SELECT count(*) FROM reservations
+        WHERE tenant_id = ${tenantId} AND status <> 'cancelled'
+          AND check_out = ${today}::date) AS departures,
+      (SELECT COALESCE(SUM(adults + children + infants), 0) FROM reservations
+        WHERE tenant_id = ${tenantId} AND status IN ('confirmed','checked_in')
+          AND check_in <= ${today}::date AND check_out > ${today}::date) AS in_house,
+      (SELECT count(*) FROM rooms
+        WHERE tenant_id = ${tenantId} AND is_active = true
+          AND status NOT IN ('out_of_order','unavailable','maintenance')) AS sellable,
+      (SELECT count(DISTINCT rr.room_id) FROM reservation_rooms rr
+        JOIN reservations res ON res.id = rr.reservation_id
+        WHERE res.tenant_id = ${tenantId} AND res.status IN ('confirmed','checked_in')
+          AND rr.check_in <= ${today}::date AND rr.check_out > ${today}::date) AS occ_today,
+      (SELECT COALESCE(SUM(
+          LEAST(rr.check_out, ${monthEnd}::date) - GREATEST(rr.check_in, ${monthStart}::date)
+        ), 0) FROM reservation_rooms rr
+        JOIN reservations res ON res.id = rr.reservation_id
+        WHERE res.tenant_id = ${tenantId} AND res.status IN ('confirmed','checked_in')
+          AND rr.check_in < ${monthEnd}::date AND rr.check_out > ${monthStart}::date) AS occ_month_nights
+  `
+
+  const arrivalsToday = Number(row?.arrivals) || 0
+  const departuresToday = Number(row?.departures) || 0
+  const inHouseGuests = Number(row?.in_house) || 0
+  const sellableRooms = Number(row?.sellable) || 0
+  const occupiedToday = Number(row?.occ_today) || 0
+  const occMonthNights = Number(row?.occ_month_nights) || 0
+
+  const daysInMonth = Math.round(
+    (new Date(monthEnd + "T00:00:00Z").getTime() - new Date(monthStart + "T00:00:00Z").getTime()) /
+      86400000,
+  )
+  const occupancyTodayPct = sellableRooms > 0 ? Math.round((occupiedToday / sellableRooms) * 100) : 0
+  const occupancyMonthPct =
+    sellableRooms > 0 && daysInMonth > 0
+      ? Math.round((occMonthNights / (sellableRooms * daysInMonth)) * 100)
+      : 0
+
+  return {
+    arrivalsToday,
+    departuresToday,
+    inHouseGuests,
+    occupiedToday,
+    sellableRooms,
+    occupancyTodayPct,
+    occupancyMonthPct,
+  }
+}
+
 export async function moveReservation(
   _tenantId: string,
   reservationId: string,

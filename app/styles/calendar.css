@@ -1,35 +1,398 @@
-/* Calendar day separator lines */
-/* Every day boundary = vertical line between days */
-/* In the colgroup: col 0 = room label, then pairs: col 1,2 = day 1, col 3,4 = day 2, etc. */
-/* The first sub-col of each day (odd cols: 1,3,5...) gets a left border = day separator */
+/* ============================================================================
+ * Rooms Calendar board — design system ported from design-ref/rooms-calendar.html
+ * (GuestHub "יומן חדרים"). Scoped under .cal-board so tokens/classes never leak.
+ * Grid mechanics: ONE scroll container, sticky day-header (top) + sticky
+ * room-cell (right, RTL start). Fixed readable --col widths (reference) with a
+ * CONTAINED internal scroll: the board is a closed rounded card that wraps its
+ * rows and scrolls horizontally INSIDE itself, so the page never overflows and
+ * columns stay readable (no crushing to fit).
+ * Reservation bar colour stays DYNAMIC (inline, from lookup_items.color); this
+ * file only owns shape/typography/layout/sticky/z-index.
+ * ========================================================================== */
 
-.calendar-grid td,
-.calendar-grid th {
-  border-bottom: 1px solid var(--border, #e2e8f0);
+.cal-board {
+  --cb-primary: #2540c8;
+  --cb-primary-d: color-mix(in srgb, var(--cb-primary) 76%, #000);
+  --cb-primary-050: color-mix(in srgb, var(--cb-primary) 7%, #fff);
+  --cb-primary-100: color-mix(in srgb, var(--cb-primary) 15%, #fff);
+  --cb-line: #e7eaf1;
+  --cb-ink: #1b2233;
+  --cb-muted: #6b7385;
+  --cb-faint: #9aa1b4;
+  --cb-surface: #ffffff;
+  --cb-surface-2: #fbfcfe;
+  /* Subtle reference grid line + faint cream weekend tint (lines stay visible
+     over the tint at these values — matches design-ref, not an Excel grid). */
+  --cb-row-line: #eef1f6;
+  --cb-wknd: #fffbf1;
+  --cb-wknd-cell: #fffdf6;
+  color: var(--cb-ink);
 }
 
-/* Day separator: every first half-day column of each day */
-.calendar-grid col.day-start {
-  border-left: 1px solid var(--border, #e2e8f0);
+.dark .cal-board {
+  --cb-line: rgba(255, 255, 255, 0.09);
+  --cb-ink: #e7eaf1;
+  --cb-muted: #9aa1b4;
+  --cb-faint: #6b7385;
+  --cb-surface: #1a1d24;
+  --cb-surface-2: #202530;
+  --cb-row-line: rgba(255, 255, 255, 0.11);
+  --cb-wknd: rgba(201, 154, 46, 0.09);
+  --cb-wknd-cell: rgba(201, 154, 46, 0.06);
+  color: var(--cb-ink);
 }
 
-/* Force ew-resize cursor during any drag operation on the calendar */
-body.dragging-calendar,
-body.dragging-calendar * {
-  cursor: ew-resize !important;
+/* ── Board shell ─────────────────────────────────────────────── */
+.cal-board.tl {
+  /* Content-height card: wraps its rows and closes at the last row (no empty
+     cut-off area below). Caps at the viewport so a very tall room list scrolls
+     internally rather than pushing the page. */
+  flex: 0 0 auto;
+  max-height: calc(100vh - 150px);
+  min-width: 0;
+  position: relative;
+  background: var(--cb-surface);
+  border: 1px solid color-mix(in srgb, var(--cb-ink) 6%, transparent);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 12px 34px rgba(16, 24, 40, 0.06);
+}
+.dark .cal-board.tl {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 34px rgba(0, 0, 0, 0.35);
 }
 
-/* Standard table header */
-.table-header-warm th {
-  background: #f8fafc;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
-  font-size: 0.875rem;
+.cal-board .tl-scroll {
+  overflow: auto;
+  flex: 1 1 0%;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.cal-board .tl-scroll::-webkit-scrollbar { height: 11px; width: 11px; }
+.cal-board .tl-scroll::-webkit-scrollbar-thumb {
+  background: #d3d8e2;
+  border-radius: 8px;
+  border: 3px solid var(--cb-surface);
+}
+.dark .cal-board .tl-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); }
+
+.cal-board .tl-inner { position: relative; min-width: max-content; }
+
+/* ── Sticky day header ───────────────────────────────────────── */
+.cal-board .tl-head {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: stretch;
+  background: var(--cb-surface);
+  box-shadow: 0 1px 0 var(--cb-line);
+}
+.cal-board .tl-corner {
+  position: sticky;
+  right: 0;
+  z-index: 31;
+  flex: 0 0 auto;
+  background: var(--cb-surface);
+  border-left: 1px solid var(--cb-line);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 15px;
+}
+.cal-board .cor-title { font-size: 15px; font-weight: 800; color: var(--cb-ink); }
+.cal-board .cor-sub { font-size: 12px; color: var(--cb-faint); font-weight: 600; }
+
+.cal-board .tl-days { display: flex; }
+.cal-board .tl-day {
+  flex: 0 0 var(--col);
+  width: var(--col);
+  border-left: 1px solid var(--cb-row-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 9px 3px 7px;
+  text-align: center;
+}
+.cal-board .tl-day .dl { font-size: 12.5px; color: var(--cb-faint); font-weight: 700; }
+.cal-board .tl-day .dn {
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--cb-ink);
+  padding: 1px 8px;
+  border-radius: 9px;
+}
+.cal-board .tl-day .dm { font-size: 11px; color: var(--cb-faint); font-weight: 700; }
+.cal-board .tl-day.wknd { background: var(--cb-wknd); }
+.cal-board .tl-day.wknd .dl { color: #c99a2e; }
+.cal-board .tl-day.today { background: var(--cb-primary-050); }
+.cal-board .tl-day.today .dn {
+  color: #fff;
+  background: var(--cb-primary);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--cb-primary) 42%, transparent);
+}
+
+/* ── Rows ────────────────────────────────────────────────────── */
+.cal-board .tl-row { display: flex; align-items: stretch; border-top: 1px solid var(--cb-row-line); }
+.cal-board .tl-row:hover .tl-roomcell { background: var(--cb-surface-2); }
+
+.cal-board .tl-roomcell {
+  position: sticky;
+  right: 0;
+  z-index: 15;
+  flex: 0 0 auto;
+  background: var(--cb-surface);
+  border-left: 1px solid var(--cb-line);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 15px;
+}
+.cal-board .rc-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--cb-ink);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+}
+.cal-board .rc-type { font-size: 14.5px; font-weight: 700; color: color-mix(in srgb, var(--cb-ink) 88%, #fff); line-height: 1.1; }
+.cal-board .rc-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+.cal-board .rc-floor { font-size: 12.5px; color: var(--cb-faint); font-weight: 600; }
+.cal-board .rc-status { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 700; }
+.cal-board .rc-sdot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.cal-board .rc-status.ok { color: #16a34a; }
+.cal-board .rc-status.maint { color: #ea9314; }
+.cal-board .rc-status.busy { color: #dc2626; }
+.cal-board .rc-status.dirty { color: #ea9314; }
+.cal-board .rc-status.off { color: #64748b; }
+
+/* ── Day-cell track ──────────────────────────────────────────── */
+.cal-board .tl-track { position: relative; flex: 0 0 auto; display: flex; }
+.cal-board .tl-cell {
+  flex: 0 0 var(--col);
+  width: var(--col);
+  border-left: 1px solid var(--cb-row-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  user-select: none;
+}
+.cal-board .tl-cell.wknd { background: var(--cb-wknd-cell); }
+.cal-board .tl-cell.today { background: color-mix(in srgb, var(--cb-primary) 4%, var(--cb-surface)); }
+.cal-board .tl-cell.unavail { background: color-mix(in srgb, #dc2626 5%, var(--cb-surface)); }
+.cal-board .tl-cell .pr {
+  font-size: 15px;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--cb-ink) 82%, #000);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+.cal-board .tl-cell.unavail .pr { color: #f4b9b9; text-decoration: line-through; }
+.cal-board .tl-cell .ms {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12.5px;
+  color: var(--cb-muted);
   font-weight: 700;
-  color: rgba(26, 27, 34, 0.8);
-  padding: 0.875rem 1rem;
+}
+.cal-board .tl-cell .ms .cb-moon { font-size: 15px; color: var(--cb-faint); width: 15px; height: 15px; }
+.cal-board .tl-cell:not(.cov):hover { background: var(--cb-primary-050); cursor: pointer; }
+.cal-board .cell-flags { position: absolute; top: 3px; inset-inline-start: 4px; display: flex; gap: 2px; pointer-events: none; }
+
+/* ── Reservation bars ────────────────────────────────────────── */
+.cal-board .tl-bars { position: absolute; inset: 0; pointer-events: none; }
+.cal-board .tl-bar {
+  position: absolute;
+  border-radius: 12px;
+  /* bg / colour / start-nub set inline (dynamic from payment status). */
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  pointer-events: auto;
+  cursor: grab;
+  overflow: hidden;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  transition: box-shadow 0.18s;
+  min-width: 0;
+}
+.cal-board .tl-bar:active { cursor: grabbing; }
+.cal-board .tl-bar:hover { box-shadow: 0 3px 10px rgba(16, 24, 40, 0.12); z-index: 14; }
+.cal-board .tl-bar:focus-visible { outline: 2px solid var(--cb-primary); outline-offset: 2px; }
+.cal-board .tl-bar.sel { outline: 2px solid currentColor; outline-offset: 1.5px; z-index: 14; }
+.cal-board .tl-bar.dim { opacity: 0.4; }
+.cal-board .tl-bar .bavatar {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  /* background set inline = status colour */
+}
+.cal-board .tl-bar .bname { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cal-board .tl-bar .bstar { color: #f3a712; font-size: 16px; width: 16px; height: 16px; flex: 0 0 auto; }
+.cal-board .tl-bar .bmeta {
+  margin-inline-start: auto;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  font-weight: 700;
+  font-size: 12px;
+  opacity: 0.72;
+  flex: 0 0 auto;
+}
+.cal-board .tl-bar .bmeta .cb-moon { width: 14px; height: 14px; }
+/* Resize grip — check-out edge (inline-end = visual left in RTL). */
+.cal-board .tl-bar .bhandle {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: ew-resize;
+  padding: 0;
+  touch-action: none;
+}
+.cal-board .tl-bar .bhandle span {
+  width: 4px;
+  height: 24px;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.42;
+  transition: opacity 0.14s, width 0.1s;
+}
+.cal-board .tl-bar:hover .bhandle span { opacity: 0.85; }
+.cal-board .tl-bar .bhandle:hover span { opacity: 1; width: 6px; }
+
+/* ── Drag preview overlay (per-row, inside the target track) ──── */
+.cal-board .tl-preview {
+  position: absolute;
+  border-radius: 12px;
+  border: 1px solid;
+  box-sizing: border-box;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  z-index: 16;
 }
 
-.dark .table-header-warm th {
-  background: rgba(30, 32, 37, 0.8);
-  border-bottom-color: rgba(44, 46, 53, 0.5);
+/* Force resize cursor globally while dragging an edge. */
+body.dragging-calendar,
+body.dragging-calendar * { cursor: ew-resize !important; }
+
+/* ============================================================================
+ * Toolbar — view-tab segmented control + date navigator.
+ * Ported 1:1 from the reference (.seg / .seg-btn / .datenav / .dn-*). Rendered
+ * OUTSIDE .cal-board (BoardHeader), so these use literal reference tokens.
+ * ========================================================================== */
+.cal-seg {
+  display: inline-flex;
+  gap: 2px;
+  background: #eef0f5;
+  border-radius: 11px;
+  padding: 3px;
 }
+.cal-seg-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #5b6478;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+.cal-seg-btn:hover { color: #1b2233; }
+.cal-seg-btn.active {
+  background: #fff;
+  color: #2540c8;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12);
+}
+
+.cal-datenav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e7eaf1;
+  border-radius: 11px;
+  padding: 3px;
+}
+.cal-dn-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #5b6478;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+.cal-dn-btn:hover { background: #f2f4f8; }
+.cal-dn-range {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 10px;
+  font-variant-numeric: tabular-nums;
+  color: #2c3446;
+  white-space: nowrap;
+}
+.cal-dn-today {
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, #2540c8 7%, #fff);
+  color: #2540c8;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.cal-dn-today:hover { background: color-mix(in srgb, #2540c8 15%, #fff); }
+.cal-dn-today:disabled { cursor: default; opacity: 0.55; }
+
+/* Dark-mode toolbar surfaces */
+.dark .cal-seg { background: rgba(255, 255, 255, 0.06); }
+.dark .cal-seg-btn { color: #9aa1b4; }
+.dark .cal-seg-btn:hover { color: #e7eaf1; }
+.dark .cal-seg-btn.active { background: #2a2f3a; color: #fff; box-shadow: none; }
+.dark .cal-datenav { background: transparent; border-color: rgba(255, 255, 255, 0.1); }
+.dark .cal-dn-btn { color: #9aa1b4; }
+.dark .cal-dn-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.dark .cal-dn-range { color: #e7eaf1; }
+.dark .cal-dn-today { background: rgba(37, 64, 200, 0.22); color: #b9c6ff; }
