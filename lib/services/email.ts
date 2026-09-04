@@ -1,29 +1,35 @@
 "use server"
 
 /**
- * Email service — Gmail SMTP via nodemailer.
+ * Email service — SMTP via nodemailer, configured from env.
  *
- * Setup:
- *   1. Enable 2-Step Verification on the Google account.
- *   2. Create an App Password: https://myaccount.google.com/apppasswords
- *   3. Set in .env.local:
- *        GMAIL_USER=your.email@gmail.com
- *        GMAIL_APP_PASSWORD=16-char-app-password
- *        EMAIL_FROM="GuestHub <your.email@gmail.com>"
+ * Production: the Google Workspace SMTP relay, which authorises the server's
+ * registered IP addresses — no password:
+ *   SMTP_HOST=smtp-relay.gmail.com
+ *   SMTP_PORT=587                (empty = 587)
+ *   SMTP_SECURE=false            (true = full TLS, e.g. 465; false = STARTTLS required)
+ *   GMAIL_USER=name@bios.co.il   (sender; must be an address in the relay's domain)
+ *   EMAIL_FROM="GuestHub <name@bios.co.il>"   (optional display form of the sender)
+ *   GMAIL_APP_PASSWORD=          (optional; when set → authenticated login as GMAIL_USER)
  *
- * Limits: ~500 emails/day for free Gmail; ~2000/day for Workspace.
+ * Why the relay: Google rejected App-Password logins from this server's IPv6
+ * address (535 BadCredentials) while accepting IPv4, and Node picks an address
+ * family per connection — so sends failed intermittently. The relay accepts
+ * both registered addresses. To go back to an authenticated login, set
+ * SMTP_HOST=smtp.gmail.com, SMTP_PORT=465, SMTP_SECURE=true and a password.
  *
- * Note: Gmail will silently rewrite FROM to match GMAIL_USER unless you've
- * configured SPF/DKIM for the sending domain. For Workspace + custom domain,
- * see https://support.google.com/a/answer/33786.
+ * Limits: relay ~10,000/day per Workspace user.
  *
- * If GMAIL_USER/GMAIL_APP_PASSWORD are unset:
+ * If SMTP_HOST / GMAIL_USER are unset:
  *   - In dev: logs to console, returns success (so flows aren't blocked).
  *   - In prod: returns failure with a clear error.
  */
 
 import nodemailer, { type Transporter } from "nodemailer"
 
+const SMTP_HOST = process.env.SMTP_HOST
+const SMTP_PORT = Number(process.env.SMTP_PORT || "587")
+const SMTP_SECURE = process.env.SMTP_SECURE === "true"
 const GMAIL_USER = process.env.GMAIL_USER
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD
 const FROM =
@@ -34,14 +40,20 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://guesthub.app"
 let transporter: Transporter | null = null
 
 function getTransporter(): Transporter | null {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) return null
+  if (!SMTP_HOST || !GMAIL_USER) return null
+  if (!Number.isInteger(SMTP_PORT) || SMTP_PORT < 1 || SMTP_PORT > 65535) return null
   if (!transporter) {
     transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_APP_PASSWORD,
-      },
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE,
+      // Without full TLS, STARTTLS is mandatory — never plaintext.
+      ...(SMTP_SECURE ? {} : { requireTLS: true }),
+      // Auth only when a password exists; the relay authorises by IP.
+      ...(GMAIL_APP_PASSWORD ? { auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD } } : {}),
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     })
   }
   return transporter
@@ -62,13 +74,13 @@ export async function sendEmail({
   if (!t) {
     if (process.env.NODE_ENV === "development") {
       console.warn(
-        `[email] Skipped (Gmail credentials missing). To: ${to}, Subject: ${subject}`,
+        `[email] Skipped (SMTP not configured). To: ${to}, Subject: ${subject}`,
       )
       return { success: true }
     }
     return {
       success: false,
-      error: "שירות מייל לא מוגדר (GMAIL_USER / GMAIL_APP_PASSWORD חסרים)",
+      error: "שירות מייל לא מוגדר (SMTP_HOST / GMAIL_USER חסרים או SMTP_PORT לא תקין)",
     }
   }
 
