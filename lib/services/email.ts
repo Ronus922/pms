@@ -39,6 +39,21 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://guesthub.app"
 
 let transporter: Transporter | null = null
 
+/* Same safety net as sea-tower's mailer: each attempt opens a new connection,
+   so a transient rejection is retried with a short backoff. */
+const MAX_ATTEMPTS = 4
+const BACKOFF_MS = [500, 1000, 2000]
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/* nodemailer attaches code (EAUTH, EENVELOPE, ECONNECTION, ETIMEDOUT...). The
+   message may contain addresses — only the code goes to the log. */
+function errorCode(e: unknown): string {
+  if (e && typeof e === "object" && "code" in e && typeof e.code === "string") {
+    return e.code.slice(0, 40)
+  }
+  return "unknown"
+}
+
 function getTransporter(): Transporter | null {
   if (!SMTP_HOST || !GMAIL_USER) return null
   if (!Number.isInteger(SMTP_PORT) || SMTP_PORT < 1 || SMTP_PORT > 65535) return null
@@ -84,14 +99,22 @@ export async function sendEmail({
     }
   }
 
-  try {
-    await t.sendMail({ from: FROM, to, subject, html })
-    return { success: true }
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "שגיאה בשליחת מייל",
+  let lastError: unknown
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const info = await t.sendMail({ from: FROM, to, subject, html })
+      // messageId is a generated id, not PII — the proof in the PM2 log that a mail left.
+      console.info("[email] sent", { messageId: info.messageId ?? null, attempts: attempt })
+      return { success: true }
+    } catch (err) {
+      lastError = err
+      if (attempt < MAX_ATTEMPTS) await sleep(BACKOFF_MS[attempt - 1])
     }
+  }
+  console.error("[email] failed", { code: errorCode(lastError), attempts: MAX_ATTEMPTS })
+  return {
+    success: false,
+    error: lastError instanceof Error ? lastError.message : "שגיאה בשליחת מייל",
   }
 }
 
