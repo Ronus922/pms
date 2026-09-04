@@ -136,7 +136,7 @@ verify_deploy() { # $1 = EADDRINUSE count captured before deploy
   # (c) PM2 status online + no new EADDRINUSE since deploy start
   local st; st=$(pm2 jlist 2>/dev/null | python3 -c "import json,sys;print([x for x in json.load(sys.stdin) if x['name']=='$APP'][0]['pm2_env']['status'])" 2>/dev/null || echo unknown)
   [ "$st" = "online" ] && echo "  ✓ pm2 status online" || { echo "  ✗ pm2 status=$st"; fail=1; }
-  local eaddr_after; eaddr_after=$(grep -c EADDRINUSE "$ERRLOG" 2>/dev/null || echo 0)
+  local eaddr_after; eaddr_after=$(grep -c EADDRINUSE "$ERRLOG" 2>/dev/null || true)
   if [ "$eaddr_after" -le "$eaddr_before" ]; then echo "  ✓ no new EADDRINUSE ($eaddr_after total)"
   else echo "  ✗ new EADDRINUSE appeared ($eaddr_before → $eaddr_after)"; fail=1; fi
 
@@ -176,7 +176,7 @@ echo "🔧 [3/7] build (isolated — live .next untouched) ..."
 echo "🩹 [4/7] rewrite baked build-dir paths → prod path ..."
 { grep -rl "$BUILD" "$BUILD/.next" 2>/dev/null || true; } | xargs -r sed -i "s#$BUILD#$PROD#g"
 
-EADDR_BEFORE=$(grep -c EADDRINUSE "$ERRLOG" 2>/dev/null || echo 0)
+EADDR_BEFORE=$(grep -c EADDRINUSE "$ERRLOG" 2>/dev/null || true)
 
 echo "🔁 [5/7] atomic swap + reload ..."
 rm -rf "$PROD/.next.prev"
