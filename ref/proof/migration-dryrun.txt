@@ -1,0 +1,32 @@
+# Migration dry-run — 2026-07-25_pricing_engine
+# Scratch container 'pms-dryrun' (postgres:15, 127.0.0.1:5439). PRODUCTION NEVER TOUCHED.
+# Source: full pg_dump of proj_pms public schema (13 MB), restored intact.
+
+## Restored fidelity
+reservations=20  reservation_rooms=22  tenants=1   (identical to live)
+
+## 1. up.sql applied
+NOTICE:  Backfill parity OK: 20 reservations, 22 rooms reproduced exactly
+COMMIT
+
+## 2. Pre-existing money columns after up.sql
+diff before/after on subtotal,tax_amount,total_price,total_paid,balance_due,deposit,
+discount_percent,discount_per_night across all 20 rows => IDENTICAL (zero restatement)
+
+## 3. VAT era recovered per row (proves tenant rate is NOT used)
+tenants.vat_rate today = 0.18. Had it been applied uniformly, the 4 rows sold at
+17% would have been restated. They were not.
+
+## 4. Idempotency — up.sql re-run
+NOTICE:  Backfill parity OK: 20 reservations, 22 rooms reproduced exactly
+
+## 5. NEGATIVE CONTROL — the self-check is not vacuous
+Deliberately set RES-20260410-001.vat_rate = 0.99, then re-ran up.sql:
+ERROR:  Backfill parity FAILED — aborting. total mismatches=0, vat mismatches=1, room-rate mismatches=0
+Transaction aborted. The guard fires on a real discrepancy.
+
+## 6. down.sql applied
+added columns remaining on reservations+reservation_rooms : 0
+rate_plan_los_discounts table remaining                   : 0
+reservation_rooms.rate_plan_id (pre-existing) preserved   : 1
+diff before / after-full-up+down-cycle                    : IDENTICAL

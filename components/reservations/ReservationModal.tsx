@@ -104,9 +104,11 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
         }
         if (store.paymentMethod === "credit_card") {
           if (!store.cardHolderName.trim()) errors.cardHolderName = "חובה להזין שם בעל כרטיס"
-          const digits = store.cardNumber.replace(/\D/g, "")
-          if (!digits) errors.cardNumber = "חובה להזין מספר כרטיס"
-          else if (digits.length < 13 || digits.length > 19) errors.cardNumber = "מספר כרטיס לא תקין"
+          // PCI: only the last four digits are ever captured, so a full-PAN
+          // length check no longer applies.
+          const digits = store.cardLast4.replace(/\D/g, "")
+          if (!digits) errors.cardLast4 = "חובה להזין 4 ספרות אחרונות"
+          else if (digits.length !== 4) errors.cardLast4 = "יש להזין בדיוק 4 ספרות"
         }
       }
 
@@ -202,8 +204,16 @@ export function ReservationModal({ onCreated }: ReservationModalProps) {
       deposit: store.deposit,
       amountPaid: store.amountPaid,
       currency: store.currency,
+      // Pricing-engine controls. The server recomputes from these and never
+      // trusts the totals the client derived.
+      priceMode: store.priceMode,
+      manualNightlyRate: store.manualNightlyRate,
+      manualTotal: store.manualTotal,
+      discountMode: store.discountMode,
+      discountValue: store.discountValue,
+      vatInclusive: store.vatInclusive,
       cardHolderName: store.cardHolderName,
-      cardNumber: store.cardNumber,
+      cardLast4: store.cardLast4,
       cardHolderId: store.cardHolderId,
       cardExpiryMonth: store.cardExpiryMonth,
       cardExpiryYear: store.cardExpiryYear,

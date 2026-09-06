@@ -44,3 +44,6 @@ next-env.d.ts
 .claude-md-backups/
 output/
 *.zip
+
+# Production data dumps — never commit
+ref/backup/

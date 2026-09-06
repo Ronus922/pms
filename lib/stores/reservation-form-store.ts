@@ -1,4 +1,13 @@
 import { create } from "zustand"
+import {
+  computePricing,
+  enumerateNights,
+  round2,
+  type DiscountMode,
+  type NightRate,
+  type PriceMode,
+  type PricingResult,
+} from "@/lib/pricing/engine"
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -35,6 +44,20 @@ export interface ReservationRoom {
   guestPhone: string
   guestEmail: string
   guestIdNumber: string
+  /** Per-room pricing controls — the SAME set the reservation carries.
+   *  reservation_rooms grew its own price_mode / manual_* / discount_* /
+   *  vat_inclusive / currency columns in the 2026-07-25 pricing migration; this
+   *  is the client-side mirror of them. The VAT RATE is deliberately absent: it
+   *  belongs to the reservation (the era the stay was sold in), not to a room.
+   *  Edited in the edit panel via RoomPricingRow; the create wizard carries the
+   *  defaults so both flows speak one shape. */
+  priceMode: PriceMode
+  manualNightlyRate: number | null
+  manualTotal: number | null
+  discountMode: DiscountMode
+  discountValue: number
+  vatInclusive: boolean
+  currency: string
 }
 
 export interface AttachmentFile {
@@ -117,9 +140,18 @@ export interface ReservationFormData {
   amountPaid: number
   currency: string
 
-  // Credit Card
+  // Pricing engine controls (lib/pricing/engine.ts)
+  priceMode: PriceMode
+  manualNightlyRate: number | null
+  manualTotal: number | null
+  discountMode: DiscountMode
+  discountValue: number
+  /** Whether the entered money already contains VAT. Default true. */
+  vatInclusive: boolean
+
+  // Credit Card — PCI: last four digits only, never the full PAN, never a CVV.
   cardHolderName: string
-  cardNumber: string
+  cardLast4: string
   cardHolderId: string
   cardExpiryMonth: string
   cardExpiryYear: string
@@ -141,14 +173,18 @@ export interface ReservationFormStore extends ReservationFormData {
   isOpen: boolean
   quickViewOpen: boolean
 
-  // Computed
+  // Computed — all of these come out of lib/pricing/engine.ts
   nights: number
   totalNightlyRate: number
   baseAmount: number
   discountTotal: number
+  netAmount: number
   taxAmount: number
   grandTotal: number
+  /** Negative means the guest is in credit. */
   balanceDue: number
+  /** Full engine result, for the nightly breakdown and the summary lines. */
+  pricing: PricingResult
 
   // Actions
   setField: <K extends keyof ReservationFormData>(field: K, value: ReservationFormData[K]) => void
@@ -228,13 +264,26 @@ const DEFAULTS: ReservationFormData = {
   discountPercent: 0,
   extraCharges: [],
   taxExempt: false,
-  taxRate: 0.17,
+  // Starts at 0, NOT at an assumed national rate. ReservationModal fills it
+  // from tenants.vat_rate the moment the modal opens. Guessing here is what
+  // produced the only real 17-vs-18 drift: the tenant is on 18%, so a 0.17
+  // fallback quietly previewed a different total from the one the server saved.
+  // Showing no VAT for a few hundred milliseconds is honest; showing the wrong
+  // VAT is not.
+  taxRate: 0,
   deposit: 0,
   amountPaid: 0,
   currency: "ILS",
 
+  priceMode: "auto",
+  manualNightlyRate: null,
+  manualTotal: null,
+  discountMode: "none",
+  discountValue: 0,
+  vatInclusive: true,
+
   cardHolderName: "",
-  cardNumber: "",
+  cardLast4: "",
   cardHolderId: "",
   cardExpiryMonth: "",
   cardExpiryYear: "",
@@ -324,30 +373,75 @@ function computeDerived(state: ReservationFormData) {
         }, 0)
       : state.pricePerNight * nights
 
-  let discountTotal = 0
-  if (state.discountPercent > 0) {
-    discountTotal = baseAmount * (state.discountPercent / 100)
-  } else if (state.discountAmount > 0) {
-    discountTotal = state.discountAmount
-  }
-
   const extraChargesTotal = Array.isArray(state.extraCharges)
     ? state.extraCharges.reduce((s, c) => s + (c.amount || 0), 0)
     : (state.extraCharges as number) || 0
-  const afterDiscount = Math.max(0, baseAmount - discountTotal) + extraChargesTotal
-  const effectiveTaxRate = state.taxExempt ? 0 : Math.max(0, Number(state.taxRate) || 0)
-  const taxAmount = afterDiscount * effectiveTaxRate
-  const grandTotal = afterDiscount + taxAmount
-  const balanceDue = Math.max(0, grandTotal - state.amountPaid - state.deposit)
+
+  // Hand the engine one NightRate per ROOM-night. Summing those reproduces the
+  // per-room pricing above exactly, and every rule after that point (discount,
+  // VAT, balance) is the engine's — there is no second formula here any more.
+  const pricingNights: NightRate[] =
+    recomputedRooms.length > 0
+      ? recomputedRooms.flatMap((r) =>
+          enumerateNights(r.checkIn || derivedCheckIn, r.checkOut || derivedCheckOut).map((date) => ({
+            date,
+            baseRate: r.ratePerNight || 0,
+            appliedRate: r.ratePerNight || 0,
+            source: "room_type_base" as const,
+            ratePlanId: state.ratePlanId || null,
+            losRuleApplied: null,
+          })),
+        )
+      : enumerateNights(derivedCheckIn, derivedCheckOut).map((date) => ({
+          date,
+          baseRate: state.pricePerNight,
+          appliedRate: state.pricePerNight,
+          source: "room_type_base" as const,
+          ratePlanId: state.ratePlanId || null,
+          losRuleApplied: null,
+        }))
+
+  const pricing: PricingResult = computePricing({
+    nights: pricingNights,
+    priceMode: state.priceMode,
+    manualNightlyRate: state.manualNightlyRate,
+    manualTotal: state.manualTotal,
+    discountMode: state.discountMode,
+    discountValue: state.discountValue,
+    extraCharges: extraChargesTotal,
+    vatInclusive: state.vatInclusive,
+    vatRate: Math.max(0, Number(state.taxRate) || 0),
+    vatExempt: state.taxExempt,
+    // A deposit IS a payment. It is never subtracted a second time — this is
+    // what previously made the preview disagree with every post-save view.
+    payments: (state.amountPaid || 0) + (state.deposit || 0),
+    currency: state.currency,
+    exchangeRate: 1,
+  })
+
+  // Legacy mirrors, DERIVED from the engine controls so there is exactly one
+  // source of truth. Older consumers still read these.
+  const discountAmount =
+    state.discountMode === "amount_total" || state.discountMode === "amount_per_night"
+      ? pricing.discountTotal
+      : 0
+  const discountPercent =
+    state.discountMode === "percent_total" || state.discountMode === "percent_per_night"
+      ? state.discountValue
+      : 0
 
   return {
     nights,
     totalNightlyRate,
-    baseAmount,
-    discountTotal,
-    taxAmount,
-    grandTotal,
-    balanceDue,
+    baseAmount: pricing.grossBeforeDiscount,
+    discountTotal: pricing.discountTotal,
+    discountAmount,
+    discountPercent,
+    netAmount: pricing.netAmount,
+    taxAmount: pricing.vatAmount,
+    grandTotal: pricing.grandTotal,
+    balanceDue: pricing.balanceDue,
+    pricing,
     rooms: recomputedRooms,
     checkIn: derivedCheckIn,
     checkOut: derivedCheckOut,

@@ -58,6 +58,7 @@ export function EditRoomsSection() {
       infants: first?.infants ?? 0,
       firstName: store.data.firstName,
       lastName: store.data.lastName,
+      currency: store.data.currency,
     }))
   }
 

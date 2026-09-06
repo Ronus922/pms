@@ -328,8 +328,8 @@ export function Step4Review() {
 
           {store.paymentMethod === "credit_card" && (
             <>
-              {store.cardNumber && (
-                <ReviewRow label="כרטיס" value={`**** ${store.cardNumber.slice(-4)}`} dir="ltr" />
+              {store.cardLast4 && (
+                <ReviewRow label="כרטיס" value={`**** ${store.cardLast4}`} dir="ltr" />
               )}
               {store.cardApprovalCode && (
                 <ReviewRow label="קוד אישור" value={store.cardApprovalCode} dir="ltr" />

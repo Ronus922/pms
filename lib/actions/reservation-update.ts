@@ -3,6 +3,20 @@
 import { db } from "@/lib/db"
 import { requireActor } from "@/lib/auth/actor"
 import type { ReservationEditData } from "@/lib/stores/reservation-edit-store"
+import {
+  computePricing,
+  deriveHistoricalVatRate,
+  validatePricingInput,
+  type NightRate,
+  type PricingInput,
+} from "@/lib/pricing/engine"
+import {
+  priceRoom,
+  reservationNightsFromRooms,
+  roomPricingControlsFromRow,
+  type ReservationPricingContext,
+  type RoomPricingOutcome,
+} from "@/lib/pricing/rooms"
 import { validateRoomCapacity } from "@/lib/utils/room-capacity"
 import { isPlausibleStay, logImplausibleDatePayload } from "@/lib/utils/date-validation"
 import { createCleaningTasksForCheckout, syncTaskTimesForReservation } from "@/lib/services/cleaning-tasks"
@@ -112,6 +126,17 @@ interface UpdateResult {
   error?: string
 }
 
+/** postgres.js hands DATE columns back as Date objects; the engine works in
+ *  ISO strings. `String(date).slice(0,10)` would produce "Mon Apr 13". */
+function toIsoDate(v: unknown): string {
+  if (v == null || v === "") return ""
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : v.toISOString().slice(0, 10)
+  const s = String(v)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10)
+}
+
 export async function updateReservation(
   reservationId: string,
   _tenantId: string,
@@ -151,6 +176,124 @@ export async function updateReservation(
       if (!check.ok) return { success: false, error: check.reason }
     }
 
+    // ── Pricing — recomputed HERE, before anything is written ──
+    //
+    // The client's totals are a preview, never the figure that gets stored.
+    // The engine is fed from reservation_rooms (already written by
+    // updateReservationRooms earlier in the save flow) plus the operator's
+    // pricing controls, and its output is what lands in the row.
+    const priceRoomRows = await db<
+      {
+        id: string
+        check_in: Date | string
+        check_out: Date | string
+        rate_per_night: string | number | null
+        price_mode: string | null
+        manual_nightly_rate: string | null
+        manual_total: string | null
+        discount_mode: string | null
+        discount_value: string | null
+        vat_inclusive: boolean | null
+        currency: string | null
+      }[]
+    >`
+      SELECT id, check_in, check_out, rate_per_night,
+             price_mode, manual_nightly_rate, manual_total,
+             discount_mode, discount_value, vat_inclusive, currency
+      FROM reservation_rooms
+      WHERE reservation_id = ${reservationId} AND tenant_id = ${tenantId}
+      ORDER BY check_in
+    `
+
+    // The VAT rate comes from the reservation's OWN row, never from
+    // tenants.vat_rate — that one is mutable (it went 17 -> 18) and would
+    // restate every stay sold under the old rate. A row that predates the
+    // pricing migration carries its rate implicitly in its own figures.
+    const [priceRow] = await db<
+      { vat_rate: string | null; total_price: string | null; tax_amount: string | null }[]
+    >`
+      SELECT vat_rate, total_price, tax_amount
+      FROM reservations
+      WHERE id = ${reservationId} AND tenant_id = ${tenantId}
+    `
+    if (!priceRow) return { success: false, error: "לא נמצאה הזמנה" }
+
+    const storedVatRate = priceRow.vat_rate == null ? null : Number(priceRow.vat_rate)
+    const resolvedVatRate =
+      storedVatRate !== null && Number.isFinite(storedVatRate)
+        ? storedVatRate
+        : deriveHistoricalVatRate(Number(priceRow.total_price) || 0, Number(priceRow.tax_amount) || 0)
+
+    const ratePlanId = data.ratePlanId || null
+
+    // Each room is priced on ITS OWN controls first, then the reservation is
+    // priced over the nights those rooms contribute — so the reservation total
+    // is the sum of its rooms by construction, not by a second addition that
+    // could disagree with the panel. A reservation in `manual_total` still
+    // wins: the engine ignores nights for the total in that mode.
+    const roomPricingCtx: ReservationPricingContext = {
+      vatRate: resolvedVatRate,
+      vatExempt: data.taxExempt,
+      vatInclusive: data.vatInclusive,
+      currency: data.currency || "ILS",
+      exchangeRate: Number(data.exchangeRate) || 1,
+      ratePlanId,
+    }
+
+    const roomOutcomes = new Map<string, RoomPricingOutcome>()
+    for (const room of priceRoomRows) {
+      roomOutcomes.set(
+        room.id,
+        priceRoom(
+          {
+            checkIn: toIsoDate(room.check_in) || data.checkIn,
+            checkOut: toIsoDate(room.check_out) || data.checkOut,
+            ratePerNight: Number(room.rate_per_night) || 0,
+            ...roomPricingControlsFromRow(room, roomPricingCtx.currency),
+          },
+          roomPricingCtx,
+        ),
+      )
+    }
+
+    const pricingNights: NightRate[] = reservationNightsFromRooms([...roomOutcomes.values()])
+
+    const pricingInput: PricingInput = {
+      nights: pricingNights,
+      priceMode: data.priceMode,
+      manualNightlyRate: data.manualNightlyRate,
+      manualTotal: data.manualTotal,
+      discountMode: data.discountMode,
+      discountValue: data.discountValue,
+      extraCharges: Math.max(0, Number(data.extraCharges) || 0),
+      vatInclusive: data.vatInclusive,
+      vatRate: resolvedVatRate,
+      vatExempt: data.taxExempt,
+      // A deposit is a payment, not a second deduction.
+      payments: (Number(data.totalPaid) || 0) + (Number(data.deposit) || 0),
+      currency: data.currency || "ILS",
+      exchangeRate: Number(data.exchangeRate) || 1,
+    }
+
+    const pricingErrors = validatePricingInput(pricingInput)
+    if (pricingErrors.length > 0) {
+      return { success: false, error: pricingErrors[0].message }
+    }
+
+    // `resolvedVatRate` is stored as-is even when the stay is VAT exempt.
+    // Zeroing it would destroy the rate the reservation belongs to, and
+    // un-ticking "פטור ממע״מ" later would then silently price it at 0%.
+    // Exemption is carried by tax_exempt, which is what the engine reads.
+    const pricing = computePricing(pricingInput)
+    const nightsCount = Math.max(pricing.nightsCount, 1)
+    // Legacy mirrors, derived from the engine so there is one source of truth.
+    // discount_percent is what ReservationPrintView re-derives its discount line
+    // from (subtotal x discount_percent / 100), so it must match discountTotal.
+    const discountPercent =
+      data.discountMode === "percent_total" || data.discountMode === "percent_per_night"
+        ? data.discountValue
+        : 0
+
     // ── Update guest record ──
     // NOTE: `guests.full_name` is a GENERATED column (`first_name || ' ' || last_name`).
     // Writing to it throws "column can only be updated to DEFAULT"; the DB
@@ -180,6 +323,10 @@ export async function updateReservation(
     //   (total_price - total_paid). Writing to it throws
     //   "column balance_due can only be updated to DEFAULT".
     //   The DB recomputes it whenever total_price or total_paid change.
+    //
+    // NOTE: `subtotal` is the GROSS before discount and before extras — that is
+    //   what it has always held and what ReservationPrintView re-derives its
+    //   discount line from. It is NOT the net-of-VAT figure.
     await db`
       UPDATE reservations SET
         status = ${data.status},
@@ -197,17 +344,55 @@ export async function updateReservation(
         internal_notes = ${data.internalNotes || null},
         reception_notes = ${data.receptionNotes || null},
         meal_plan = ${data.mealPlan || "none"},
-        total_price = ${data.totalPrice},
+        total_price = ${pricing.grandTotal},
         total_paid = ${data.totalPaid},
         deposit = ${data.deposit},
-        discount_percent = ${data.discountPercent},
+        subtotal = ${pricing.grossBeforeDiscount},
+        tax_amount = ${pricing.vatAmount},
         tax_exempt = ${data.taxExempt},
-        tax_amount = ${data.taxAmount},
+        discount_percent = ${discountPercent},
+        discount_per_night = ${pricing.discountTotal / nightsCount},
+        price_mode = ${data.priceMode},
+        manual_nightly_rate = ${data.manualNightlyRate},
+        manual_total = ${data.manualTotal},
+        discount_mode = ${data.discountMode},
+        discount_value = ${data.discountValue},
+        vat_inclusive = ${data.vatInclusive},
+        vat_rate = ${resolvedVatRate},
+        currency = ${data.currency || "ILS"},
+        exchange_rate = ${pricingInput.exchangeRate},
+        pricing_breakdown = ${JSON.stringify(pricing.breakdown)}::jsonb,
+        rate_plan_id = ${ratePlanId}::uuid,
+        card_holder_name = ${data.cardHolderName || null},
+        card_last4 = ${data.cardLast4 || null},
+        card_holder_id = ${data.cardHolderId || null},
+        card_expiry_month = ${data.cardExpiryMonth || null},
+        card_expiry_year = ${data.cardExpiryYear || null},
+        card_approval_code = ${data.cardApprovalCode || null},
+        card_transaction_ref = ${data.cardTransactionRef || null},
+        card_installments = ${data.cardInstallments || 1},
         external_id = ${data.externalId || null},
         cancellation_policy = ${data.cancellationPolicy || null},
         updated_at = NOW()
       WHERE id = ${reservationId} AND tenant_id = ${tenantId}
     `
+
+    // Re-derive the per-room figures against the context we just committed.
+    // updateReservationRooms wrote them from the reservation as it stood BEFORE
+    // this save, so a save that also flipped "פטור ממע״מ" or the VAT
+    // convention would otherwise leave each room's stored breakdown one save
+    // behind the reservation it belongs to.
+    for (const [roomId, outcome] of roomOutcomes) {
+      await db`
+        UPDATE reservation_rooms SET
+          vat_rate = ${resolvedVatRate},
+          currency = ${data.currency || "ILS"},
+          exchange_rate = ${pricingInput.exchangeRate},
+          pricing_breakdown = ${JSON.stringify(outcome.result.breakdown)}::jsonb,
+          updated_at = NOW()
+        WHERE id = ${roomId} AND tenant_id = ${tenantId} AND reservation_id = ${reservationId}
+      `
+    }
 
     // Room occupancy is DERIVED — do NOT write rooms.status for occupancy here.
     // On check-out: auto-create cleaning tasks + flip cleaning_state to dirty
